@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./assets/main.css";
-import PrivateRoute from "./components/PrivateRoute";
+import PrivateRoute from "./Components/PrivateRoute";
 import LoginPage from "./Pages/Auth/Login";
 import AdminLayout from "./Layout/AdminLayout";
 import UsersPage from "./Pages/Users/Users";
@@ -14,7 +14,7 @@ import CoursePage from "./Pages/Students/CoursePage";
 import StudentsNew from "./Pages/Students/createStudent";
 import { AuthProvider } from "./contexts/AuthContext";
 import Dashboard from "./Pages/Dashboard/index";
-import { useAuth } from "./contexts/AuthContext"
+import { useAuth } from "./contexts/AuthContext";
 
 
 export default function App() {
