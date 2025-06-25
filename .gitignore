@@ -1,0 +1,10 @@
+# Frontend
+fe/node_modules/
+fe/build/
+fe/.env
+
+# Backend
+be/node_modules/
+be/uploads/
+be/.env
+be/*.log
