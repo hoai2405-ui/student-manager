@@ -3,17 +3,15 @@ import { Card, Input, Button, Form, message, Tabs } from "antd";
 import axios from "axios";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { UserOutlined, LockOutlined, MailOutlined, PhoneOutlined } from '@ant-design/icons';
 
 export default function LoginPage() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-
-  // Thêm state cho tab
   const [activeKey, setActiveKey] = useState("login");
 
   useEffect(() => {
-    console.log("LoginPage - User:", user);
     if (user) navigate("/");
   }, [user, navigate]);
 
@@ -21,7 +19,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await axios.post("/api/login", values);
-      login(res.data); // <-- data.user sẽ có cả is_admin
+      login(res.data);
       localStorage.setItem("token", res.data.token);
       message.success("Đăng nhập thành công!");
       navigate("/");
@@ -30,7 +28,6 @@ export default function LoginPage() {
     }
     setLoading(false);
   };
-   
 
   const onRegister = async (values) => {
     setLoading(true);
@@ -50,50 +47,117 @@ export default function LoginPage() {
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg,#e0eafc 0,#cfdef3 100%)",
+        background: "radial-gradient(circle at 30% 107%, #252B5C 0%, #171B3C 90%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        fontFamily: "'Poppins', sans-serif",
+        padding: "20px",
       }}
     >
       <Card
         style={{
-          minWidth: 370,
-          borderRadius: 14,
-          boxShadow: "0 8px 32px #0002",
+          width: "100%",
+          maxWidth: 450,
+          padding: "40px 30px",
+          borderRadius: 25,
+          boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
+          backgroundColor: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(10px)",
+          border: "1px solid rgba(255,255,255,0.1)",
         }}
+        bordered={false}
       >
+        <div style={{ textAlign: "center", marginBottom: 30 }}>
+          <h1 style={{ 
+            fontSize: "23px", 
+            background: "linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            marginBottom: "10px"
+          }}>
+            Quản trị Học Viên Hoàng Thịnh
+          </h1>
+          <p style={{ color: "#666", fontSize: "16px" }}>Đăng nhập để tiếp tục</p>
+        </div>
+        
         <Tabs
           centered
           activeKey={activeKey}
           onChange={setActiveKey}
+          tabBarGutter={50}
+          tabBarStyle={{
+            marginBottom: 30,
+            fontWeight: 600,
+            fontSize: 16,
+          }}
           items={[
             {
               key: "login",
               label: "Đăng nhập",
               children: (
-                <Form layout="vertical" onFinish={onLogin}>
+                <Form
+                  layout="vertical"
+                  onFinish={onLogin}
+                  style={{ marginTop: 10 }}
+                >
                   <Form.Item
                     name="username"
-                    label="Tài khoản"
-                    rules={[{ required: true }]}
+                    rules={[
+                      { required: true, message: "Username is required" },
+                    ]}
                   >
-                    <Input autoFocus />
+                    <Input
+                      prefix={<UserOutlined style={{ color: '#1890ff' }} />}
+                      placeholder="Username"
+                      size="large"
+                      style={{
+                        borderRadius: 12,
+                        height: "50px",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        transition: "all 0.3s ease",
+                      }}
+                    />
                   </Form.Item>
                   <Form.Item
                     name="password"
-                    label="Mật khẩu"
-                    rules={[{ required: true }]}
+                    rules={[
+                      { required: true, message: "Password is required" },
+                    ]}
                   >
-                    <Input.Password />
+                    <Input.Password
+                      prefix={<LockOutlined style={{ color: '#1890ff' }} />}
+                      placeholder="Password"
+                      size="large"
+                      style={{
+                        borderRadius: 12,
+                        height: "50px",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        transition: "all 0.3s ease",
+                      }}
+                    />
                   </Form.Item>
                   <Button
                     loading={loading}
                     htmlType="submit"
                     type="primary"
                     block
+                    size="large"
+                    style={{
+                      borderRadius: 12,
+                      height: "50px",
+                      marginTop: 20,
+                      background: "linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%)",
+                      border: "none",
+                      boxShadow: "0 10px 20px rgba(33, 147, 176, 0.2)",
+                      fontWeight: 600,
+                      fontSize: "16px",
+                      transition: "all 0.3s ease",
+                    }}
                   >
-                    Đăng nhập
+                    Đăng nhập 
                   </Button>
                 </Form>
               ),
@@ -102,54 +166,111 @@ export default function LoginPage() {
               key: "register",
               label: "Đăng ký",
               children: (
-                <Form layout="vertical" onFinish={onRegister}>
+                <Form
+                  layout="vertical"
+                  onFinish={onRegister}
+                  style={{ marginTop: 10 }}
+                >
                   <Form.Item
                     name="username"
-                    label="Tài khoản"
-                    rules={[{ required: true }]}
+                    rules={[
+                      { required: true, message: "Username is required" },
+                    ]}
                   >
-                    <Input />
+                    <Input
+                      prefix={<UserOutlined style={{ color: '#1890ff' }} />}
+                      placeholder="Username"
+                      size="large"
+                      style={{
+                        borderRadius: 12,
+                        height: "50px",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        transition: "all 0.3s ease",
+                      }}
+                    />
                   </Form.Item>
                   <Form.Item
                     name="email"
-                    label="Email"
                     rules={[
-                      { required: true, message: "Vui lòng nhập email!" },
-                      { type: "email", message: "Email không hợp lệ!" },
+                      { required: true, message: "Email is required" },
+                      { type: "email", message: "Invalid email format" },
                     ]}
                   >
-                    <Input />
+                    <Input
+                      prefix={<MailOutlined style={{ color: '#1890ff' }} />}
+                      placeholder="Email"
+                      size="large"
+                      style={{
+                        borderRadius: 12,
+                        height: "50px",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        transition: "all 0.3s ease",
+                      }}
+                    />
                   </Form.Item>
                   <Form.Item
                     name="phone"
-                    label="Số điện thoại"
                     rules={[
-                      {
-                        required: true,
-                        message: "Vui lòng nhập số điện thoại!",
-                      },
+                      { required: true, message: "Phone number is required" },
                       {
                         pattern: /^[0-9]{9,11}$/,
-                        message: "Số điện thoại không hợp lệ!",
+                        message: "Invalid phone number",
                       },
                     ]}
                   >
-                    <Input />
+                    <Input
+                      prefix={<PhoneOutlined style={{ color: '#1890ff' }} />}
+                      placeholder="Phone number"
+                      size="large"
+                      style={{
+                        borderRadius: 12,
+                        height: "50px",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        transition: "all 0.3s ease",
+                      }}
+                    />
                   </Form.Item>
                   <Form.Item
                     name="password"
-                    label="Mật khẩu"
-                    rules={[{ required: true }]}
+                    rules={[
+                      { required: true, message: "Password is required" },
+                    ]}
                   >
-                    <Input.Password />
+                    <Input.Password
+                      prefix={<LockOutlined style={{ color: '#1890ff' }} />}
+                      placeholder="Password"
+                      size="large"
+                      style={{
+                        borderRadius: 12,
+                        height: "50px",
+                        backgroundColor: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        transition: "all 0.3s ease",
+                      }}
+                    />
                   </Form.Item>
                   <Button
                     loading={loading}
                     htmlType="submit"
-                    type="dashed"
+                    type="primary"
                     block
+                    size="large"
+                    style={{
+                      borderRadius: 12,
+                      height: "50px",
+                      marginTop: 20,
+                      background: "linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%)",
+                      border: "none",
+                      boxShadow: "0 10px 20px rgba(33, 147, 176, 0.2)",
+                      fontWeight: 600,
+                      fontSize: "16px",
+                      transition: "all 0.3s ease",
+                    }}
                   >
-                    Đăng ký
+                    Đăng Ký tài khoản
                   </Button>
                 </Form>
               ),
