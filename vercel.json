@@ -2,10 +2,10 @@
   "version": 2,
   "builds": [
     {
-      "src": "fe/vite.config.json",
+      "src": "fe/vite.config.js",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "fe/build"
+        "distDir": "fe/dist"
       }
     }
   ],
