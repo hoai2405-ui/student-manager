@@ -13,12 +13,7 @@ const upload = multer({ dest: "uploads/" });
 app.use(cors());
 app.use(express.json());
 
-const db = mysql.createConnection({
-  host: "localhost",
-  user: "root", // Đổi user/password nếu khác
-  password: "",
-  database: "shlx",
-}); 
+// Đã chuyển toàn bộ truy vấn sang dùng pool từ db.js (PostgreSQL)
 app.use((req, res, next) => {
 console.log("Nhận request:", req.method, req.url);
 next();
@@ -101,89 +96,67 @@ app.post("/api/login", async (req, res) => {
 
 
 // API: Lấy danh sách khoá học
-app.get("/api/courses", (req, res) => {
-  db.query("SELECT * FROM courses", (err, results) => {
-    if (err) return res.status(500).json({message: 'Lỗi DB', err});
+app.get("/api/courses", async (req, res) => {
+  try {
+    const [results] = await pool.query("SELECT * FROM courses");
     res.json(results);
-  });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi DB', err });
+  }
 });
 
 // API: Upload file XML hoặc Excel để thêm khoá học
-app.post("/api/courses/upload", upload.single("file"), (req, res) => {
+app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
   const filePath = req.file.path;
   const parser = new xml2js.Parser();
-  fs.readFile(filePath, (err, data) => {
+  fs.readFile(filePath, async (err, data) => {
     if (err) return res.status(500).json({ message: "Lỗi đọc file", err });
 
-    parser.parseString(data, (err, result) => {
+    parser.parseString(data, async (err, result) => {
       if (err) return res.status(400).json({ message: "Lỗi parse XML", err });
-      console.log("kết quả parse XML:", JSON.stringify(result, null, 2)); // in toàn bộ xml để kiểm tra
-
+      console.log("kết quả parse XML:", JSON.stringify(result, null, 2));
       try {
         const khoa = result.BAO_CAO1.DATA[0].KHOA_HOC[0];
-
-        
-
         const hocvienList = result.BAO_CAO1.DATA[0].NGUOI_LXS[0].NGUOI_LX;
-
-        if (!Array.isArray(hocvienList)){
-          return res.status(400).json({message: " Không tìm thấy danh sách học viên trong XML"});
+        if (!Array.isArray(hocvienList)) {
+          return res.status(400).json({ message: " Không tìm thấy danh sách học viên trong XML" });
         }
         const sql =
           "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, ngay_khai_giang, ngay_be_giang, so_hoc_sinh, hang_gplx) VALUES (?, ?, ?, ?, ?, ?)";
-
-        db.query(
-          sql,
-          [
+        try {
+          await pool.query(sql, [
             khoa.MA_KHOA_HOC[0],
             khoa.TEN_KHOA_HOC[0],
             khoa.NGAY_KHAI_GIANG[0],
             khoa.NGAY_BE_GIANG[0],
             parseInt(khoa.SO_HOC_SINH[0]),
-            khoa.HANG_GPLX?.[0]||"",
-          ],
-          (err) => {
-            if (err) {
-              if (err.code === "ER_DUP_ENTRY") {
-                return res
-                  .status(409)
-                  .json({ message: "Khóa học đã tồn tại!" });
-              }
-              return res.status(500).json({ message: "Lỗi DB", err });
-            }
-              const sqlstudent = `
-              INSERT INTO students (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc, status)
-              VALUES (?, ?, ?, ?, ?, ?)
-            `;
-            
-          const insertPromises = hocvienList.map((hocvien) => {
-            return new Promise((resolve, reject) => {
-              // THÊM LOG TẠI ĐÂY
-              console.log("HANG_GPLX:", hocvien.HANG_GPLX?.[0]);
-
-              db.query(
-                sqlstudent,
-                [
-                  hocvien.HO_VA_TEN?.[0] || "",
-                  hocvien.NGAY_SINH?.[0] || null,
-                  hocvien.HANG_GPLX?.[0] || khoa.HANG_GPLX?.[0] || "",
-                  hocvien.SO_CMT?.[0] || "",
-                  khoa.MA_KHOA_HOC?.[0] || "",
-                  "chua thi",
-                ],
-                (err) => {
-                  if (err) return reject(err);
-                  resolve();
-                }
-              );
-            });
-          });
-            
-            Promise.all(insertPromises)
-              .then(() => res.json({ success: true }))
-              .catch((err) => res.status(500).json({ message: "Lỗi khi thêm học viên", err }));
-            
-          });
+            khoa.HANG_GPLX?.[0] || "",
+          ]);
+        } catch (err) {
+          if (err.code === "23505") { // PostgreSQL duplicate
+            return res.status(409).json({ message: "Khóa học đã tồn tại!" });
+          }
+          return res.status(500).json({ message: "Lỗi DB", err });
+        }
+        const sqlstudent = `
+          INSERT INTO students (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc, status)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        try {
+          await Promise.all(hocvienList.map(async (hocvien) => {
+            await pool.query(sqlstudent, [
+              hocvien.HO_VA_TEN?.[0] || "",
+              hocvien.NGAY_SINH?.[0] || null,
+              hocvien.HANG_GPLX?.[0] || khoa.HANG_GPLX?.[0] || "",
+              hocvien.SO_CMT?.[0] || "",
+              khoa.MA_KHOA_HOC?.[0] || "",
+              "chua thi",
+            ]);
+          }));
+          res.json({ success: true });
+        } catch (err) {
+          res.status(500).json({ message: "Lỗi khi thêm học viên", err });
+        }
       } catch (e) {
         res.status(400).json({ message: "Sai cấu trúc XML", error: e });
       }
@@ -191,17 +164,18 @@ app.post("/api/courses/upload", upload.single("file"), (req, res) => {
   });
 });
 //xoá học viên
-app.delete("/api/students/:id", (req, res) => {
+app.delete("/api/students/:id", async (req, res) => {
   const id = req.params.id;
-  db.query("DELETE FROM students WHERE id = ?", [id], (err, result) => {
-    if (err)
-      return res.status(500).json({ message: "Lỗi xóa học viên", error: err });
+  try {
+    await pool.query("DELETE FROM students WHERE id = ?", [id]);
     res.json({ success: true });
-  });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi xóa học viên", error: err });
+  }
 });
 
 // sửa học viên
-app.put("/api/students/:id", (req, res) => {
+app.put("/api/students/:id", async (req, res) => {
   const { id } = req.params;
   const {
     ho_va_ten,
@@ -215,16 +189,14 @@ app.put("/api/students/:id", (req, res) => {
     status_duong,
     status_truong,
   } = req.body;
-
   const sql = `
     UPDATE students SET
       ho_va_ten = ?, ngay_sinh = ?, hang_gplx = ?, so_cmt = ?, ma_khoa_hoc = ?,
       status = ?, status_ly_thuyet = ?, status_mo_phong = ?, status_duong = ?, status_truong = ?
     WHERE id = ?
   `;
-  db.query(
-    sql,
-    [
+  try {
+    await pool.query(sql, [
       ho_va_ten,
       ngay_sinh,
       hang_gplx,
@@ -236,18 +208,16 @@ app.put("/api/students/:id", (req, res) => {
       status_duong,
       status_truong,
       id,
-    ],
-    (err) => {
-      if (err)
-        return res.status(500).json({ message: "Lỗi khi cập nhật", err });
-      res.json({ success: true });
-    }
-  );
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi khi cập nhật", err });
+  }
 });
 
 
 // thêm học viên
-app.post("/api/students", (req, res) => {
+app.post("/api/students", async (req, res) => {
   const {
     ho_va_ten,
     ngay_sinh,
@@ -259,84 +229,52 @@ app.post("/api/students", (req, res) => {
     status_duong,
     status_truong,
   } = req.body;
-
-  db.query(
-    `INSERT INTO students 
-     (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc, status_ly_thuyet, status_mo_phong, status_duong, status_truong)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      ho_va_ten,
-      ngay_sinh,
-      hang_gplx,
-      so_cmt,
-      ma_khoa_hoc,
-      status_ly_thuyet || "chua thi",
-      status_mo_phong || "chua thi",
-      status_duong || "chua thi",
-      status_truong || "chua thi",
-    ],
-    (err) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true });
-    }
-  );
+  try {
+    await pool.query(
+      `INSERT INTO students 
+       (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc, status_ly_thuyet, status_mo_phong, status_duong, status_truong)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        ho_va_ten,
+        ngay_sinh,
+        hang_gplx,
+        so_cmt,
+        ma_khoa_hoc,
+        status_ly_thuyet || "chua thi",
+        status_mo_phong || "chua thi",
+        status_duong || "chua thi",
+        status_truong || "chua thi",
+      ]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 
 // xoá khoá học
-app.delete("/api/courses/:id", (req, res) => {
+app.delete("/api/courses/:id", async (req, res) => {
   const courseId = req.params.id;
-
-  // Lấy mã khoá học từ bảng courses
-  db.query(
-    "SELECT ma_khoa_hoc FROM courses WHERE id = ?",
-    [courseId],
-    (err, result) => {
-      if (err || result.length === 0) {
-        return res.status(404).json({ message: "Không tìm thấy khoá học" });
-      }
-
-      const maKhoaHoc = result[0].ma_khoa_hoc;
-
-      // Xoá học viên liên quan trước
-      db.query(
-        "DELETE FROM students WHERE ma_khoa_hoc = ?",
-        [maKhoaHoc],
-        (err1) => {
-          if (err1) {
-            console.error("Lỗi khi xoá học viên:", err1);
-            return res
-              .status(500)
-              .json({ message: "Lỗi xoá học viên", error: err1 });
-          }
-
-          // Sau đó mới xoá khoá học
-          db.query(
-            "DELETE FROM courses WHERE id = ?",
-            [courseId],
-            (err2, result2) => {
-              if (err2) {
-                console.error("Lỗi khi xoá khoá học:", err2);
-                return res
-                  .status(500)
-                  .json({ message: "Lỗi xoá khoá học", error: err2 });
-              }
-
-              res.json({ success: true });
-              console.log(courseId);
-            }
-          );
-        }
-      );
+  try {
+    const [result] = await pool.query("SELECT ma_khoa_hoc FROM courses WHERE id = ?", [courseId]);
+    if (!result || result.length === 0) {
+      return res.status(404).json({ message: "Không tìm thấy khoá học" });
     }
-  );
+    const maKhoaHoc = result[0].ma_khoa_hoc;
+    await pool.query("DELETE FROM students WHERE ma_khoa_hoc = ?", [maKhoaHoc]);
+    await pool.query("DELETE FROM courses WHERE id = ?", [courseId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi xoá khoá học", error: err });
+  }
 });
 
 
 
 
 // sửa khoá học
-app.put("/api/courses/:id", (req, res) => {
+app.put("/api/courses/:id", async (req, res) => {
   const { id } = req.params;
   const {
     ma_khoa_hoc,
@@ -345,97 +283,89 @@ app.put("/api/courses/:id", (req, res) => {
     ngay_be_giang,
     so_hoc_sinh,
   } = req.body;
-
   const sql = `
     UPDATE courses
     SET ma_khoa_hoc = ?, ten_khoa_hoc = ?, ngay_khai_giang = ?, ngay_be_giang = ?, so_hoc_sinh = ?
     WHERE id = ?
   `;
-
-  db.query(
-    sql,
-    [
+  try {
+    await pool.query(sql, [
       ma_khoa_hoc,
       ten_khoa_hoc,
       ngay_khai_giang,
       ngay_be_giang,
       so_hoc_sinh,
       id,
-    ],
-    (err) => {
-      if (err)
-        return res.status(500).json({ message: "Lỗi khi cập nhật", err });
-      res.json({ success: true });
-    }
-  );
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi khi cập nhật", err });
+  }
 });
 
 // API: Tìm kiếm học viên
-app.get("/api/students", (req, res) => {
-  const { name, cccd, status, ma_khoa_hoc } = req.query; // <- BỔ SUNG `status` ở đây
+app.get("/api/students", async (req, res) => {
+  const { name, cccd, status, ma_khoa_hoc } = req.query;
   let sql = `
-  SELECT s.*, c.ten_khoa_hoc
-  FROM students s
-  LEFT JOIN courses c ON s.ma_khoa_hoc = c.ma_khoa_hoc
-  WHERE 1=1
-`;
+    SELECT s.*, c.ten_khoa_hoc
+    FROM students s
+    LEFT JOIN courses c ON s.ma_khoa_hoc = c.ma_khoa_hoc
+    WHERE 1=1
+  `;
   const params = [];
-
   if (name) {
     sql += " AND s.ho_va_ten LIKE ?";
     params.push(`%${name}%`);
   }
-
   if (cccd) {
     sql += " AND s.so_cmt LIKE ?";
     params.push(`%${cccd}%`);
   }
-
   if (status) {
     sql += " AND s.status = ?";
     params.push(status);
   }
-  if(ma_khoa_hoc){
+  if (ma_khoa_hoc) {
     sql += " AND s.ma_khoa_hoc = ? ";
     params.push(ma_khoa_hoc);
   }
-
-  db.query(sql, params, (err, results) => {
-    if (err) return res.status(500).json(err);
+  try {
+    const [results] = await pool.query(sql, params);
     res.json(results);
-  });
+  } catch (err) {
+    res.status(500).json(err);
+  }
 });
 
 //// Cập nhật trạng thái học viên
-app.post('/api/students/update-status', (req, res) => {
+app.post('/api/students/update-status', async (req, res) => {
   const { id, field, value } = req.body;
-  // field phải nằm trong 1 trong 4 cột cho phép
   const allowedFields = [
     'status_ly_thuyet',
     'status_mo_phong',
     'status_duong',
     'status_truong',
-    'status' // cho trường hợp cũ
+    'status'
   ];
   if (!id || !field || !allowedFields.includes(field)) {
     return res.status(400).json({ error: "Thiếu hoặc sai thông tin update" });
   }
-  // Chỉ cho phép các giá trị này
   const validStatuses = ['thi', 'vang', 'rot', 'dat', 'chua thi'];
   if (!validStatuses.includes(value)) {
     return res.status(400).json({ error: "Trạng thái không hợp lệ" });
   }
   const sql = `UPDATE students SET ${field} = ? WHERE id = ?`;
-  db.query(sql, [value, id], (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
+  try {
+    await pool.query(sql, [value, id]);
     res.json({ success: true });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 
 // API: Thống kê trạng thái học viên (cho biểu đồ)
-app.get("/api/stats", (req, res) => {
-  // Query từng trạng thái của từng trường
+app.get("/api/stats", async (req, res) => {
   const query = `
     SELECT 'status_ly_thuyet' AS type, status_ly_thuyet as status, COUNT(*) as count FROM students GROUP BY status_ly_thuyet
     UNION ALL
@@ -445,10 +375,12 @@ app.get("/api/stats", (req, res) => {
     UNION ALL
     SELECT 'status_truong' AS type, status_truong as status, COUNT(*) as count FROM students GROUP BY status_truong
   `;
-  db.query(query, (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+  try {
+    const [results] = await pool.query(query);
     res.json(results);
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Middleware xác thực token
