@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, Input, Button, Form, message, Tabs } from "antd";
-import axios from "axios";
+import axios from "../../Common/axios";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { UserOutlined, LockOutlined, MailOutlined, PhoneOutlined } from '@ant-design/icons';
