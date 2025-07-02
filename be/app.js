@@ -104,6 +104,9 @@ app.get("/api/courses", async (req, res) => {
     res.status(500).json({ message: 'Lỗi DB', err });
   }
 });
+app.get("/", (req, res) => {
+  res.send("Student Manager API is running!");
+});
 
 // API: Upload file XML hoặc Excel để thêm khoá học
 app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
