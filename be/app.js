@@ -7,7 +7,7 @@ const xml2js = require("xml2js");
 const xlsx = require("xlsx");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const pool = require("./db"); // file db.js vừa tạo
+const pool = require("./db"); // file db.js dùng mysql2
 const app = express();
 const upload = multer({ dest: "uploads/" });
 app.use(cors());
@@ -29,31 +29,30 @@ app.post("/api/register", async (req, res) => {
 
   try {
     // Check username đã tồn tại chưa
-    const userResult = await pool.query(
-      "SELECT * FROM users WHERE username = $1",
+    const [userRows] = await pool.query(
+      "SELECT * FROM users WHERE username = ?",
       [username]
     );
-    if (userResult.rows.length > 0)
+    if (userRows.length > 0)
       return res.status(409).json({ message: "Tên đăng nhập đã tồn tại" });
 
     // Check email đã tồn tại chưa
-    const emailResult = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
+    const [emailRows] = await pool.query(
+      "SELECT * FROM users WHERE email = ?",
       [email]
     );
-    if (emailResult.rows.length > 0)
+    if (emailRows.length > 0)
       return res.status(409).json({ message: "Email đã được sử dụng" });
 
     // Check phone đã tồn tại chưa (tuỳ yêu cầu, có thể bỏ qua nếu muốn)
-    // const phoneResult = await pool.query("SELECT * FROM users WHERE phone = $1", [phone]);
-    // if (phoneResult.rows.length > 0)
+    // const [phoneRows] = await pool.query("SELECT * FROM users WHERE phone = ?", [phone]);
+    // if (phoneRows.length > 0)
     //   return res.status(409).json({ message: "Số điện thoại đã được sử dụng" });
 
     const hash = await bcrypt.hash(password, 10);
-    // Thêm is_admin mặc định là false (nếu schema không có default)
     await pool.query(
-      "INSERT INTO users (username, password, email, phone, is_admin) VALUES ($1, $2, $3, $4, $5)",
-      [username, hash, email, phone, false]
+      "INSERT INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)",
+      [username, hash, email, phone]
     );
     return res.json({ message: "Đăng ký thành công" });
   } catch (err) {
@@ -68,11 +67,11 @@ const JWT_SECRET = "supersecret"; // đổi thành secret của bạn
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   try {
-    const userResult = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
-    if (userResult.rows.length === 0)
+    const [rows] = await pool.query("SELECT * FROM users WHERE username = ?", [username]);
+    if (rows.length === 0)
       return res.status(400).json({ message: "Sai tài khoản hoặc mật khẩu" });
 
-    const user = userResult.rows[0];
+    const user = rows[0];
     const ok = await bcrypt.compare(password, user.password);
     if (!ok)
       return res.status(400).json({ message: "Sai tài khoản hoặc mật khẩu" });
@@ -135,7 +134,8 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
             khoa.HANG_GPLX?.[0] || "",
           ]);
         } catch (err) {
-          if (err.code === "23505") { // PostgreSQL duplicate
+          // MySQL duplicate entry error code: 'ER_DUP_ENTRY'
+          if (err.code === "ER_DUP_ENTRY") {
             return res.status(409).json({ message: "Khóa học đã tồn tại!" });
           }
           return res.status(500).json({ message: "Lỗi DB", err });
