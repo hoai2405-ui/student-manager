@@ -29,30 +29,31 @@ app.post("/api/register", async (req, res) => {
 
   try {
     // Check username đã tồn tại chưa
-    const [userRows] = await pool.query(
-      "SELECT * FROM users WHERE username = ?",
+    const userResult = await pool.query(
+      "SELECT * FROM users WHERE username = $1",
       [username]
     );
-    if (userRows.length > 0)
+    if (userResult.rows.length > 0)
       return res.status(409).json({ message: "Tên đăng nhập đã tồn tại" });
 
     // Check email đã tồn tại chưa
-    const [emailRows] = await pool.query(
-      "SELECT * FROM users WHERE email = ?",
+    const emailResult = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
       [email]
     );
-    if (emailRows.length > 0)
+    if (emailResult.rows.length > 0)
       return res.status(409).json({ message: "Email đã được sử dụng" });
 
     // Check phone đã tồn tại chưa (tuỳ yêu cầu, có thể bỏ qua nếu muốn)
-    // const [phoneRows] = await pool.query("SELECT * FROM users WHERE phone = ?", [phone]);
-    // if (phoneRows.length > 0)
+    // const phoneResult = await pool.query("SELECT * FROM users WHERE phone = $1", [phone]);
+    // if (phoneResult.rows.length > 0)
     //   return res.status(409).json({ message: "Số điện thoại đã được sử dụng" });
 
     const hash = await bcrypt.hash(password, 10);
+    // Thêm is_admin mặc định là false (nếu schema không có default)
     await pool.query(
-      "INSERT INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)",
-      [username, hash, email, phone]
+      "INSERT INTO users (username, password, email, phone, is_admin) VALUES ($1, $2, $3, $4, $5)",
+      [username, hash, email, phone, false]
     );
     return res.json({ message: "Đăng ký thành công" });
   } catch (err) {
