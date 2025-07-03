@@ -10,7 +10,7 @@ import {
   Row,
   Col,
 } from "antd";
-import axios from "axios";
+import axios from "../../Common/axios";
 import moment from "moment";
 import { UserAddOutlined } from "@ant-design/icons";
 

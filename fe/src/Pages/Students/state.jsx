@@ -8,7 +8,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import axios from "axios";
+import axios from "../../Common/axios";
 
 
 const STATUS_LABELS = {

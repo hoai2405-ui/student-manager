@@ -16,7 +16,7 @@ import { debounce } from "lodash";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ROUTES_PATH } from "../../Common/constants";
-import axios from "axios";
+import axios from "../../Common/axios";
 import moment from "moment";
 
 const { useBreakpoint } = Grid;

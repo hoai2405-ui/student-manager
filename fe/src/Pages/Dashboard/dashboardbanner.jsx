@@ -7,7 +7,7 @@ import {
   TeamOutlined,
   BookOutlined,
 } from "@ant-design/icons";
-import axios from "axios";
+import axios from "../../Common/axios";
 
 const { Title, Paragraph, Text } = Typography;
 

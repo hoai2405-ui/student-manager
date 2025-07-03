@@ -7,7 +7,7 @@ import {
   BarChartOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../../contexts/AuthContext";
-import axios from "axios";
+import axios from "../../Common/axios";
 import DashboardBanner from "./dashboardbanner";
 
 const { Title, Text } = Typography;

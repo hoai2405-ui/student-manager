@@ -10,7 +10,7 @@ import {
   Popconfirm,
   Grid,
 } from "antd";
-import axios from "axios";
+import axios from "../../Common/axios";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 
 const { useBreakpoint } = Grid;
