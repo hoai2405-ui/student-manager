@@ -68,19 +68,17 @@ const JWT_SECRET = "supersecret"; // đổi thành secret của bạn
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   try {
-    const [rows] = await pool.query("SELECT * FROM users WHERE username = ?", [
-      username,
-    ]);
-    if (rows.length === 0)
+    const userResult = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
+    if (userResult.rows.length === 0)
       return res.status(400).json({ message: "Sai tài khoản hoặc mật khẩu" });
 
-    const user = rows[0];
+    const user = userResult.rows[0];
     const ok = await bcrypt.compare(password, user.password);
     if (!ok)
       return res.status(400).json({ message: "Sai tài khoản hoặc mật khẩu" });
 
     const token = jwt.sign(
-      { id: user.id, username: user.username, is_admin: user.is_admin }, // <-- thêm is_admin
+      { id: user.id, username: user.username, is_admin: user.is_admin },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
