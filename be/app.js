@@ -116,6 +116,7 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
     parser.parseString(data, async (err, result) => {
       if (err) return res.status(400).json({ message: "Lỗi parse XML", err });
       console.log("kết quả parse XML:", JSON.stringify(result, null, 2));
+      let conn;
       try {
         const khoa = result.BAO_CAO1.DATA[0].KHOA_HOC[0];
         const hocvienList = result.BAO_CAO1.DATA[0].NGUOI_LXS[0].NGUOI_LX;
@@ -124,8 +125,15 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
         }
         const sql =
           "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, ngay_khai_giang, ngay_be_giang, so_hoc_sinh, hang_gplx) VALUES (?, ?, ?, ?, ?, ?)";
+        const sqlstudent = `
+          INSERT INTO students (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc, status)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        conn = await pool.getConnection();
         try {
-          await pool.query(sql, [
+          await conn.beginTransaction();
+          // Thêm khóa học
+          await conn.query(sql, [
             khoa.MA_KHOA_HOC[0],
             khoa.TEN_KHOA_HOC[0],
             khoa.NGAY_KHAI_GIANG[0],
@@ -133,20 +141,9 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
             parseInt(khoa.SO_HOC_SINH[0]),
             khoa.HANG_GPLX?.[0] || "",
           ]);
-        } catch (err) {
-          // MySQL duplicate entry error code: 'ER_DUP_ENTRY'
-          if (err.code === "ER_DUP_ENTRY") {
-            return res.status(409).json({ message: "Khóa học đã tồn tại!" });
-          }
-          return res.status(500).json({ message: "Lỗi DB", err });
-        }
-        const sqlstudent = `
-          INSERT INTO students (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc, status)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `;
-        try {
-          await Promise.all(hocvienList.map(async (hocvien) => {
-            await pool.query(sqlstudent, [
+          // Thêm học viên
+          for (const hocvien of hocvienList) {
+            await conn.query(sqlstudent, [
               hocvien.HO_VA_TEN?.[0] || "",
               hocvien.NGAY_SINH?.[0] || null,
               hocvien.HANG_GPLX?.[0] || khoa.HANG_GPLX?.[0] || "",
@@ -154,10 +151,18 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
               khoa.MA_KHOA_HOC?.[0] || "",
               "chua thi",
             ]);
-          }));
+          }
+          await conn.commit();
           res.json({ success: true });
         } catch (err) {
-          res.status(500).json({ message: "Lỗi khi thêm học viên", err });
+          if (conn) await conn.rollback();
+          // MySQL duplicate entry error code: 'ER_DUP_ENTRY'
+          if (err.code === "ER_DUP_ENTRY") {
+            return res.status(409).json({ message: "Khóa học hoặc học viên đã tồn tại!" });
+          }
+          return res.status(500).json({ message: "Lỗi DB", err });
+        } finally {
+          if (conn) conn.release();
         }
       } catch (e) {
         res.status(400).json({ message: "Sai cấu trúc XML", error: e });
