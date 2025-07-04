@@ -104,7 +104,7 @@ const AdminLayout = () => {
           }}
         >
           <img
-            src="./src/assets/logo-vuong200.png"
+            src="/logo-vuong200.png"
             alt="Logo"
             style={{
               width: 36,
