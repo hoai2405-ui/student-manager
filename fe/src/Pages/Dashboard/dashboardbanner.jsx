@@ -84,7 +84,7 @@ export default function DashboardBanner() {
               fontSize: "1.5rem",
             }}
           >
-            🎉 Chào mừng bạn đến với Hệ Thống Quản Trị Học Viên Hoàng Thịnh!
+            🎉 Chào mừng bạn đến với Hệ Thống Quản Trị Học Viên <span style={{ whiteSpace: "nowrap" }}>Hoàng Thịnh</span>!
           </Title>
           <Paragraph
             style={{ fontSize: 16, color: "#f5f6fa", marginBottom: 12 }}
