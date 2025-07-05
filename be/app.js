@@ -218,7 +218,8 @@ app.put("/api/students/:id", async (req, res) => {
     ]);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ message: "Lỗi khi cập nhật", err });
+    console.error('PUT /api/students/:id error:', err);
+    res.status(500).json({ message: "Lỗi khi cập nhật", error: err.message, code: err.code });
   }
 });
 
