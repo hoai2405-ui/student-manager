@@ -82,9 +82,15 @@ export default function DashboardBanner() {
               fontWeight: 700,
               textShadow: "0 4px 16px #0002",
               fontSize: "1.5rem",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
             }}
           >
-            🎉 Chào mừng bạn đến với Hệ Thống Quản Trị Học Viên <span style={{ whiteSpace: "nowrap" }}>Hoàng Thịnh</span>!
+            {/* Đã xoá logo ở header dashboard, chỉ còn text */}
+            <span>
+              🎉 Chào mừng bạn đến với Hệ Thống Quản Trị Học Viên <span style={{ whiteSpace: "nowrap" }}>Hoàng Thịnh</span>!
+            </span>
           </Title>
           <Paragraph
             style={{ fontSize: 16, color: "#f5f6fa", marginBottom: 12 }}

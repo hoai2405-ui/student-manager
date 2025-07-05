@@ -101,22 +101,34 @@ const AdminLayout = () => {
             textAlign: "center",
             padding: collapsed ? 2 : 12,
             marginBottom: 20,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+            gap: 6,
+            height: 70,
           }}
         >
-          <img
-            src="/logo-vuong200.png"
-            alt="Logo"
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: "50%",
-              background: "#fff",
-              objectFit: "cover",
-              marginRight: 10,
-              
-              boxShadow: "0 2px 10px #00152922",
-            }}
-          />
+          <a href="/" style={{ display: "inline-block" }}>
+            <img
+              src="/logo-vuong200.png"
+              alt="Logo"
+              style={{
+                width: 44,
+                height: 44,
+                aspectRatio: "1 / 1",
+                borderRadius: "50%",
+                background: "#fff",
+                objectFit: "cover",
+                border: "2px solid #fff",
+                boxShadow: "0 4px 16px #00152933",
+                margin: 0,
+                display: "block",
+                transition: "box-shadow 0.2s, border 0.2s",
+              }}
+            />
+          </a>
+          {/* Đã xoá dòng chữ dưới logo theo yêu cầu */}
         </div>
         <Menu
           theme="dark"
