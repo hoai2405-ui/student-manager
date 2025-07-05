@@ -60,12 +60,25 @@ const Students = () => {
 
   const handleUpdateStudent = async () => {
     try {
-      await axios.put(`/api/students/${editingStudent.id}`, editingStudent);
+      // Gửi đủ các trường backend yêu cầu
+      const payload = {
+        ho_va_ten: editingStudent.ho_va_ten,
+        ngay_sinh: editingStudent.ngay_sinh,
+        hang_gplx: editingStudent.hang_gplx,
+        so_cmt: editingStudent.so_cmt,
+        ma_khoa_hoc: editingStudent.ma_khoa_hoc,
+        status: editingStudent.status || "chua thi",
+        status_ly_thuyet: editingStudent.status_ly_thuyet || "chua thi",
+        status_mo_phong: editingStudent.status_mo_phong || "chua thi",
+        status_duong: editingStudent.status_duong || "chua thi",
+        status_truong: editingStudent.status_truong || "chua thi",
+      };
+      await axios.put(`/api/students/${editingStudent.id}`, payload);
       message.success("Cập nhật học viên thành công");
       setShowModal(false);
       fetchData();
     } catch (err) {
-      message.error("Lỗi khi cập nhật học viên");
+      message.error("Lỗi khi cập nhật học viên: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -470,12 +483,48 @@ const Students = () => {
         <Modal
           open={showModal}
           title="Chỉnh sửa học viên"
-          okText="Lưu"
-          cancelText="Hủy"
           onCancel={() => setShowModal(false)}
-          onOk={handleUpdateStudent}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, padding: '8px 0 0 0' }}>
+              <button
+                onClick={() => setShowModal(false)}
+                style={{
+                  minWidth: 90,
+                  padding: '7px 0',
+                  borderRadius: 7,
+                  border: '1px solid #d9d9d9',
+                  background: '#fff',
+                  color: '#333',
+                  fontWeight: 500,
+                  fontSize: 15,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleUpdateStudent}
+                style={{
+                  minWidth: 90,
+                  padding: '7px 0',
+                  borderRadius: 7,
+                  border: 'none',
+                  background: 'linear-gradient(120deg,#1976d2 60%,#0ec8ee 100%)',
+                  color: '#fff',
+                  fontWeight: 600,
+                  fontSize: 15,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 6px #1976d214',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Lưu
+              </button>
+            </div>
+          }
           width={screens.xs ? "98vw" : 600}
-          body={{ padding: 16 }}
+          styles={{ body: { padding: 16 } }}
         >
           {editingStudent && (
             <Space direction="vertical" style={{ width: "100%" }}>

@@ -40,7 +40,7 @@ export default function Dashboard() {
               color: "#fff",
               boxShadow: "0 4px 16px #0002",
             }}
-            bodyStyle={{ padding: 24 }}
+            styles={{ body: { padding: 24 } }}
           >
             <Statistic
               title={<Text style={{ color: "#fff" }}>Tổng học viên</Text>}
@@ -64,7 +64,7 @@ export default function Dashboard() {
               color: "#fff",
               boxShadow: "0 4px 16px #0002",
             }}
-            bodyStyle={{ padding: 24 }}
+            styles={{ body: { padding: 24 } }}
           >
             <Statistic
               title={<Text style={{ color: "#fff" }}>Tổng khoá học</Text>}
@@ -90,7 +90,7 @@ export default function Dashboard() {
               alignItems: "center",
               justifyContent: "center",
             }}
-            bodyStyle={{ padding: 24, textAlign: "center" }}
+            styles={{ body: { padding: 24, textAlign: "center" } }}
           >
             <Button
               icon={<PlusOutlined />}

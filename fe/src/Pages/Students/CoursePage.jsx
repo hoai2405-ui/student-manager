@@ -252,7 +252,7 @@ export default function CoursePage() {
         dataSource={courses}
         rowKey="id"
         pagination={{ pageSize: 10, size: screens.xs ? "small" : "default" }}
-        bordered={true}
+        variant="outlined"
         size={screens.xs ? "small" : "middle"}
         scroll={{ x: 700 }}
         style={{
@@ -276,7 +276,7 @@ export default function CoursePage() {
         okText="Lưu"
         cancelText="Huỷ"
         width={screens.xs ? "98vw" : 500}
-        bodyStyle={{ padding: screens.xs ? 8 : 24 }}
+        styles={{ body: { padding: screens.xs ? 8 : 24 } }}
       >
         {editingCourse && (
           <Form layout="vertical">

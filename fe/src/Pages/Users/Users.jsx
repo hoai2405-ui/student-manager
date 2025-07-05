@@ -212,7 +212,7 @@ const UsersPage = () => {
         }}
         scroll={{ x: 400 }}
         size={screens.xs ? "small" : "middle"}
-        bordered
+        variant="outlined"
         style={{
           borderRadius: 12,
           background: "#fff",
@@ -234,11 +234,11 @@ const UsersPage = () => {
           </div>
         }
         width={screens.xs ? "98vw" : 420}
-        bodyStyle={{
+        styles={{ body: {
           padding: screens.xs ? 10 : 24,
           borderRadius: 16,
           background: "#f4faff",
-        }}
+        } }}
         style={{ top: 40 }}
       >
         <Form layout="vertical" form={form}>

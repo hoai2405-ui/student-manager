@@ -66,7 +66,7 @@ export default function LoginPage() {
           backdropFilter: "blur(10px)",
           border: "1px solid rgba(255,255,255,0.1)",
         }}
-        bordered={false}
+        variant="outlined"
       >
         <div style={{ textAlign: "center", marginBottom: 30 }}>
           <h1 style={{ 

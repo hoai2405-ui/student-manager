@@ -66,7 +66,7 @@ export default function DashboardBanner() {
   };
 
   return (
-    <Card style={cardStyle} bodyStyle={{ padding: 20, minHeight: 200 }}>
+    <Card style={cardStyle} styles={{ body: { padding: 20, minHeight: 200 } }}>
       <Row
         gutter={[24, 24]}
         align="middle"
