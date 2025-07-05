@@ -168,16 +168,21 @@ const Students = () => {
     {
       title: "Họ và tên",
     dataIndex: "ho_va_ten",
-    width: screens.xs ? 130 : 180,
-    ellipsis: false,
+    minWidth: 120,
+    maxWidth: 200,
+    width: screens.xs ? 140 : 200,
+    ellipsis: true,
     responsive: ["xs", "sm", "md", "lg", "xl"],
     render: text => (
       <span style={{
-        whiteSpace: "normal",
-        wordBreak: "break-word",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
         fontWeight: 600,
-        color: "#222"
-      }}>{text}</span>
+        color: "#222",
+        display: "block",
+        maxWidth: screens.xs ? 120 : 180
+      }} title={text}>{text}</span>
     )
     },
     {
@@ -325,7 +330,7 @@ const Students = () => {
             type="link"
             onClick={() => handleEdit(record)}
             size={screens.xs ? "small" : "middle"}
-            style={{ paddingRight: 8 }}
+            style={{ padding: screens.xs ? "2px 6px" : "4px 12px", marginRight: 4 }}
           >
             Sửa
           </Button>
@@ -335,7 +340,7 @@ const Students = () => {
             okText="Xoá"
             cancelText="Hủy"
           >
-            <Button type="link" danger size={screens.xs ? "small" : "middle"}>
+            <Button type="link" danger size={screens.xs ? "small" : "middle"} style={{ padding: screens.xs ? "2px 6px" : "4px 12px" }}>
               Xóa
             </Button>
           </Popconfirm>
@@ -356,6 +361,13 @@ const Students = () => {
           marginBottom: 8,
         }}
       >
+      <style>{`
+        @media (max-width: 700px) {
+          .ant-table-wrapper {
+            overflow-x: auto;
+          }
+        }
+      `}</style>
         <div
           className="title"
           style={{

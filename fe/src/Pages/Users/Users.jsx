@@ -226,12 +226,15 @@ const UsersPage = () => {
           </span>
         }
         open={isModalVisible}
-        onOk={handleOk}
         onCancel={() => setIsModalVisible(false)}
-        okText="Lưu"
-        cancelText="Hủy"
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <Button onClick={() => setIsModalVisible(false)} style={{ minWidth: 80 }}>Huỷ</Button>
+            <Button type="primary" onClick={handleOk} style={{ minWidth: 80 }}>Lưu</Button>
+          </div>
+        }
         width={screens.xs ? "98vw" : 420}
-        body={{
+        bodyStyle={{
           padding: screens.xs ? 10 : 24,
           borderRadius: 16,
           background: "#f4faff",

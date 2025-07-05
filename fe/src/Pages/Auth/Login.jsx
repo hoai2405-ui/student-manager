@@ -74,9 +74,10 @@ export default function LoginPage() {
             background: "linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
-            marginBottom: "10px"
+            marginBottom: "10px",
+            maxWidth: "100%"
           }}>
-            Quản trị Học Viên Hoàng Thịnh
+            Quản trị Học Viên <span style={{ whiteSpace: "nowrap" }}>Hoàng Thịnh</span>
           </h1>
           <p style={{ color: "#666", fontSize: "16px" }}>Đăng nhập để tiếp tục</p>
         </div>
