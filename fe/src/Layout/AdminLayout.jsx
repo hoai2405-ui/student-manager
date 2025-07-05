@@ -114,8 +114,8 @@ const AdminLayout = () => {
               src="/logo-vuong200.png"
               alt="Logo"
               style={{
-                width: 44,
-                height: 44,
+                width: 35,
+                height: 35,
                 aspectRatio: "1 / 1",
                 borderRadius: "50%",
                 background: "#fff",
