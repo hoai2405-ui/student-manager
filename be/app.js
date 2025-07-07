@@ -290,10 +290,11 @@ app.put("/api/courses/:id", async (req, res) => {
     ngay_khai_giang,
     ngay_be_giang,
     so_hoc_sinh,
+    trang_thai,
   } = req.body;
   const sql = `
     UPDATE courses
-    SET ma_khoa_hoc = ?, ten_khoa_hoc = ?, ngay_khai_giang = ?, ngay_be_giang = ?, so_hoc_sinh = ?
+    SET ma_khoa_hoc = ?, ten_khoa_hoc = ?, ngay_khai_giang = ?, ngay_be_giang = ?, so_hoc_sinh = ?, trang_thai = ?
     WHERE id = ?
   `;
   try {
@@ -303,9 +304,12 @@ app.put("/api/courses/:id", async (req, res) => {
       ngay_khai_giang,
       ngay_be_giang,
       so_hoc_sinh,
+      trang_thai,
       id,
     ]);
-    res.json({ success: true });
+    // Lấy lại bản ghi mới nhất để trả về cho FE
+    const [rows] = await pool.query('SELECT * FROM courses WHERE id = ?', [id]);
+    res.json({ success: true, course: rows[0] });
   } catch (err) {
     res.status(500).json({ message: "Lỗi khi cập nhật", err });
   }
