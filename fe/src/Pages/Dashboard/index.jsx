@@ -1,4 +1,17 @@
 import React, { useEffect, useState } from "react";
+import { Table } from "antd";
+// Responsive font size helper
+function useResponsiveFontSize() {
+  const [fontSize, setFontSize] = useState(window.innerWidth < 600 ? 20 : 32);
+  useEffect(() => {
+    const handleResize = () => {
+      setFontSize(window.innerWidth < 600 ? 20 : 32);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+  return fontSize;
+}
 import { Card, Row, Col, Statistic, Button, Typography, Space } from "antd";
 import {
   UsergroupAddOutlined,
@@ -16,9 +29,12 @@ export default function Dashboard() {
   const { user } = useAuth();
   const userInfo = user?.user;
   const [stats, setStats] = useState({ students: 0, courses: 0 });
+  const [statusStats, setStatusStats] = useState([]);
+  const fontSize = useResponsiveFontSize();
 
   useEffect(() => {
     axios.get("/api/quick-stats").then((res) => setStats(res.data));
+    axios.get("/api/stats").then((res) => setStatusStats(res.data));
   }, []);
 
   return (
@@ -51,7 +67,7 @@ export default function Dashboard() {
               valueStyle={{
                 color: "#fff",
                 fontWeight: 700,
-                fontSize: 32,
+                fontSize: fontSize,
               }}
             />
           </Card>
@@ -73,7 +89,7 @@ export default function Dashboard() {
               valueStyle={{
                 color: "#fff",
                 fontWeight: 700,
-                fontSize: 32,
+                fontSize: fontSize,
               }}
             />
           </Card>

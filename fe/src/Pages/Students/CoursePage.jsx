@@ -1,4 +1,16 @@
 import React, { useState, useEffect } from "react";
+import { Badge, Spin, Empty } from "antd";
+  // Lấy danh sách học viên theo mã khoá học
+  const fetchStudents = async (ma_khoa_hoc) => {
+    setLoadingStudents((prev) => ({ ...prev, [ma_khoa_hoc]: true }));
+    try {
+      const res = await axios.get(`/api/students?ma_khoa_hoc=${ma_khoa_hoc}`);
+      setStudentsByCourse((prev) => ({ ...prev, [ma_khoa_hoc]: res.data }));
+    } catch {
+      setStudentsByCourse((prev) => ({ ...prev, [ma_khoa_hoc]: [] }));
+    }
+    setLoadingStudents((prev) => ({ ...prev, [ma_khoa_hoc]: false }));
+  };
 import axios from "../../Common/axios";
 import {
   Card,
@@ -30,11 +42,16 @@ const { useBreakpoint } = Grid;
 export default function CoursePage() {
   const screens = useBreakpoint();
 
+  // Lấy filter trạng thái từ localStorage ngay khi khởi tạo
+  const [statusFilter, setStatusFilter] = useState('');
   const [courses, setCourses] = useState([]);
   const [file, setFile] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [expandedRowKeys, setExpandedRowKeys] = useState([]);
+  const [studentsByCourse, setStudentsByCourse] = useState({});
+  const [loadingStudents, setLoadingStudents] = useState({});
 
   // Lấy danh sách khoá học
   const fetchCourses = () => {
@@ -69,6 +86,7 @@ export default function CoursePage() {
         ? moment(course.ngay_khai_giang)
         : null,
       ngay_be_giang: course.ngay_be_giang ? moment(course.ngay_be_giang) : null,
+      trang_thai: course.trang_thai || "chua thi",
     });
     setShowModal(true);
   };
@@ -150,6 +168,7 @@ export default function CoursePage() {
       render: (val) => (val ? moment(val).format("DD/MM/YYYY") : "Không rõ"),
       responsive: ["md"],
     },
+    
     {
       title: "Số học viên",
       dataIndex: "so_hoc_sinh",
@@ -247,9 +266,11 @@ export default function CoursePage() {
         </Button>
       </form>
 
+      
+
       <Table
         columns={columns}
-        dataSource={courses}
+        dataSource={statusFilter ? courses.filter(c => c.trang_thai === statusFilter) : courses}
         rowKey="id"
         pagination={{ pageSize: 10, size: screens.xs ? "small" : "default" }}
         variant="outlined"
@@ -364,6 +385,7 @@ export default function CoursePage() {
                 min={0}
               />
             </Form.Item>
+            
           </Form>
         )}
       </Modal>

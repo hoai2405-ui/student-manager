@@ -35,7 +35,7 @@ const Students = () => {
   const [editingStudent, seteditingStudent] = useState(null);
 
   const [selectedCourse, setSelectedCourse] = useState("");
-  const [selectedStatus] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
   const [courseList, setCoursesList] = useState([]);
 
   useEffect(() => {
@@ -467,6 +467,7 @@ const Students = () => {
             }))}
             size={screens.xs ? "small" : "middle"}
           />
+          
         </Space>
       </div>
       <div className="admin-content">
@@ -477,7 +478,7 @@ const Students = () => {
           pagination={tableParams.pagination}
           loading={loading}
           onChange={handleTableChange}
-          scroll={{ x: screens.xs ? 700 : 900 }} // Xoá scroll ngang trên mobile
+          scroll={{ x: screens.xs ? 700 : 900 }}
           size={screens.xs ? "small" : "middle"}
         />
         <Modal

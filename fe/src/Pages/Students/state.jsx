@@ -34,35 +34,27 @@ const STATUS_FIELDS = [
 
 
 
-const renderCustomLabel = ({
-  cx,
-  cy,
-  midAngle,
-  outerRadius,
-  percent,
-  
-  name,
-  value,
-}) => {
+// Custom label: chỉ hiện số trong lát biểu đồ
+const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, value }) => {
   const RADIAN = Math.PI / 180;
-  const radius = outerRadius + 24; // label ra ngoài hơn
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-  // Chỉ vẽ label nếu chiếm > 2%
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 600;
+  const fontSize = isMobile ? 13 : 16;
   if (percent < 0.02) return null;
-
   return (
     <text
       x={x}
       y={y}
-      fill="#333"
-      fontSize={14}
-      fontWeight={500}
-      textAnchor={x > cx ? "start" : "end"}
+      fill="#fff"
+      fontSize={fontSize}
+      fontWeight={700}
+      textAnchor="middle"
       dominantBaseline="central"
+      style={{ textShadow: '0 1px 4px #0007' }}
     >
-      {`${name}: ${value}`}
+      {value}
     </text>
   );
 };
@@ -148,9 +140,9 @@ export default function StatsPage() {
                   .map((st) => ({
                     name: STATUS_LABELS[st] || st,
                     value: result[f.key][st] || 0,
+                    color: COLOR_MAP[st] || "#8884d8",
                   }))
                   .filter((x) => x.value > 0);
-
                 return (
                   <div key={f.key} style={{ width: 350, textAlign: "center", marginBottom: 32 }}>
                     <div style={{ fontWeight: "bold", marginBottom: 8 }}>{f.label}</div>
@@ -161,26 +153,30 @@ export default function StatsPage() {
                           data={dataPie}
                           cx="50%"
                           cy="50%"
+                          innerRadius={38}
                           outerRadius={70}
-                          fill="#82ca9d"
                           label={renderCustomLabel}
                           labelLine={false}
                         >
                           {dataPie.map((entry, idx) => (
                             <Cell
                               key={`${f.key}-${entry.name}-${idx}`}
-                              fill={
-                                COLOR_MAP[
-                                  Object.keys(STATUS_LABELS).find((k) => STATUS_LABELS[k] === entry.name)
-                                ] || "#8884d8"
-                              }
+                              fill={entry.color}
                             />
                           ))}
                         </Pie>
-                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
                         <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
+                    {/* Custom legend dưới biểu đồ */}
+                    <div style={{ marginTop: 10, fontSize: 13, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
+                      {dataPie.map((entry) => (
+                        <span key={entry.name} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: 7, background: entry.color, border: '1px solid #ccc' }} />
+                          <span style={{ fontWeight: 500 }}>{entry.name}</span>
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 );
               })}
