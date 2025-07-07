@@ -10,9 +10,13 @@
     }
   ],
   "routes": [
+    { "handle": "filesystem" },
     {
       "src": "/(.*)",
-      "dest": "/fe/$1"
+      "dest": "/fe/index.html"
     }
-  ]
+  ],
+  "static": {
+    "directory": "fe/dist"
+  }
 }
