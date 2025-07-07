@@ -15,7 +15,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/fe/$1"
+      "dest": "/fe/index.html"
     },
     {
       "src": "/courses",
