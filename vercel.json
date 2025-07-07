@@ -10,14 +10,12 @@
     }
   ],
   "routes": [
-   
     {
       "handle": "filesystem"
     },
-   
     {
       "src": "/(.*)",
-      "dest": "/fe/index.html"
+      "dest": "/fe/$1"
     }
   ]
 }
