@@ -9,9 +9,10 @@
       }
     }
   ],
-  
-    "rewrites": [
-      { "source": "/(.*)", "destination": "/" }
-    ]
-  
+  "rewrites": [
+    {
+      "src": "/(.*)",
+      "dest": "/fe/$1"
+    }
+  ]
 }
