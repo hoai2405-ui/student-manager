@@ -1,8 +1,17 @@
 {
+  "builds": [
+    {
+      "src": "fe/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "fe/dist"
+      }
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": "/fe/dist/index.html"
     }
   ]
 }
