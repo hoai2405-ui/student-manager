@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "builds": [
     {
       "src": "fe/package.json",
@@ -8,10 +9,12 @@
       }
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/fe/dist/index.html"
+      "src": "/(.*)",
+      "dest": "/fe/dist/index.html"
+      
     }
   ]
+  
 }
