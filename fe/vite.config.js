@@ -10,4 +10,5 @@ export default defineConfig({
   // server: {
   //   historyApiFallback: true,
   // },
+  // sai chỗ nào ta :D
 });
