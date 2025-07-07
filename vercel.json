@@ -12,9 +12,8 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/fe/$1",
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "dest": "/fe/index.html"
+      
     }
   ]
   
