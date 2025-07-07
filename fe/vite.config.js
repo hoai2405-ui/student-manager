@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     outDir: "dist",
   },
-  server: {
-    historyApiFallback: true,
-  },
+  // server: {
+  //   historyApiFallback: true,
+  // },
 });
