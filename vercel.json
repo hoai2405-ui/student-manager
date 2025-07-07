@@ -12,10 +12,9 @@
   "routes": [
    
     {
-      "src": "/fe/(.*)",
-      "dest": "/fe/$1"
+      "handle": "filesystem"
     },
-    
+   
     {
       "src": "/(.*)",
       "dest": "/fe/index.html"
