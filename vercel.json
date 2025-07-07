@@ -16,10 +16,6 @@
     {
       "src": "/(.*)",
       "dest": "/fe/index.html"
-    },
-    {
-      "src": "/courses",
-      "dest": "/"
     }
   ]
 }
