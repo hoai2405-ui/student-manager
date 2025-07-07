@@ -8,3 +8,5 @@ be/node_modules/
 be/uploads/
 be/.env
 be/*.log
+
+.vscode/
