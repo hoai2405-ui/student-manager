@@ -9,13 +9,13 @@
       }
     }
   ],
-  "rewrites": [
+  "routes": [
     {
       "handle": "filesystem"
     },
     {
-      "source": "/(.*)",
-      "destination": "fe/$1"
+      "src": "/(.*)",
+      "dest": "fe/$1"
     }
 
   ]
