@@ -10,9 +10,7 @@
     }
   ],
   "rewrites": [
-    {
-      "handle": "filesystem"
-    },
+    
     {
       "source": "/(.*)",
       "destination": "fe/$1"
