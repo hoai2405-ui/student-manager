@@ -5,17 +5,17 @@
       "src": "fe/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "fe/dist"
+        "distDir": "dist"
       }
     }
   ],
-  "routes": [
+  "rewrites": [
     {
       "handle": "filesystem"
     },
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "fe/$1"
     }
 
   ]
