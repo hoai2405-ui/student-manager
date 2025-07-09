@@ -13,7 +13,7 @@
     
     {
       "source": "/(.*)",
-      "destination": "fe/$1"
+      "destination": "fe/index.html"
     }
 
   ]
