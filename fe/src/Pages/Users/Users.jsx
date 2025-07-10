@@ -46,11 +46,17 @@ const UsersPage = () => {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`/api/users/${id}`);
+      const token = localStorage.getItem("token");
+      await axios.delete(`/api/users/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       message.success("Xóa thành công!");
       fetchUsers();
     } catch (error) {
       message.error("Xóa thất bại!");
+      console.error("Lỗi xóa người dùng:", error);
     }
   };
 
