@@ -121,24 +121,25 @@ const UsersPage = () => {
       title: "Thao tác",
       key: "actions",
       align: "center",
-      width: screens.xs ? 120 : 170,
+      width: screens.xs ? 120 : 160,
       render: (_, record) => (
-        <span>
+        <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
           <Button
             icon={<EditOutlined />}
             onClick={() => handleEdit(record)}
             size={screens.xs ? "small" : "middle"}
             style={{
+              padding: screens.xs ? "0 6px" : "0 12px",
+              height: screens.xs ? 26 : 32,
               background: "#e3f2fd",
               border: 0,
-              borderRadius: 8,
+              borderRadius: 6,
               color: "#1976d2",
-              marginRight: 8,
               fontWeight: 600,
               boxShadow: "0 1px 6px #1565c014",
             }}
           >
-            Sửa
+            {!screens.xs && "Sửa"}
           </Button>
           <Popconfirm
             title="Bạn chắc chắn muốn xóa?"
@@ -151,18 +152,20 @@ const UsersPage = () => {
               icon={<DeleteOutlined />}
               size={screens.xs ? "small" : "middle"}
               style={{
+                padding: screens.xs ? "0 6px" : "0 12px",
+                height: screens.xs ? 26 : 32,
                 background: "#fff0f0",
                 border: 0,
-                borderRadius: 8,
+                borderRadius: 6,
                 color: "#d32f2f",
                 fontWeight: 600,
                 boxShadow: "0 1px 6px #e5393510",
               }}
             >
-              Xóa
+              {!screens.xs && "Xóa"}
             </Button>
           </Popconfirm>
-        </span>
+        </div>
       ),
     },
   ];
@@ -228,17 +231,26 @@ const UsersPage = () => {
         open={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
         footer={
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-            <Button onClick={() => setIsModalVisible(false)} style={{ minWidth: 80 }}>Huỷ</Button>
-            <Button type="primary" onClick={handleOk} style={{ minWidth: 80 }}>Lưu</Button>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <Button
+              onClick={() => setIsModalVisible(false)}
+              style={{ minWidth: 80 }}
+            >
+              Huỷ
+            </Button>
+            <Button type="primary" onClick={handleOk} style={{ minWidth: 80 }}>
+              Lưu
+            </Button>
           </div>
         }
         width={screens.xs ? "98vw" : 420}
-        styles={{ body: {
-          padding: screens.xs ? 10 : 24,
-          borderRadius: 16,
-          background: "#f4faff",
-        } }}
+        styles={{
+          body: {
+            padding: screens.xs ? 10 : 24,
+            borderRadius: 16,
+            background: "#f4faff",
+          },
+        }}
         style={{ top: 40 }}
       >
         <Form layout="vertical" form={form}>
@@ -309,7 +321,15 @@ const UsersPage = () => {
           @media (max-width: 480px) {
             .ant-card { padding: 2px !important;}
             .ant-modal .ant-modal-content { padding: 6px !important; }
+            .ant-btn {
+    font-size: 12px !important;
+    padding: 0 6px !important;
+    height: 28px !important;
+    line-height: 28px !important;
+    border-radius: 6px !important;
+  }
           }
+          
         `}
       </style>
     </Card>
