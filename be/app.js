@@ -290,11 +290,12 @@ app.put("/api/courses/:id", async (req, res) => {
     ngay_khai_giang,
     ngay_be_giang,
     so_hoc_sinh,
-    trang_thai,
+    
   } = req.body;
+  console.log("[PUT /courses/:id] Dữ liệu nhận:", req.body);
   const sql = `
     UPDATE courses
-    SET ma_khoa_hoc = ?, ten_khoa_hoc = ?, ngay_khai_giang = ?, ngay_be_giang = ?, so_hoc_sinh = ?, trang_thai = ?
+    SET ma_khoa_hoc = ?, ten_khoa_hoc = ?, ngay_khai_giang = ?, ngay_be_giang = ?, so_hoc_sinh = ?
     WHERE id = ?
   `;
   try {
@@ -415,6 +416,7 @@ const authenticateToken = (req, res, next) => {
 
 // Middleware kiểm tra admin
 const checkAdmin = async (req, res, next) => {
+  console.log("[DEBUG] ID from token:", req.user?.id);
   try {
     const [rows] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
     if (rows.length === 0 || !rows[0].is_admin) {
