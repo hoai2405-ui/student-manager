@@ -197,6 +197,14 @@ app.put("/api/students/:id", async (req, res) => {
     status_truong,
   } = req.body;
 
+  const formatDateToMySQL = (dateInput) => {
+    if (!dateInput) return null;
+    try {
+      return new Date(dateInput).toISOString().split("T")[0];
+    } catch (e) {
+      return null;
+    }
+  };
 
   const ngay_sinh_mysql = formatDateToMySQL(ngay_sinh);
 
