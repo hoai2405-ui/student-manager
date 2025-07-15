@@ -73,18 +73,27 @@ const UsersPage = () => {
   };
 
   const handleOk = () => {
+    
     form.validateFields().then(async (values) => {
       try {
+         const token = localStorage.getItem("token"); // lấy token đã lưu sau khi login
+
+         const config = {
+           headers: {
+             Authorization: `Bearer ${token}`,
+           },
+         };
         if (editingUser) {
-          await axios.put(`/api/users/${editingUser.id}`, values);
+          await axios.put(`/api/users/${editingUser.id}`, values, config);
           message.success("Cập nhật thành công!");
         } else {
-          await axios.post("/api/users", values);
+          await axios.post("/api/users", values, config);
           message.success("Thêm người dùng thành công!");
         }
         fetchUsers();
         setIsModalVisible(false);
       } catch (error) {
+        console.error("Lỗi PUT / POST /users:", error);
         message.error("Có lỗi xảy ra!");
       }
     });
