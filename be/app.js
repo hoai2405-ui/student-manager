@@ -198,7 +198,7 @@ app.put("/api/students/:id", async (req, res) => {
   } = req.body;
 
 
-  const ngay_sinh_mysql = new Date(ngay_sinh).toISOString().split("T")[0];
+  const ngay_sinh_mysql = formatDateToMySQL(ngay_sinh);
 
   const sql = `
     UPDATE students SET
@@ -209,7 +209,7 @@ app.put("/api/students/:id", async (req, res) => {
   try {
     await pool.query(sql, [
       ho_va_ten,
-      ngay_sinh,
+      ngay_sinh_mysql,
       hang_gplx,
       so_cmt,
       ma_khoa_hoc,
