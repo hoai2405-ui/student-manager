@@ -106,7 +106,7 @@ app.get("/", (req, res) => {
   res.send("Student Manager API is running!");
 });
 
-// API: Upload file XML hoặc Excel để thêm khoá học
+// API: Upload file XML hoặc Excel để thêm khoá họcsửa
 app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
   const filePath = req.file.path;
   const parser = new xml2js.Parser();
@@ -196,6 +196,10 @@ app.put("/api/students/:id", async (req, res) => {
     status_duong,
     status_truong,
   } = req.body;
+
+
+  const ngay_sinh_mysql = new Date(ngay_sinh).toISOString().split("T")[0];
+
   const sql = `
     UPDATE students SET
       ho_va_ten = ?, ngay_sinh = ?, hang_gplx = ?, so_cmt = ?, ma_khoa_hoc = ?,
@@ -305,7 +309,6 @@ app.put("/api/courses/:id", async (req, res) => {
       ngay_khai_giang,
       ngay_be_giang,
       so_hoc_sinh,
-      
       id,
     ]);
     // Lấy lại bản ghi mới nhất để trả về cho FE
