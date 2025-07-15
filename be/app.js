@@ -305,7 +305,7 @@ app.put("/api/courses/:id", async (req, res) => {
       ngay_khai_giang,
       ngay_be_giang,
       so_hoc_sinh,
-      trang_thai,
+      
       id,
     ]);
     // Lấy lại bản ghi mới nhất để trả về cho FE
