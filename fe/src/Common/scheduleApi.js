@@ -1,0 +1,48 @@
+import axiosClient from "./axios";
+
+// trả về axios response (dùng bởi code hiện tại)
+export function getSchedules(courseId) {
+  return axiosClient.get("/api/schedules", { params: courseId ? { course_id: courseId } : {} });
+}
+
+// trả về data trực tiếp (tùy chỗ dùng)
+export function fetchSchedules(courseId) {
+  return getSchedules(courseId).then((r) => r.data);
+}
+
+export function registerSchedule(scheduleId, studentId, token) {
+  return axiosClient.post(
+    `/api/schedules/${scheduleId}/register`,
+    { student_id: studentId },
+    token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+  );
+}
+
+// alias (các component có thể dùng tên này)
+export const registerToSchedule = registerSchedule;
+
+export function createSchedule(data, token) {
+  return axiosClient.post(
+    "/api/schedules",
+    data,
+    token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+  );
+}
+
+export function getRegistrations(scheduleId, token) {
+  return axiosClient.get(
+    `/api/schedules/${scheduleId}/registrations`,
+    token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+  );
+}
+
+export const scheduleApi = {
+  getSchedules,
+  fetchSchedules,
+  registerSchedule,
+  registerToSchedule,
+  createSchedule,
+  getRegistrations,
+};
+
+export default scheduleApi;

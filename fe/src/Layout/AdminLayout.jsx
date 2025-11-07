@@ -8,6 +8,7 @@ import {
   UserOutlined,
   LogoutOutlined,
   UserSwitchOutlined,
+  CalendarOutlined, // <-- thêm icon
 } from "@ant-design/icons";
 import "../assets/main.css";
 
@@ -20,7 +21,8 @@ const { Content, Sider, Header } = Layout;
 
 const AdminLayout = () => {
   const { user, logout } = useAuth();
-  const userInfo = user?.user;
+  // fallback: nếu AuthContext lưu trực tiếp user hoặc lưu trong user.user
+  const userInfo = user?.user ?? user;
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -42,6 +44,8 @@ const AdminLayout = () => {
       key = ROUTES_PATH.COURSES;
     else if (location.pathname.startsWith(ROUTES_PATH.STATS))
       key = ROUTES_PATH.STATS;
+    else if (location.pathname.startsWith(ROUTES_PATH.SCHEDULES))
+      key = ROUTES_PATH.SCHEDULES; // <-- thêm
     else if (location.pathname.startsWith(ROUTES_PATH.USERS))
       key = ROUTES_PATH.USERS;
     setSelectedKey(key);
@@ -56,6 +60,7 @@ const AdminLayout = () => {
       label: "Học Viên",
     },
     { key: ROUTES_PATH.STATS, icon: <BarChartOutlined />, label: "Thống kê" },
+    { key: ROUTES_PATH.SCHEDULES, icon: <CalendarOutlined />, label: "Lịch học" }, // <-- thêm mục schedules
     ...(userInfo?.is_admin
       ? [
           {
@@ -134,7 +139,13 @@ const AdminLayout = () => {
           theme="dark"
           selectedKeys={[selectedKey]}
           items={items}
-          onClick={({ key }) => navigate(key)}
+          onClick={({ key }) => {
+            console.log('Menu click:', { key, currentPath: location.pathname });
+            if (key && key !== location.pathname) {
+              console.log('Navigating to:', key);
+              navigate(key);
+            }
+          }}
         />
       </Sider>
       <Layout>

@@ -12,10 +12,14 @@ import {
 } from "antd";
 import axios from "../../Common/axios";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import { useAuth } from "../../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const { useBreakpoint } = Grid;
 
 const UsersPage = () => {
+  const { token: ctxToken, logout } = useAuth();
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -23,40 +27,72 @@ const UsersPage = () => {
   const [form] = Form.useForm();
   const screens = useBreakpoint();
 
+  const getToken = () => {
+    if (ctxToken) return ctxToken;
+    try {
+      const raw = localStorage.getItem("auth");
+      if (raw) {
+        const a = JSON.parse(raw);
+        if (a?.token) return a.token;
+      }
+    } catch (e) {
+      console.error("Parse auth failed", e);
+    }
+    return localStorage.getItem("token");
+  };
+
+  const getAuthHeaders = () => {
+    const t = getToken();
+    if (!t) return null;
+    return { Authorization: `Bearer ${t}` };
+  };
+
   const fetchUsers = async () => {
+    const headers = getAuthHeaders();
+    if (!headers) {
+      message.warning("Bạn chưa đăng nhập. Vui lòng đăng nhập lại.");
+      navigate("/login");
+      return;
+    }
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get("/api/users", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await axios.get("/api/users", { headers });
       setUsers(res.data);
     } catch (error) {
-      message.error("Lỗi lấy danh sách người dùng!");
       console.error("Chi tiết lỗi lấy user:", error);
+      if (error?.response?.status === 401) {
+        message.error("Phiên đăng nhập hết hạn, đăng nhập lại.");
+        logout();
+        navigate("/login");
+        return;
+      }
+      message.error("Lỗi lấy danh sách người dùng!");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDelete = async (id) => {
+    const headers = getAuthHeaders();
+    if (!headers) return message.error("Bạn chưa đăng nhập.");
     try {
-      const token = localStorage.getItem("token");
-      await axios.delete(`/api/users/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await axios.delete(`/api/users/${id}`, { headers });
       message.success("Xóa thành công!");
       fetchUsers();
     } catch (error) {
-      message.error("Xóa thất bại!");
       console.error("Lỗi xóa người dùng:", error);
+      if (error?.response?.status === 401) {
+        message.error("Phiên đăng nhập hết hạn.");
+        logout();
+        navigate("/login");
+        return;
+      }
+      message.error("Xóa thất bại!");
     }
   };
 
@@ -73,16 +109,12 @@ const UsersPage = () => {
   };
 
   const handleOk = () => {
-    
+    const headers = getAuthHeaders();
+    if (!headers) return message.error("Bạn chưa đăng nhập.");
+
     form.validateFields().then(async (values) => {
       try {
-         const token = localStorage.getItem("token"); // lấy token đã lưu sau khi login
-
-         const config = {
-           headers: {
-             Authorization: `Bearer ${token}`,
-           },
-         };
+        const config = { headers };
         if (editingUser) {
           await axios.put(`/api/users/${editingUser.id}`, values, config);
           message.success("Cập nhật thành công!");
@@ -94,43 +126,38 @@ const UsersPage = () => {
         setIsModalVisible(false);
       } catch (error) {
         console.error("Lỗi PUT / POST /users:", error);
+        if (error?.response?.status === 401) {
+          message.error("Phiên đăng nhập hết hạn.");
+          logout();
+          navigate("/login");
+          return;
+        }
         message.error("Có lỗi xảy ra!");
       }
     });
   };
 
-  // Reponsive cột cho mobile
   const columns = [
     {
       title: "Tên đăng nhập",
       dataIndex: "username",
       key: "username",
       width: screens.xs ? 130 : 180,
-      render: (text) => (
-        <b style={{ color: "#1565c0", fontWeight: 600 }}>{text}</b>
-      ),
+      render: (text) => <b style={{ color: "#1565c0", fontWeight: 600 }}>{text}</b>,
     },
     {
       title: "Email",
       dataIndex: "email",
       key: "email",
       responsive: ["sm"],
-      render: (val) => (
-        <span style={{ color: "#009688", fontSize: screens.xs ? 12 : 15 }}>
-          {val}
-        </span>
-      ),
+      render: (val) => <span style={{ color: "#009688", fontSize: screens.xs ? 12 : 15 }}>{val}</span>,
     },
     {
       title: "Điện thoại",
       dataIndex: "phone",
       key: "phone",
       responsive: ["md"],
-      render: (val) => (
-        <span style={{ color: "#606060", fontSize: screens.xs ? 12 : 15 }}>
-          {val}
-        </span>
-      ),
+      render: (val) => <span style={{ color: "#606060", fontSize: screens.xs ? 12 : 15 }}>{val}</span>,
     },
     {
       title: "Thao tác",
@@ -139,44 +166,11 @@ const UsersPage = () => {
       width: screens.xs ? 120 : 160,
       render: (_, record) => (
         <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-            size={screens.xs ? "small" : "middle"}
-            style={{
-              padding: screens.xs ? "0 6px" : "0 12px",
-              height: screens.xs ? 26 : 32,
-              background: "#e3f2fd",
-              border: 0,
-              borderRadius: 6,
-              color: "#1976d2",
-              fontWeight: 600,
-              boxShadow: "0 1px 6px #1565c014",
-            }}
-          >
+          <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} size={screens.xs ? "small" : "middle"}>
             {!screens.xs && "Sửa"}
           </Button>
-          <Popconfirm
-            title="Bạn chắc chắn muốn xóa?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Có"
-            cancelText="Không"
-          >
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              size={screens.xs ? "small" : "middle"}
-              style={{
-                padding: screens.xs ? "0 6px" : "0 12px",
-                height: screens.xs ? 26 : 32,
-                background: "#fff0f0",
-                border: 0,
-                borderRadius: 6,
-                color: "#d32f2f",
-                fontWeight: 600,
-                boxShadow: "0 1px 6px #e5393510",
-              }}
-            >
+          <Popconfirm title="Bạn chắc chắn muốn xóa?" onConfirm={() => handleDelete(record.id)} okText="Có" cancelText="Không">
+            <Button danger icon={<DeleteOutlined />} size={screens.xs ? "small" : "middle"}>
               {!screens.xs && "Xóa"}
             </Button>
           </Popconfirm>
@@ -187,11 +181,7 @@ const UsersPage = () => {
 
   return (
     <Card
-      title={
-        <span style={{ fontSize: screens.xs ? 20 : 24, fontWeight: 700 }}>
-          👤 Quản lý người dùng
-        </span>
-      }
+      title={<span style={{ fontSize: screens.xs ? 20 : 24, fontWeight: 700 }}>👤 Quản lý người dùng</span>}
       style={{
         maxWidth: 900,
         margin: screens.xs ? "8px 2px" : "28px auto",
@@ -201,152 +191,27 @@ const UsersPage = () => {
         padding: screens.xs ? 8 : 20,
       }}
       extra={
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={handleAdd}
-          size={screens.xs ? "small" : "middle"}
-          style={{
-            borderRadius: 7,
-            fontWeight: 600,
-            background: "linear-gradient(120deg,#1976d2 50%,#0ec8ee 100%)",
-            border: 0,
-            boxShadow: "0 1px 6px #1976d214",
-          }}
-        >
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} size={screens.xs ? "small" : "middle"}>
           Thêm
         </Button>
       }
     >
-      <Table
-        dataSource={users}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{
-          pageSize: 5,
-          size: screens.xs ? "small" : "default",
-          showTotal: (total) => `Tổng ${total} người dùng`,
-        }}
-        scroll={{ x: 400 }}
-        size={screens.xs ? "small" : "middle"}
-        variant="outlined"
-        style={{
-          borderRadius: 12,
-          background: "#fff",
-        }}
-      />
-
-      <Modal
-        title={
-          <span style={{ fontWeight: 700, fontSize: screens.xs ? 17 : 20 }}>
-            {editingUser ? "Sửa người dùng" : "Thêm người dùng"}
-          </span>
-        }
-        open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
-        footer={
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-            <Button
-              onClick={() => setIsModalVisible(false)}
-              style={{ minWidth: 80 }}
-            >
-              Huỷ
-            </Button>
-            <Button type="primary" onClick={handleOk} style={{ minWidth: 80 }}>
-              Lưu
-            </Button>
-          </div>
-        }
-        width={screens.xs ? "98vw" : 420}
-        styles={{
-          body: {
-            padding: screens.xs ? 10 : 24,
-            borderRadius: 16,
-            background: "#f4faff",
-          },
-        }}
-        style={{ top: 40 }}
-      >
+      <Table dataSource={users} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 5 }} scroll={{ x: 400 }} />
+      <Modal title={editingUser ? "Sửa người dùng" : "Thêm người dùng"} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <Button onClick={() => setIsModalVisible(false)}>Huỷ</Button>
+          <Button type="primary" onClick={handleOk}>Lưu</Button>
+        </div>
+      }>
         <Form layout="vertical" form={form}>
-          <Form.Item
-            name="username"
-            label="Tên đăng nhập"
-            rules={[{ required: true, message: "Nhập tên đăng nhập!" }]}
-          >
-            <Input size={screens.xs ? "small" : "middle"} />
+          <Form.Item name="username" label="Tên đăng nhập" rules={[{ required: true, message: "Nhập tên đăng nhập!" }]}>
+            <Input />
           </Form.Item>
-          {!editingUser && (
-            <Form.Item
-              name="password"
-              label="Mật khẩu"
-              rules={[{ required: true, message: "Nhập mật khẩu!" }]}
-            >
-              <Input.Password size={screens.xs ? "small" : "middle"} />
-            </Form.Item>
-          )}
-          <Form.Item
-            name="email"
-            label="Email"
-            rules={[
-              { required: true, type: "email", message: "Email không hợp lệ!" },
-            ]}
-          >
-            <Input size={screens.xs ? "small" : "middle"} />
-          </Form.Item>
-          <Form.Item
-            name="phone"
-            label="Điện thoại"
-            rules={[
-              {
-                required: true,
-                pattern: /^[0-9]{9,11}$/,
-                message: "Điện thoại không hợp lệ!",
-              },
-            ]}
-          >
-            <Input size={screens.xs ? "small" : "middle"} />
-          </Form.Item>
+          {!editingUser && <Form.Item name="password" label="Mật khẩu" rules={[{ required: true, message: "Nhập mật khẩu!" }]}><Input.Password /></Form.Item>}
+          <Form.Item name="email" label="Email" rules={[{ required: true, type: "email", message: "Email không hợp lệ!" }]}><Input /></Form.Item>
+          <Form.Item name="phone" label="Điện thoại" rules={[{ required: true, pattern: /^[0-9]{9,11}$/, message: "Điện thoại không hợp lệ!" }]}><Input /></Form.Item>
         </Form>
       </Modal>
-
-      {/* STYLE REPOSIVE & TABLE màu mè đẹp */}
-      <style>
-        {`
-          /* Table row màu xen kẽ */
-          .ant-table-tbody > tr:nth-child(odd) > td {
-            background: #f4faff !important;
-          }
-          .ant-table-tbody > tr:nth-child(even) > td {
-            background: #fff !important;
-          }
-          /* Hover row nổi bật hơn */
-          .ant-table-tbody > tr:hover > td {
-            background: #e3f2fd !important;
-            transition: background 0.2s;
-          }
-          /* Responsive cho mobile/tablet */
-          @media (max-width: 700px) {
-            .ant-card { border-radius: 8px !important; padding: 2px !important;}
-            .ant-table-thead > tr > th, .ant-table-tbody > tr > td {
-              font-size: 13px !important;
-              padding: 5px !important;
-            }
-          }
-          @media (max-width: 480px) {
-            .ant-card { padding: 2px !important;}
-            .ant-modal .ant-modal-content { padding: 6px !important; }
-            .ant-btn {
-    font-size: 12px !important;
-    padding: 0 6px !important;
-    height: 28px !important;
-    line-height: 28px !important;
-    border-radius: 6px !important;
-  }
-          }
-          
-        `}
-      </style>
     </Card>
   );
 };

@@ -14,8 +14,7 @@ import CoursePage from "./Pages/Students/CoursePage";
 import StudentsNew from "./Pages/Students/createStudent";
 import { AuthProvider } from "./contexts/AuthContext";
 import Dashboard from "./Pages/Dashboard/index";
-import { useAuth } from "./contexts/AuthContext";
-
+import SchedulePage from "./Pages/Schedule";
 
 export default function App() {
   return (
@@ -36,8 +35,6 @@ export default function App() {
             <Route path="students/new" element={<StudentsNew />} />
             <Route path="students" element={<Students />} />
             <Route path="stats" element={<StatsPage />} />
-            <Route path="users" element={<UsersPage />} />
-            {/* Trang Users chỉ dành cho Admin */}
             <Route
               path="users"
               element={
@@ -46,12 +43,14 @@ export default function App() {
                 </PrivateRoute>
               }
             />
+            <Route path="schedules" element={<SchedulePage />} />
           </Route>
         </Routes>
       </BrowserRouter>
     </AuthProvider>
   );
 }
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />

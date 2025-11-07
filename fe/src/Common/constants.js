@@ -4,5 +4,6 @@ export const ROUTES_PATH = {
   STUDENTS_NEW: "/students/new",
   COURSES: "/courses", // 👈 thêm dòng này
   STATS: "/stats",
-  USERS:"/users"
+  USERS:"/users",
+  SCHEDULES:"/schedules"
 };
