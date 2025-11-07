@@ -15,6 +15,7 @@ import StudentsNew from "./Pages/Students/createStudent";
 import { AuthProvider } from "./contexts/AuthContext";
 import Dashboard from "./Pages/Dashboard/index";
 import { useAuth } from "./contexts/AuthContext"
+import { ROUTES_PATH } from "./Common/constants";
 
 
 export default function App() {
@@ -32,21 +33,25 @@ export default function App() {
             }
           >
             <Route index element={<Dashboard />} />
-            <Route path="courses" element={<CoursePage />} />
+            <Route path={ROUTES_PATH.COURSES.slice(1)} element={<Courses />} />
             <Route path="students/new" element={<StudentsNew />} />
-            <Route path="students" element={<Students />} />
-            <Route path="stats" element={<StatsPage />} />
+            <Route
+              path={ROUTES_PATH.STUDENTS.slice(1)}
+              element={<Students />}
+            />
+            <Route path={ROUTES_PATH.STATS.slice(1)} element={<Stats />} />
             <Route path="users" element={<UsersPage />} />
             {/* Trang Users chỉ dành cho Admin */}
             <Route
-              path="users"
+              path={ROUTES_PATH.USERS.slice(1)}
               element={
-                <PrivateRoute adminOnly={true}>
-                  <UsersPage />
+                <PrivateRoute adminOnly>
+                  <Users />
                 </PrivateRoute>
               }
             />
           </Route>
+          <Route path="/login" element={<Login />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

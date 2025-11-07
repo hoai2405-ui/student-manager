@@ -58,7 +58,7 @@ const CreateStudent = ({ onCreated }) => {
               <UserAddOutlined /> Thêm học viên mới
             </>
           }
-          bordered={false}
+          variant="contained"
           style={{
             borderRadius: 16,
             boxShadow: "0 4px 32px rgba(60,60,60,0.12)",

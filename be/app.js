@@ -487,6 +487,114 @@ app.get("/api/quick-stats", async (req, res) => {
 });
 
 
+// đăng ký lích học
+// ...existing code...
+
+// Tạo lịch mới (admin)
+app.post('/api/schedules', authenticateToken, checkAdmin, async (req, res) => {
+  try {
+    const { course_id, start_time, end_time, capacity, location, notes } = req.body;
+    const [result] = await pool.query(
+      'INSERT INTO schedules (course_id, start_time, end_time, capacity, location, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [course_id, start_time, end_time, capacity || 0, location || null, notes || null]
+    );
+    res.json({ id: result.insertId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Lấy danh sách lịch (optionally filter by course_id)
+app.get('/api/schedules', async (req, res) => {
+  try {
+    const { course_id } = req.query;
+    let q = 'SELECT s.*, c.ten_khoa_hoc, c.ma_khoa_hoc FROM schedules s LEFT JOIN courses c ON s.course_id = c.id';
+    const params = [];
+    if (course_id) {
+      q += ' WHERE s.course_id = ?';
+      params.push(course_id);
+    }
+    q += ' ORDER BY s.start_time';
+    const [rows] = await pool.query(q, params);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Chi tiết lịch kèm số đã đăng ký
+app.get('/api/schedules/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const [[schedule]] = await pool.query('SELECT s.*, c.ten_khoa_hoc FROM schedules s LEFT JOIN courses c ON s.course_id=c.id WHERE s.id = ?', [id]);
+    if (!schedule) return res.status(404).json({ error: 'Not found' });
+    const [countRows] = await pool.query('SELECT COUNT(*) AS cnt FROM registrations WHERE schedule_id = ?', [id]);
+    schedule.registered = countRows[0].cnt || 0;
+    res.json(schedule);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Đăng ký học viên vào 1 lịch (authenticated users)
+app.post('/api/schedules/:id/register', authenticateToken, async (req, res) => {
+  try {
+    const scheduleId = req.params.id;
+    const { student_id } = req.body;
+    // kiểm tra schedule
+    const [sRows] = await pool.query('SELECT capacity FROM schedules WHERE id = ?', [scheduleId]);
+    if (!sRows.length) return res.status(404).json({ error: 'Schedule not found' });
+    const capacity = sRows[0].capacity || 0;
+    // đếm đã đăng ký
+    const [cRows] = await pool.query('SELECT COUNT(*) AS cnt FROM registrations WHERE schedule_id = ?', [scheduleId]);
+    const registered = cRows[0].cnt || 0;
+    if (capacity > 0 && registered >= capacity) return res.status(400).json({ error: 'Schedule is full' });
+    // tạo đăng ký
+    await pool.query('INSERT INTO registrations (schedule_id, student_id) VALUES (?, ?)', [scheduleId, student_id]);
+    res.json({ success: true });
+  } catch (err) {
+    if (err && err.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Already registered' });
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Hủy đăng ký
+app.delete('/api/schedules/:id/register/:studentId', authenticateToken, async (req, res) => {
+  try {
+    const { id, studentId } = req.params;
+    await pool.query('DELETE FROM registrations WHERE schedule_id = ? AND student_id = ?', [id, studentId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Lấy danh sách học viên đã đăng ký cho 1 lịch
+app.get('/api/schedules/:id/registrations', authenticateToken, checkAdmin, async (req, res) => {
+  try {
+    const scheduleId = req.params.id;
+    const [rows] = await pool.query(
+      `SELECT r.*, st.ho_va_ten, st.so_cmt, st.hang_gplx
+       FROM registrations r
+       JOIN students st ON r.student_id = st.id
+       WHERE r.schedule_id = ?
+       ORDER BY r.registered_at`,
+      [scheduleId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ...existing code...
+
 
 
 

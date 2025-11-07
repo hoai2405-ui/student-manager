@@ -252,7 +252,7 @@ export default function CoursePage() {
         dataSource={courses}
         rowKey="id"
         pagination={{ pageSize: 10, size: screens.xs ? "small" : "default" }}
-        bordered={true}
+        variant="outlined"
         size={screens.xs ? "small" : "middle"}
         scroll={{ x: 700 }}
         style={{
