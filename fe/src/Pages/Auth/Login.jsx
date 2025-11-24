@@ -19,11 +19,34 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await axios.post("/api/login", values);
-      login(res.data);
-      localStorage.setItem("token", res.data.token);
+
+      // Handle different response formats from backend
+      let userData, tokenData;
+      console.log("Login response:", res.data);
+
+      if (res.data.user && res.data.token) {
+        // Format: {user: {...}, token: "..."}
+        userData = res.data.user;
+        tokenData = res.data.token;
+        console.log("Using nested format - user:", userData, "token:", tokenData);
+      } else if (res.data.token && (res.data.is_admin !== undefined || res.data.username)) {
+        // Format: user data directly with token
+        userData = { ...res.data };
+        tokenData = res.data.token;
+        delete userData.token; // Remove token from user data
+        console.log("Using direct format - user:", userData, "token:", tokenData);
+      } else {
+        console.error("Invalid response format:", res.data);
+        throw new Error("Invalid response format");
+      }
+
+      console.log("Final user data:", userData, "is_admin:", userData.is_admin, "role:", userData.role);
+      login(userData, tokenData);
+      localStorage.setItem("token", tokenData);
       message.success("Đăng nhập thành công!");
       navigate("/");
     } catch (err) {
+      console.error("Login error:", err);
       message.error("Sai tài khoản hoặc mật khẩu");
     }
     setLoading(false);

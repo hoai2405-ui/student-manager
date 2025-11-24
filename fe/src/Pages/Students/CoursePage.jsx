@@ -1,22 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { Badge, Spin, Empty } from "antd";
-  // Lấy danh sách học viên theo mã khoá học
-  const fetchStudents = async (ma_khoa_hoc) => {
-    setLoadingStudents((prev) => ({ ...prev, [ma_khoa_hoc]: true }));
-    try {
-      const res = await axios.get(`/api/students?ma_khoa_hoc=${ma_khoa_hoc}`);
-      setStudentsByCourse((prev) => ({ ...prev, [ma_khoa_hoc]: res.data }));
-    } catch {
-      setStudentsByCourse((prev) => ({ ...prev, [ma_khoa_hoc]: [] }));
-    }
-    setLoadingStudents((prev) => ({ ...prev, [ma_khoa_hoc]: false }));
-  };
+import React, { useState, useEffect, useContext } from "react";
+import { Badge, Spin, Empty, Input } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
 import axios from "../../Common/axios";
+import { AuthContext } from "../../contexts/AuthContext";
 import {
   Card,
   Table,
   Button,
-  Input,
   Popconfirm,
   Modal,
   message,
@@ -41,10 +31,13 @@ const { useBreakpoint } = Grid;
 
 export default function CoursePage() {
   const screens = useBreakpoint();
+  const { isAdmin } = useContext(AuthContext);
 
   // Lấy filter trạng thái từ localStorage ngay khi khởi tạo
   const [statusFilter, setStatusFilter] = useState('');
   const [courses, setCourses] = useState([]);
+  const [filteredCourses, setFilteredCourses] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [file, setFile] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
@@ -52,6 +45,18 @@ export default function CoursePage() {
   const [expandedRowKeys, setExpandedRowKeys] = useState([]);
   const [studentsByCourse, setStudentsByCourse] = useState({});
   const [loadingStudents, setLoadingStudents] = useState({});
+
+  // Lấy danh sách học viên theo mã khoá học
+  const fetchStudents = async (ma_khoa_hoc) => {
+    setLoadingStudents((prev) => ({ ...prev, [ma_khoa_hoc]: true }));
+    try {
+      const res = await axios.get(`/api/students?ma_khoa_hoc=${ma_khoa_hoc}`);
+      setStudentsByCourse((prev) => ({ ...prev, [ma_khoa_hoc]: res.data }));
+    } catch {
+      setStudentsByCourse((prev) => ({ ...prev, [ma_khoa_hoc]: [] }));
+    }
+    setLoadingStudents((prev) => ({ ...prev, [ma_khoa_hoc]: false }));
+  };
 
   // Lấy danh sách khoá học
   const fetchCourses = () => {
@@ -66,6 +71,20 @@ export default function CoursePage() {
   useEffect(() => {
     fetchCourses();
   }, []);
+
+  useEffect(() => {
+    // Filter courses based on search term
+    if (!searchTerm.trim()) {
+      setFilteredCourses(courses);
+    } else {
+      const filtered = courses.filter(course =>
+        (course.ten_khoa_hoc || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (course.ma_khoa_hoc || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (course.hang_gplx || "").toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredCourses(filtered);
+    }
+  }, [courses, searchTerm]);
 
   // Xoá khoá học
   const handleDelete = async (id) => {
@@ -168,7 +187,7 @@ export default function CoursePage() {
       render: (val) => (val ? moment(val).format("DD/MM/YYYY") : "Không rõ"),
       responsive: ["md"],
     },
-    
+
     {
       title: "Số học viên",
       dataIndex: "so_hoc_sinh",
@@ -190,19 +209,21 @@ export default function CoursePage() {
             size={screens.xs ? "small" : "middle"}
             style={{ color: "#1677ff" }}
           />
-          <Popconfirm
-            title="Muốn xoá thật à?"
-            okText="Xoá"
-            cancelText="Huỷ"
-            onConfirm={() => handleDelete(record.id)}
-          >
-            <Button
-              type="link"
-              danger
-              icon={<DeleteOutlined />}
-              size={screens.xs ? "small" : "middle"}
-            />
-          </Popconfirm>
+          {isAdmin && (
+            <Popconfirm
+              title="Muốn xoá thật à?"
+              okText="Xoá"
+              cancelText="Huỷ"
+              onConfirm={() => handleDelete(record.id)}
+            >
+              <Button
+                type="link"
+                danger
+                icon={<DeleteOutlined />}
+                size={screens.xs ? "small" : "middle"}
+              />
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -225,52 +246,119 @@ export default function CoursePage() {
         background: "#f8fafc",
       }}
     >
-      <form
-        style={{
-          marginBottom: 24,
-          display: "flex",
-          gap: 12,
-          flexDirection: screens.xs ? "column" : "row",
-          alignItems: "center",
-        }}
-        onSubmit={handleUpload}
-      >
-        <input
-          type="file"
-          className="form-control"
-          onChange={(e) => setFile(e.target.files[0])}
-          accept=".xml,.xlsx"
+      {/* Header với Upload và Search */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        gap: 'var(--space-lg)',
+        marginBottom: 'var(--space-xl)',
+        flexDirection: screens.xs ? 'column' : 'row'
+      }}>
+        {/* Upload Form */}
+        <form
           style={{
-            maxWidth: screens.xs ? "100%" : 260,
-            flex: 1,
-            border: "1px solid #ddd",
-            borderRadius: 8,
-            padding: 7,
-            fontSize: 15,
+            flex: screens.xs ? '1' : '0 0 auto',
+            minWidth: screens.xs ? '100%' : '300px'
           }}
-        />
-        <Button
-          type="primary"
-          icon={<UploadOutlined />}
-          htmlType="submit"
-          style={{
-            borderRadius: 8,
-            width: screens.xs ? "100%" : undefined,
-            fontWeight: 600,
-            fontSize: 16,
-            letterSpacing: 0.3,
-          }}
-          size={screens.xs ? "small" : "large"}
+          onSubmit={handleUpload}
         >
-          Thêm mới từ file XML/Excel
-        </Button>
-      </form>
+          <div style={{
+            display: "flex",
+            gap: 12,
+            flexDirection: screens.xs ? "column" : "row",
+            alignItems: "center",
+          }}>
+            <input
+              type="file"
+              className="form-control"
+              onChange={(e) => setFile(e.target.files[0])}
+              accept=".xml,.xlsx"
+              style={{
+                flex: 1,
+                border: "1px solid #ddd",
+                borderRadius: 8,
+                padding: 8,
+                fontSize: 14,
+                background: '#fff'
+              }}
+            />
+            <Button
+              type="primary"
+              icon={<UploadOutlined />}
+              htmlType="submit"
+              style={{
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 14,
+                whiteSpace: 'nowrap'
+              }}
+              size={screens.xs ? "small" : "middle"}
+            >
+              {!screens.xs && "Upload"} File
+            </Button>
+          </div>
+        </form>
 
-      
+        {/* Thanh tìm kiếm */}
+        <div style={{
+          flex: screens.xs ? '1' : '0 0 320px',
+          position: 'relative'
+        }}>
+          <Input
+            placeholder="🔍 Tìm khóa học..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            size="large"
+            style={{
+              width: '100%',
+              borderRadius: 'var(--radius-lg)',
+              background: 'var(--card-bg)',
+              border: '2px solid var(--border-color)',
+              color: 'var(--text-primary)',
+              fontSize: '0.95rem',
+              boxShadow: 'var(--shadow-sm)',
+              transition: 'all var(--transition-normal)'
+            }}
+            className="input-modern"
+          />
+          <div style={{
+            position: 'absolute',
+            right: 'var(--space-sm)',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            fontSize: '0.8rem',
+            background: 'var(--gradient-primary)',
+            color: 'white',
+            padding: '2px 8px',
+            borderRadius: 'var(--radius-sm)',
+            fontWeight: 600
+          }}>
+            {filteredCourses.length}
+          </div>
+        </div>
+      </div>
+
+      {/* Thông báo kết quả tìm kiếm */}
+      {searchTerm && filteredCourses.length === 0 && (
+        <div style={{
+          textAlign: 'center',
+          marginBottom: 'var(--space-lg)',
+          padding: 'var(--space-md)',
+          background: 'rgba(245, 158, 11, 0.1)',
+          border: '1px solid var(--warning-color)',
+          borderRadius: 'var(--radius-md)',
+          color: 'var(--warning-color)',
+          fontSize: '0.9rem',
+          fontWeight: 500
+        }}>
+          ⚠️ Không tìm thấy khóa học nào phù hợp với "{searchTerm}"
+        </div>
+      )}
 
       <Table
         columns={columns}
-        dataSource={statusFilter ? courses.filter(c => c.trang_thai === statusFilter) : courses}
+        dataSource={statusFilter ? filteredCourses.filter(c => c.trang_thai === statusFilter) : filteredCourses}
         rowKey="id"
         pagination={{ pageSize: 10, size: screens.xs ? "small" : "default" }}
         variant="outlined"
@@ -281,6 +369,120 @@ export default function CoursePage() {
           background: "#fff",
           borderRadius: 12,
           boxShadow: screens.xs ? "0 1px 6px #0001" : "0 3px 12px #0001",
+        }}
+        expandable={{
+          expandedRowRender: (record) => {
+            const students = studentsByCourse[record.ma_khoa_hoc] || [];
+            const isLoading = loadingStudents[record.ma_khoa_hoc];
+
+            return (
+              <div style={{
+                padding: '24px',
+                background: '#f8fafc',
+                borderRadius: '12px',
+                margin: '16px 0'
+              }}>
+                <h4 style={{
+                  marginBottom: '16px',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  👥 Danh sách học viên - {record.ten_khoa_hoc}
+                  <span style={{
+                    fontSize: '0.8rem',
+                    background: 'var(--gradient-primary)',
+                    color: 'white',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontWeight: 600
+                  }}>
+                    {students.length} học viên
+                  </span>
+                </h4>
+
+                {isLoading ? (
+                  <div style={{ textAlign: 'center', padding: '20px' }}>
+                    <div>Đang tải danh sách học viên...</div>
+                  </div>
+                ) : students.length === 0 ? (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '20px',
+                    color: '#b8c5d6',
+                    fontStyle: 'italic'
+                  }}>
+                    📝 Chưa có học viên nào trong khóa học này
+                  </div>
+                ) : (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                    gap: '16px'
+                  }}>
+                    {students.map((student, index) => (
+                      <div key={student.id || index} style={{
+                        padding: '16px',
+                        background: 'rgba(255, 255, 255, 0.98)',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                      }}>
+                        <div style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '1rem'
+                        }}>
+                          {student.ho_ten?.charAt(0)?.toUpperCase() || 'H'}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontWeight: 600,
+                            color: '#ffffff',
+                            marginBottom: 2
+                          }}>
+                            {student.ho_ten || 'Chưa cập nhật'}
+                          </div>
+                          <div style={{
+                            fontSize: '0.85rem',
+                            color: '#b8c5d6'
+                          }}>
+                            ID: {student.id || 'N/A'} • {student.so_dien_thoai || 'Chưa có SĐT'}
+                          </div>
+                          {student.email && (
+                            <div style={{
+                              fontSize: '0.8rem',
+                              color: '#8892a0',
+                              marginTop: 2
+                            }}>
+                              📧 {student.email}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          },
+          onExpand: (expanded, record) => {
+            if (expanded && !studentsByCourse[record.ma_khoa_hoc] && !loadingStudents[record.ma_khoa_hoc]) {
+              fetchStudents(record.ma_khoa_hoc);
+            }
+          },
+          rowExpandable: (record) => true,
         }}
       />
 
@@ -385,7 +587,7 @@ export default function CoursePage() {
                 min={0}
               />
             </Form.Item>
-            
+
           </Form>
         )}
       </Modal>
@@ -409,7 +611,7 @@ export default function CoursePage() {
               padding: 7px !important;
             }
           }
-          
+
         `}
       </style>
     </Card>

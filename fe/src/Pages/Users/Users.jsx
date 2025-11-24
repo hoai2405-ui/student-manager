@@ -9,9 +9,11 @@ import {
   Card,
   Popconfirm,
   Grid,
+  Select,
+  Tag,
 } from "antd";
 import axios from "../../Common/axios";
-import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, DeleteOutlined, CrownOutlined, UserOutlined } from "@ant-design/icons";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -146,6 +148,24 @@ const UsersPage = () => {
       render: (text) => <b style={{ color: "#1565c0", fontWeight: 600 }}>{text}</b>,
     },
     {
+      title: "Vai trò",
+      dataIndex: "role",
+      key: "role",
+      width: screens.xs ? 100 : 120,
+      render: (role) => {
+        const isAdmin = role === 'admin' || role === 'administrator';
+        return (
+          <Tag
+            color={isAdmin ? 'gold' : 'blue'}
+            icon={isAdmin ? <CrownOutlined /> : <UserOutlined />}
+            style={{ fontWeight: 600 }}
+          >
+            {isAdmin ? 'Quản trị viên' : 'Nhân viên'}
+          </Tag>
+        );
+      },
+    },
+    {
       title: "Email",
       dataIndex: "email",
       key: "email",
@@ -181,7 +201,7 @@ const UsersPage = () => {
 
   return (
     <Card
-      title={<span style={{ fontSize: screens.xs ? 20 : 24, fontWeight: 700 }}>👤 Quản lý người dùng</span>}
+      title={<span style={{ fontSize: screens.xs ? 20 : 24, fontWeight: 700 }}> Danh sách người dùng</span>}
       style={{
         maxWidth: 900,
         margin: screens.xs ? "8px 2px" : "28px auto",
@@ -210,6 +230,27 @@ const UsersPage = () => {
           {!editingUser && <Form.Item name="password" label="Mật khẩu" rules={[{ required: true, message: "Nhập mật khẩu!" }]}><Input.Password /></Form.Item>}
           <Form.Item name="email" label="Email" rules={[{ required: true, type: "email", message: "Email không hợp lệ!" }]}><Input /></Form.Item>
           <Form.Item name="phone" label="Điện thoại" rules={[{ required: true, pattern: /^[0-9]{9,11}$/, message: "Điện thoại không hợp lệ!" }]}><Input /></Form.Item>
+          <Form.Item
+            name="role"
+            label="Vai trò"
+            rules={[{ required: true, message: "Chọn vai trò!" }]}
+            initialValue="employee"
+          >
+            <Select placeholder="Chọn vai trò">
+              <Select.Option value="admin">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CrownOutlined style={{ color: '#faad14' }} />
+                  <span>Quản trị viên</span>
+                </div>
+              </Select.Option>
+              <Select.Option value="employee">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <UserOutlined style={{ color: '#1890ff' }} />
+                  <span>Nhân viên</span>
+                </div>
+              </Select.Option>
+            </Select>
+          </Form.Item>
         </Form>
       </Modal>
     </Card>

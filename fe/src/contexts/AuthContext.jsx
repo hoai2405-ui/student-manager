@@ -15,7 +15,11 @@ export function AuthProvider({ children }) {
         const obj = JSON.parse(raw);
         setUser(obj.user ?? null);
         setToken(obj.token ?? null);
-        console.log("AuthContext: Loaded user and token", { user: obj.user, hasToken: !!obj.token });
+        console.log("AuthContext: Loaded user and token", {
+          user: obj.user,
+          hasToken: !!obj.token,
+          isAdmin: !!(obj.user && (obj.user.is_admin || obj.user.isAdmin || obj.user.role === 'admin'))
+        });
       } else {
         console.log("AuthContext: No auth data in localStorage");
       }
@@ -27,12 +31,30 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const login = useCallback((userData, authToken) => {
+    console.log("AuthContext: Logging in", { user: userData, hasToken: !!authToken });
+    setUser(userData);
+    setToken(authToken);
+    localStorage.setItem("auth", JSON.stringify({ user: userData, token: authToken }));
+  }, []);
+
+  const logout = useCallback(() => {
+    console.log("AuthContext: Logging out");
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem("auth");
+    // Redirect to login page
+    window.location.href = "/login";
+  }, []);
+
   const value = useMemo(() => ({
     user,
     token,
     initialized,
-    isAdmin: !!(user && (user.is_admin || user.isAdmin)),
-  }), [user, token, initialized]);
+    isAdmin: !!(user && (user.is_admin || user.isAdmin || user.role === 'admin')),
+    login,
+    logout,
+  }), [user, token, initialized, login, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

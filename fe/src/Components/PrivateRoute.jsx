@@ -37,9 +37,7 @@ export default function PrivateRoute({ children, adminOnly = false }) {
   // Wait for initialization if we have stored auth
   if (!initialized && storedAuth) {
     return (
-      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Spin size="large" tip="Loading..." />
-      </div>
+      <Spin tip="Loading..." fullscreen />
     );
   }
 

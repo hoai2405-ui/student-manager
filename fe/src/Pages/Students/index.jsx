@@ -1,4 +1,4 @@
-import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
+import { PlusOutlined, SearchOutlined, DownloadOutlined, UserOutlined } from "@ant-design/icons";
 import {
   Button,
   Input,
@@ -11,6 +11,7 @@ import {
   Modal,
   DatePicker,
   Grid,
+  Avatar,
 } from "antd";
 import { debounce } from "lodash";
 import { useEffect, useState } from "react";
@@ -18,6 +19,8 @@ import { useNavigate } from "react-router-dom";
 import { ROUTES_PATH } from "../../Common/constants";
 import axios from "../../Common/axios";
 import moment from "moment";
+import * as XLSX from 'xlsx';
+import { TableSkeleton } from '../../Components/Loading';
 
 const { useBreakpoint } = Grid;
 
@@ -39,16 +42,14 @@ const Students = () => {
   const [courseList, setCoursesList] = useState([]);
 
   useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line
-  }, [tableParams.pagination?.current, tableParams.pagination?.pageSize]);
-
-  useEffect(() => {
     if (selectedCourse) {
       fetchData();
+    } else {
+      // Clear data when no course is selected
+      setData([]);
     }
     // eslint-disable-next-line
-  }, [selectedCourse]);
+  }, [tableParams.pagination?.current, tableParams.pagination?.pageSize, selectedCourse]);
 
   const handleEdit = (student) => {
     seteditingStudent({
@@ -157,6 +158,47 @@ const Students = () => {
     fetchData();
   };
 
+  const handleExportExcel = () => {
+    if (data.length === 0) {
+      message.warning('Không có dữ liệu để xuất!');
+      return;
+    }
+
+    const exportData = data.map((student, index) => ({
+      'STT': index + 1,
+      'Họ và tên': student.ho_va_ten,
+      'Ngày sinh': student.ngay_sinh ? moment(student.ngay_sinh).format('DD/MM/YYYY') : 'Không rõ',
+      'Hạng GPLX': student.hang_gplx || (courseList.find(c => c.ma_khoa_hoc === student.ma_khoa_hoc)?.hang_gplx) || 'Không rõ',
+      'CCCD/CMT': student.so_cmt,
+      'Khoá học': student.ten_khoa_hoc,
+      'Lý thuyết': STATUS_OPTIONS.find(s => s.value === student.status_ly_thuyet)?.text || student.status_ly_thuyet,
+      'Mô phỏng': STATUS_OPTIONS.find(s => s.value === student.status_mo_phong)?.text || student.status_mo_phong,
+      'Đường': STATUS_OPTIONS.find(s => s.value === student.status_duong)?.text || student.status_duong,
+      'Hình': STATUS_OPTIONS.find(s => s.value === student.status_truong)?.text || student.status_truong,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách học viên');
+
+    // Auto-size columns
+    const maxWidth = exportData.reduce((acc, row) => {
+      Object.keys(row).forEach((key, i) => {
+        const cellLength = String(row[key]).length;
+        if (!acc[i] || acc[i] < cellLength) {
+          acc[i] = cellLength;
+        }
+      });
+      return acc;
+    }, []);
+    
+    worksheet['!cols'] = maxWidth.map(w => ({ wch: Math.min(w + 2, 30) }));
+
+    const fileName = `Danh_sach_hoc_vien_${moment().format('DDMMYYYY_HHmmss')}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+    message.success('Xuất file Excel thành công!');
+  };
+
   const STATUS_OPTIONS = [
     { value: "dat", text: "Đạt" },
     { value: "rot", text: "Rớt" },
@@ -180,23 +222,70 @@ const Students = () => {
     },
     {
       title: "Họ và tên",
-    dataIndex: "ho_va_ten",
-    minWidth: 120,
-    maxWidth: 200,
-    width: screens.xs ? 140 : 200,
-    ellipsis: true,
-    responsive: ["xs", "sm", "md", "lg", "xl"],
-    render: text => (
-      <span style={{
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        fontWeight: 600,
-        color: "#222",
-        display: "block",
-        maxWidth: screens.xs ? 120 : 180
-      }} title={text}>{text}</span>
-    )
+      dataIndex: "ho_va_ten",
+      minWidth: 120,
+      maxWidth: 200,
+      width: screens.xs ? 140 : 200,
+      ellipsis: true,
+      responsive: ["xs", "sm", "md", "lg", "xl"],
+      render: (text) => (
+        <span
+          style={{
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            fontWeight: 600,
+            color: "#222",
+            display: "block",
+            maxWidth: screens.xs ? 120 : 180,
+          }}
+          title={text}
+        >
+          {text}
+        </span>
+      ),
+    },
+    {
+      title: "Ảnh",
+      dataIndex: "anh_chan_dung",
+      key: "avatar",
+      width: screens.xs ? 60 : 80,
+      responsive: ["xs", "sm", "md", "lg", "xl"],
+      render: (avatar, record) => {
+        // Try multiple field names for photos
+        let photoUrl = avatar || record.anh || record.anh_chan_dung;
+        
+        // Xử lý base64: nếu có dữ liệu nhưng không có prefix, thêm prefix
+        if (photoUrl && typeof photoUrl === 'string' && photoUrl.trim()) {
+          // Nếu là base64 string nhưng không có prefix data:image
+          if (!photoUrl.startsWith('data:') && 
+              !photoUrl.startsWith('http') && 
+              !photoUrl.startsWith('https') &&
+              !photoUrl.startsWith('/')) {
+            // Thử thêm prefix data:image/png;base64,
+            // Nhưng chỉ nếu có vẻ như là base64 (có ký tự đặc biệt của base64)
+            if (photoUrl.length > 100 && /^[A-Za-z0-9+/=]+$/.test(photoUrl.replace(/\s/g, ''))) {
+              photoUrl = `data:image/png;base64,${photoUrl}`;
+            }
+          }
+        } else {
+          photoUrl = undefined; // Không có ảnh
+        }
+        
+        return (
+          <Avatar
+            size={screens.xs ? 40 : 50}
+            src={photoUrl}
+            icon={<UserOutlined />}
+            style={{
+              border: "2px solid #e1e5e9",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            }}
+          >
+            {record.ho_va_ten?.charAt(0)?.toUpperCase()}
+          </Avatar>
+        );
+      },
     },
     {
       title: "Ngày sinh",
@@ -232,12 +321,12 @@ const Students = () => {
       width: 110,
       responsive: ["md", "lg", "xl"],
     },
-    {
-      title: "Khoá học",
-      dataIndex: "ten_khoa_hoc",
-      width: 120,
-      responsive: ["md", "lg", "xl"],
-    },
+    // {
+    //   title: "Khoá học",
+    //   dataIndex: "ten_khoa_hoc",
+    //   width: 120,
+    //   responsive: ["md", "lg", "xl"],
+    // },
     {
       title: "Lý thuyết",
       dataIndex: "status_ly_thuyet",
@@ -343,7 +432,10 @@ const Students = () => {
             type="link"
             onClick={() => handleEdit(record)}
             size={screens.xs ? "small" : "middle"}
-            style={{ padding: screens.xs ? "2px 6px" : "4px 12px", marginRight: 4 }}
+            style={{
+              padding: screens.xs ? "2px 6px" : "4px 12px",
+              marginRight: 4,
+            }}
           >
             Sửa
           </Button>
@@ -353,7 +445,12 @@ const Students = () => {
             okText="Xoá"
             cancelText="Hủy"
           >
-            <Button type="link" danger size={screens.xs ? "small" : "middle"} style={{ padding: screens.xs ? "2px 6px" : "4px 12px" }}>
+            <Button
+              type="link"
+              danger
+              size={screens.xs ? "small" : "middle"}
+              style={{ padding: screens.xs ? "2px 6px" : "4px 12px" }}
+            >
               Xóa
             </Button>
           </Popconfirm>
@@ -398,25 +495,45 @@ const Students = () => {
     style={{
       marginBottom: 10,
       display: "flex",
-      justifyContent: screens.xs ? "flex-end" : "flex-start",
+      justifyContent: "space-between",
+      alignItems: "center",
       width: "100%",
+      gap: 8,
+      flexWrap: "wrap",
     }}
   >
-          <Button
+    <Button
       onClick={() => navigate(ROUTES_PATH.STUDENTS_NEW)}
       type="primary"
       size={screens.xs ? "small" : "middle"}
       icon={<PlusOutlined />}
-      block={screens.xs}
       style={{
-        width: screens.xs ? "100%" : "auto",
         fontWeight: 600,
         letterSpacing: 0.5,
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        border: 'none',
+        boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)',
       }}
     >
-      {!screens.xs && "Tạo mới"}
+      {screens.xs ? "Tạo mới" : "Thêm học viên"}
     </Button>
-        </div>
+    
+    <Button
+      onClick={handleExportExcel}
+      icon={<DownloadOutlined />}
+      size={screens.xs ? "small" : "middle"}
+      style={{
+        fontWeight: 600,
+        letterSpacing: 0.5,
+        background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+        border: 'none',
+        color: '#fff',
+        boxShadow: '0 2px 8px rgba(79, 172, 254, 0.3)',
+      }}
+    >
+      {!screens.xs && "Xuất Excel"}
+    </Button>
+  </div>
      
       <div className="mb-3" style={{ marginTop: 12 }}>
         {courseList.length === 0 && (
@@ -471,16 +588,46 @@ const Students = () => {
         </Space>
       </div>
       <div className="admin-content">
-        <Table
-          columns={columns}
-          dataSource={data}
-          rowKey={(record) => record.id}
-          pagination={tableParams.pagination}
-          loading={loading}
-          onChange={handleTableChange}
-          scroll={{ x: screens.xs ? 700 : 900 }}
-          size={screens.xs ? "small" : "middle"}
-        />
+        {loading && data.length === 0 ? (
+          <TableSkeleton rows={8} columns={8} />
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={data}
+            rowKey={(record) => record.id}
+            pagination={tableParams.pagination}
+            loading={false}
+            onChange={handleTableChange}
+            scroll={{ x: screens.xs ? 700 : 900 }}
+            size={screens.xs ? "small" : "middle"}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    <div style={{ color: '#999', fontSize: 16 }}>
+                      <div style={{ marginBottom: 8, fontWeight: 500 }}>Không có học viên nào</div>
+                      <div style={{ fontSize: 14 }}>Hãy thêm học viên đầu tiên để bắt đầu!</div>
+                    </div>
+                  }
+                >
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => navigate(ROUTES_PATH.STUDENTS_NEW)}
+                    style={{
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      border: 'none',
+                      boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)'
+                    }}
+                  >
+                    Thêm học viên mới
+                  </Button>
+                </Empty>
+              )
+            }}
+          />
+        )}
         <Modal
           open={showModal}
           title="Chỉnh sửa học viên"

@@ -38,14 +38,18 @@ const AdminLayout = () => {
 
   useEffect(() => {
     let key = ROUTES_PATH.DASHBOARD;
-    if (location.pathname.startsWith(ROUTES_PATH.STUDENTS))
+    if (location.pathname === "/students-xml")
+      key = "/students-xml";
+    else if (location.pathname.startsWith(ROUTES_PATH.STUDENTS))
       key = ROUTES_PATH.STUDENTS;
     else if (location.pathname.startsWith(ROUTES_PATH.COURSES))
       key = ROUTES_PATH.COURSES;
     else if (location.pathname.startsWith(ROUTES_PATH.STATS))
       key = ROUTES_PATH.STATS;
     else if (location.pathname.startsWith(ROUTES_PATH.SCHEDULES))
-      key = ROUTES_PATH.SCHEDULES; // <-- thêm
+      key = ROUTES_PATH.SCHEDULES;
+    else if (location.pathname === "/registered-schedules")
+      key = "/registered-schedules";
     else if (location.pathname.startsWith(ROUTES_PATH.USERS))
       key = ROUTES_PATH.USERS;
     setSelectedKey(key);
@@ -55,14 +59,29 @@ const AdminLayout = () => {
     { key: ROUTES_PATH.DASHBOARD, icon: <HomeOutlined />, label: "Trang chủ" },
     { key: ROUTES_PATH.COURSES, icon: <BookOutlined />, label: "Khoá học" },
     {
-      key: ROUTES_PATH.STUDENTS,
+      key: "students",
       icon: <UsergroupDeleteOutlined />,
       label: "Học Viên",
+      children: [
+        {
+          key: ROUTES_PATH.STUDENTS,
+          label: "📝 Thi sát hạch",
+        },
+        {
+          key: "/students-xml",
+          label: "📸 Từ XML",
+        },
+      ],
     },
     { key: ROUTES_PATH.STATS, icon: <BarChartOutlined />, label: "Thống kê" },
     { key: ROUTES_PATH.SCHEDULES, icon: <CalendarOutlined />, label: "Lịch học" }, // <-- thêm mục schedules
     ...(userInfo?.is_admin
       ? [
+          {
+            key: "/registered-schedules",
+            icon: <CalendarOutlined />,
+            label: "Lịch đã đăng ký",
+          },
           {
             key: ROUTES_PATH.USERS,
             icon: <UserSwitchOutlined />,
@@ -95,71 +114,109 @@ const AdminLayout = () => {
         onBreakpoint={setCollapsed}
         style={{
           minHeight: "100vh",
-          boxShadow: "0 6px 32px #0001",
-          borderRight: "1.5px solid #eaeaea44",
-          background: "linear-gradient(160deg, #001529 60%, #1890ff 100%)",
+          boxShadow: "2px 0 8px rgba(0, 0, 0, 0.1)",
+          borderRight: "1px solid rgba(255, 255, 255, 0.1)",
+          background: "linear-gradient(180deg, #001529 0%, #002140 50%, #003a5c 100%)",
+          position: "fixed",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          zIndex: 100,
         }}
       >
         <div
           className="demo-logo-vertical"
           style={{
             textAlign: "center",
-            padding: collapsed ? 2 : 12,
-            marginBottom: 20,
+            padding: collapsed ? "12px 8px" : "16px 12px",
+            marginBottom: 24,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexDirection: "column",
-            gap: 6,
-            height: 70,
+            gap: 8,
+            height: collapsed ? 60 : 80,
+            borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+            transition: "all 0.3s ease",
           }}
         >
-          <a href="/" style={{ display: "inline-block" }}>
+          <a 
+            href="/" 
+            style={{ 
+              display: "inline-block",
+              transition: "transform 0.3s ease",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+            onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+          >
             <img
               src="/logo-vuong200.png"
               alt="Logo"
               style={{
-                width: 35,
-                height: 35,
+                width: collapsed ? 32 : 48,
+                height: collapsed ? 32 : 48,
                 aspectRatio: "1 / 1",
-                borderRadius: "50%",
-                background: "#fff",
+                borderRadius: "12px",
+                background: "linear-gradient(135deg, #1890ff 0%, #096dd9 100%)",
                 objectFit: "cover",
-                border: "2px solid #fff",
-                boxShadow: "0 4px 16px #00152933",
+                border: "2px solid rgba(255, 255, 255, 0.2)",
+                boxShadow: "0 4px 12px rgba(24, 144, 255, 0.3)",
                 margin: 0,
                 display: "block",
-                transition: "box-shadow 0.2s, border 0.2s",
+                transition: "all 0.3s ease",
               }}
             />
           </a>
-          {/* Đã xoá dòng chữ dưới logo theo yêu cầu */}
+          {!collapsed && (
+            <div style={{
+              color: "#fff",
+              fontSize: "12px",
+              fontWeight: 600,
+              letterSpacing: "0.5px",
+              opacity: 0.9,
+              marginTop: 4,
+            }}>
+              ADMIN PANEL
+            </div>
+          )}
         </div>
         <Menu
           theme="dark"
           selectedKeys={[selectedKey]}
           items={items}
+          mode="inline"
+          style={{
+            background: "transparent",
+            border: "none",
+            fontSize: "14px",
+            fontWeight: 500,
+          }}
           onClick={({ key }) => {
-            console.log('Menu click:', { key, currentPath: location.pathname });
             if (key && key !== location.pathname) {
-              console.log('Navigating to:', key);
               navigate(key);
             }
           }}
         />
       </Sider>
-      <Layout>
+      <Layout style={{ 
+        marginLeft: collapsed ? 80 : 200, 
+        transition: "margin-left 0.2s",
+        minHeight: "100vh",
+      }}>
         <Header
           style={{
             color: "#fff",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            background: "#001529",
-            minHeight: 60,
-            borderRadius: "0 0 18px 1px",
-            boxShadow: "0 4px 16px #00152910",
-            padding: "0 16px",
+            background: "linear-gradient(135deg, #001529 0%, #002140 100%)",
+            minHeight: 64,
+            padding: "0 24px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+            position: "sticky",
+            top: 0,
+            zIndex: 99,
+            borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
           }}
         >
           <div
@@ -171,45 +228,55 @@ const AdminLayout = () => {
               minWidth: 0,
             }}
           >
-            <span
-              className="dashboard-title"
-              style={{
-                fontWeight: 700,
-                fontSize: 28,
-                color: "#fff",
-                lineHeight: "1.2",
-                whiteSpace: "normal",
-                wordBreak: "break-word",
-                display: "block",
-                padding: "4px 0",
-                margin: "0 auto",
-                textAlign: "center",
-                width: "100%",
-                letterSpacing: 0.5,
-                textShadow: "0 2px 8px #0003",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              Quản trị học viên
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div
+                style={{
+                  width: 4,
+                  height: 32,
+                  background: "linear-gradient(180deg, #1890ff 0%, #096dd9 100%)",
+                  borderRadius: 2,
+                }}
+              />
+              <span
+                className="dashboard-title"
+                style={{
+                  fontWeight: 700,
+                  fontSize: 20,
+                  color: "#fff",
+                  lineHeight: "1.2",
+                  letterSpacing: 0.5,
+                  textShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
+                }}
+              >
+                Hệ Thống Quản Lý Học Viên
+              </span>
+            </div>
           </div>
-          <Dropdown menu={{ items: profileMenu }} trigger={["click"]}>
+          <Dropdown 
+            menu={{ items: profileMenu }} 
+            trigger={["click"]}
+            placement="bottomRight"
+          >
             <span
               style={{
                 cursor: "pointer",
                 color: "#fff",
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                minWidth: 0,
+                gap: 10,
+                padding: "6px 12px",
+                borderRadius: "8px",
+                transition: "background 0.3s ease",
+                background: "rgba(255, 255, 255, 0.1)",
               }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"}
             >
               <div
                 style={{
-                  width: 32,
-                  height: 32,
-                  background: "#1890ff",
+                  width: 36,
+                  height: 36,
+                  background: "linear-gradient(135deg, #1890ff 0%, #096dd9 100%)",
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
@@ -217,34 +284,48 @@ const AdminLayout = () => {
                   color: "#fff",
                   fontWeight: 600,
                   fontSize: 16,
+                  boxShadow: "0 2px 8px rgba(24, 144, 255, 0.3)",
                 }}
               >
                 {userInfo?.username?.charAt(0).toUpperCase() || (
                   <UserOutlined />
                 )}
               </div>
-              <span
-                style={{
-                  fontSize: 15,
-                  fontWeight: 500,
-                  maxWidth: 60,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {userInfo?.username}
-              </span>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {userInfo?.username || "User"}
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    opacity: 0.8,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {userInfo?.is_admin ? "Administrator" : "User"}
+                </span>
+              </div>
             </span>
           </Dropdown>
         </Header>
-        <Content style={{ padding: 16 }}>
+        <Content style={{ 
+          padding: "24px",
+          background: "transparent",
+          minHeight: "calc(100vh - 64px)",
+        }}>
           <div
             style={{
-              overflow: "auto",
               background: "#fff",
               borderRadius: borderRadiusLG,
-              minHeight: "calc(100vh - 124px)",
+              minHeight: "calc(100vh - 112px)",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+              overflow: "hidden",
             }}
           >
             <Outlet />
@@ -252,44 +333,89 @@ const AdminLayout = () => {
         </Content>
         <AdminFooter />
 
-        {/* Responsive styles for header */}
+        {/* Responsive styles for header and menu */}
         <style>
           {`
-            @media (max-width: 800px) {
+            /* Submenu styling rõ ràng trong sidebar */
+            .ant-menu-submenu .ant-menu-submenu-title {
+              position: relative !important;
+              border-radius: 8px !important;
+              margin: 4px 8px !important;
+              transition: all 0.3s ease !important;
+            }
+
+            .ant-menu-submenu .ant-menu-submenu-title:hover {
+              background: rgba(24, 144, 255, 0.15) !important;
+            }
+
+            .ant-menu-submenu .ant-menu-sub {
+              position: static !important;
+              background: rgba(0, 0, 0, 0.2) !important;
+              border: 1px solid rgba(255, 255, 255, 0.1) !important;
+              border-radius: 8px !important;
+              margin: 4px 8px !important;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+            }
+
+            .ant-menu-submenu .ant-menu-item {
+              margin: 2px 4px !important;
+              border-radius: 6px !important;
+              padding-left: 24px !important;
+              color: rgba(255, 255, 255, 0.85) !important;
+              transition: all 0.3s ease !important;
+            }
+
+            .ant-menu-submenu .ant-menu-item:hover {
+              background: rgba(24, 144, 255, 0.3) !important;
+              color: #fff !important;
+              transform: translateX(4px);
+            }
+
+            .ant-menu-submenu .ant-menu-item-selected {
+              background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%) !important;
+              color: #fff !important;
+              box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3) !important;
+            }
+
+            /* Đảm bảo submenu luôn hiển thị khi mở */
+            .ant-menu-submenu-open .ant-menu-submenu-title {
+              background: rgba(24, 144, 255, 0.2) !important;
+            }
+
+            /* Menu item styling */
+            .ant-menu-item {
+              border-radius: 8px !important;
+              margin: 4px 8px !important;
+              transition: all 0.3s ease !important;
+            }
+
+            .ant-menu-item:hover {
+              background: rgba(24, 144, 255, 0.15) !important;
+              transform: translateX(4px);
+            }
+
+            .ant-menu-item-selected {
+              background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%) !important;
+              box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3) !important;
+            }
+
+            .ant-menu-item-selected::after {
+              display: none !important;
+            }
+
+            @media (max-width: 768px) {
               .dashboard-title {
-                font-size: 20px !important;
-                padding: 0 4px !important;
+                font-size: 16px !important;
+              }
+              .ant-layout {
+                margin-left: 0 !important;
+              }
+              .ant-layout-sider {
+                position: fixed !important;
+                height: 100vh !important;
+                z-index: 999 !important;
               }
             }
-            @media (max-width: 500px) {
-              .dashboard-title {
-                font-size: 15px !important;
-                padding: 0 2px !important;
-                line-height: 1.3 !important;
-              }
-            }
-            @media (max-width: 400px) {
-              .dashboard-title {
-                font-size: 13px !important;
-                padding: 0 1px !important;
-                line-height: 1.3 !important;
-              }
-            }
-            @media (max-width: 600px) {
-    .dashboard-title {
-      font-size: 16px !important;
-    }
-    .ant-layout-header img {
-      width: 26px !important;
-      height: 26px !important;
-      margin-right: 6px !important;
-    }
-    .ant-layout-header [style*="width: 32px"] {
-      width: 26px !important;
-      height: 26px !important;
-      font-size: 14px !important;
-    }
-  }
           `}
         </style>
       </Layout>
@@ -298,3 +424,4 @@ const AdminLayout = () => {
 };
 
 export default AdminLayout;
+
