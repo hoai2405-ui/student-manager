@@ -13,7 +13,7 @@ const upload = multer({ dest: "uploads/" });
 app.use(cors());
 app.use(express.json());
 
-// Đã chuyển toàn bộ truy vấn sang dùng pool từ db.js (PostgreSQL)
+// Đã chuyển toàn bộ truy vấn sang dùng pool từ db.js (MySQL)
 app.use((req, res, next) => {
 console.log("Nhận request:", req.method, req.url);
 next();
@@ -108,27 +108,74 @@ app.get("/", (req, res) => {
 
 // API: Upload file XML hoặc Excel để thêm khoá họcsửa
 app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
+  console.log("\n🔵 ===== BẮT ĐẦU UPLOAD XML ===== 🔵");
+  console.log("File path:", req.file?.path);
   const filePath = req.file.path;
   const parser = new xml2js.Parser();
   fs.readFile(filePath, async (err, data) => {
-    if (err) return res.status(500).json({ message: "Lỗi đọc file", err });
+    if (err) {
+      console.error("❌ Lỗi đọc file:", err);
+      return res.status(500).json({ message: "Lỗi đọc file", err });
+    }
+    console.log("✅ Đọc file thành công, kích thước:", data.length, "bytes");
 
     parser.parseString(data, async (err, result) => {
-      if (err) return res.status(400).json({ message: "Lỗi parse XML", err });
-      console.log("kết quả parse XML:", JSON.stringify(result, null, 2));
+      if (err) {
+        console.error("❌ Lỗi parse XML:", err);
+        return res.status(400).json({ message: "Lỗi parse XML", err });
+      }
+      console.log("✅ Parse XML thành công");
+      console.log("Cấu trúc XML - Top level keys:", Object.keys(result));
       let conn;
       try {
+        console.log("🔍 Đang tìm cấu trúc XML...");
+        if (!result.BAO_CAO1) {
+          console.error("❌ Không tìm thấy BAO_CAO1 trong XML");
+          return res.status(400).json({ message: "Cấu trúc XML không đúng: thiếu BAO_CAO1" });
+        }
+        if (!result.BAO_CAO1.DATA || !result.BAO_CAO1.DATA[0]) {
+          console.error("❌ Không tìm thấy DATA trong BAO_CAO1");
+          return res.status(400).json({ message: "Cấu trúc XML không đúng: thiếu DATA" });
+        }
+        if (!result.BAO_CAO1.DATA[0].KHOA_HOC || !result.BAO_CAO1.DATA[0].KHOA_HOC[0]) {
+          console.error("❌ Không tìm thấy KHOA_HOC trong DATA");
+          return res.status(400).json({ message: "Cấu trúc XML không đúng: thiếu KHOA_HOC" });
+        }
+        if (!result.BAO_CAO1.DATA[0].NGUOI_LXS || !result.BAO_CAO1.DATA[0].NGUOI_LXS[0]) {
+          console.error("❌ Không tìm thấy NGUOI_LXS trong DATA");
+          return res.status(400).json({ message: "Cấu trúc XML không đúng: thiếu NGUOI_LXS" });
+        }
+        
         const khoa = result.BAO_CAO1.DATA[0].KHOA_HOC[0];
         const hocvienList = result.BAO_CAO1.DATA[0].NGUOI_LXS[0].NGUOI_LX;
+        console.log("✅ Tìm thấy khóa học:", khoa.MA_KHOA_HOC?.[0] || khoa.TEN_KHOA_HOC?.[0]);
+        console.log("✅ Số lượng học viên:", Array.isArray(hocvienList) ? hocvienList.length : "Không phải array");
+        
         if (!Array.isArray(hocvienList)) {
+          console.error("❌ hocvienList không phải là array:", typeof hocvienList);
           return res.status(400).json({ message: " Không tìm thấy danh sách học viên trong XML" });
         }
         const sql =
           "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, ngay_khai_giang, ngay_be_giang, so_hoc_sinh, hang_gplx) VALUES (?, ?, ?, ?, ?, ?)";
         const sqlstudent = `
-          INSERT INTO students (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc, status)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO students (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc, status, anh_chan_dung)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
+        try {
+          await pool.query(`ALTER TABLE students ADD COLUMN anh_chan_dung LONGTEXT NULL`);
+          console.log('✅ Đảm bảo cột anh_chan_dung tồn tại (LONGTEXT)');
+        } catch (preErr) {
+          if (preErr.code === 'ER_DUP_FIELDNAME') {
+            try {
+              await pool.query(`ALTER TABLE students MODIFY COLUMN anh_chan_dung LONGTEXT NULL`);
+              console.log('✅ Đã xác nhận cột anh_chan_dung là LONGTEXT');
+            } catch (modErr) {
+              console.warn('⚠️ Không thể sửa cột anh_chan_dung:', modErr.message);
+            }
+          } else {
+            console.warn('⚠️ Bỏ qua bước đảm bảo cột ảnh:', preErr.message);
+          }
+        }
         conn = await pool.getConnection();
         try {
           await conn.beginTransaction();
@@ -142,17 +189,281 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
             khoa.HANG_GPLX?.[0] || "",
           ]);
           // Thêm học viên
-          for (const hocvien of hocvienList) {
-            await conn.query(sqlstudent, [
-              hocvien.HO_VA_TEN?.[0] || "",
-              hocvien.NGAY_SINH?.[0] || null,
-              hocvien.HANG_GPLX?.[0] || khoa.HANG_GPLX?.[0] || "",
-              hocvien.SO_CMT?.[0] || "",
-              khoa.MA_KHOA_HOC?.[0] || "",
-              "chua thi",
-            ]);
+          console.log(`\n📋 Bắt đầu xử lý ${hocvienList.length} học viên...`);
+          for (let i = 0; i < hocvienList.length; i++) {
+            const hocvien = hocvienList[i];
+            const studentName = hocvien.HO_VA_TEN?.[0] || `Student_${i + 1}`;
+            
+            // Debug: Log cấu trúc của học viên đầu tiên để xem có những trường gì
+            if (i === 0) {
+              console.log("\n=== DEBUG: Cấu trúc học viên đầu tiên ===");
+              console.log("Tên học viên:", studentName);
+              console.log("Tất cả các keys:", Object.keys(hocvien));
+              console.log("Có HO_SO?", !!hocvien.HO_SO);
+              if (hocvien.HO_SO) {
+                const isArray = Array.isArray(hocvien.HO_SO);
+                console.log("HO_SO là array?", isArray);
+                if (isArray) {
+                  console.log("HO_SO length:", hocvien.HO_SO.length);
+                  if (hocvien.HO_SO[0]) {
+                    console.log("HO_SO[0] keys:", Object.keys(hocvien.HO_SO[0]));
+                    console.log("Có ANH_CHAN_DUNG?", !!hocvien.HO_SO[0].ANH_CHAN_DUNG);
+                    if (hocvien.HO_SO[0].ANH_CHAN_DUNG) {
+                      console.log("ANH_CHAN_DUNG[0] type:", typeof hocvien.HO_SO[0].ANH_CHAN_DUNG[0]);
+                      console.log("ANH_CHAN_DUNG[0] length:", hocvien.HO_SO[0].ANH_CHAN_DUNG[0]?.length || 0);
+                      console.log("ANH_CHAN_DUNG[0] preview:", hocvien.HO_SO[0].ANH_CHAN_DUNG[0]?.substring(0, 50) || "null");
+                    }
+                  }
+                } else {
+                  // HO_SO là object
+                  console.log("HO_SO keys:", Object.keys(hocvien.HO_SO));
+                  console.log("Có ANH_CHAN_DUNG?", !!hocvien.HO_SO.ANH_CHAN_DUNG);
+                  if (hocvien.HO_SO.ANH_CHAN_DUNG) {
+                    console.log("ANH_CHAN_DUNG là array?", Array.isArray(hocvien.HO_SO.ANH_CHAN_DUNG));
+                    if (hocvien.HO_SO.ANH_CHAN_DUNG[0]) {
+                      console.log("ANH_CHAN_DUNG[0] type:", typeof hocvien.HO_SO.ANH_CHAN_DUNG[0]);
+                      console.log("ANH_CHAN_DUNG[0] length:", hocvien.HO_SO.ANH_CHAN_DUNG[0]?.length || 0);
+                      console.log("ANH_CHAN_DUNG[0] preview:", hocvien.HO_SO.ANH_CHAN_DUNG[0]?.substring(0, 50) || "null");
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Xử lý ảnh từ XML - ảnh nằm trong HO_SO.ANH_CHAN_DUNG[0]
+            let anhValue = null;
+            
+            // Kiểm tra trong HO_SO (cấu trúc XML thực tế: HO_SO là object, không phải array)
+            if (hocvien.HO_SO) {
+              // HO_SO có thể là array hoặc object
+              if (Array.isArray(hocvien.HO_SO)) {
+                // Nếu là array, lấy phần tử đầu tiên
+                if (hocvien.HO_SO[0]) {
+                  if (hocvien.HO_SO[0].ANH_CHAN_DUNG) {
+                    if (hocvien.HO_SO[0].ANH_CHAN_DUNG[0]) {
+                      anhValue = hocvien.HO_SO[0].ANH_CHAN_DUNG[0];
+                      console.log(`✅ [${i + 1}/${hocvienList.length}] Tìm thấy ảnh trong HO_SO[0].ANH_CHAN_DUNG[0] (student: ${studentName})`);
+                    } else {
+                      if (i === 0) console.log(`⚠️  HO_SO[0].ANH_CHAN_DUNG tồn tại nhưng [0] là undefined/null`);
+                    }
+                  } else {
+                    if (i === 0) console.log(`⚠️  HO_SO[0] không có ANH_CHAN_DUNG. Keys:`, Object.keys(hocvien.HO_SO[0]));
+                  }
+                } else {
+                  if (i === 0) console.log(`⚠️  HO_SO là array nhưng [0] không tồn tại`);
+                }
+              } else {
+                // HO_SO là object trực tiếp (cấu trúc thực tế từ XML)
+                if (hocvien.HO_SO.ANH_CHAN_DUNG) {
+                  if (Array.isArray(hocvien.HO_SO.ANH_CHAN_DUNG)) {
+                    if (hocvien.HO_SO.ANH_CHAN_DUNG[0]) {
+                      anhValue = hocvien.HO_SO.ANH_CHAN_DUNG[0];
+                      console.log(`✅ [${i + 1}/${hocvienList.length}] Tìm thấy ảnh trong HO_SO.ANH_CHAN_DUNG[0] (student: ${studentName})`);
+                    } else {
+                      if (i === 0) console.log(`⚠️  HO_SO.ANH_CHAN_DUNG là array nhưng [0] là undefined/null`);
+                    }
+                  } else {
+                    // ANH_CHAN_DUNG không phải array, có thể là string trực tiếp
+                    anhValue = hocvien.HO_SO.ANH_CHAN_DUNG;
+                    console.log(`✅ [${i + 1}/${hocvienList.length}] Tìm thấy ảnh trong HO_SO.ANH_CHAN_DUNG (không phải array) (student: ${studentName})`);
+                  }
+                } else {
+                  if (i === 0) {
+                    console.log(`⚠️  HO_SO không có ANH_CHAN_DUNG`);
+                    console.log(`   HO_SO keys:`, Object.keys(hocvien.HO_SO));
+                    // In ra một vài keys để debug
+                    const sampleKeys = Object.keys(hocvien.HO_SO).slice(0, 10);
+                    sampleKeys.forEach(key => {
+                      const val = hocvien.HO_SO[key];
+                      if (Array.isArray(val) && val[0] && typeof val[0] === 'string' && val[0].length > 100) {
+                        console.log(`   - ${key}: có dữ liệu dài (${val[0].length} ký tự)`);
+                      }
+                    });
+                  }
+                }
+              }
+            } else {
+              if (i === 0) {
+                console.log(`⚠️  Học viên không có HO_SO`);
+                console.log(`   Tất cả keys của học viên:`, Object.keys(hocvien));
+              }
+            }
+            
+            // Nếu không tìm thấy trong HO_SO, thử các tên trường phổ biến khác
+            if (!anhValue) {
+              const possibleImageFields = [
+                'ANH_CHAN_DUNG', 'ANH_CHAN_DUNG_64', 'ANH_CHAN_DUNG_BASE64',
+                'ANH', 'ANH_64', 'ANH_BASE64', 'IMAGE', 'PHOTO',
+                'anh_chan_dung', 'anh_chan_dung_64', 'anh',
+                'AnhChanDung', 'Anh', 'Image', 'Photo'
+              ];
+              
+              for (const fieldName of possibleImageFields) {
+                if (hocvien[fieldName] && hocvien[fieldName][0]) {
+                  anhValue = hocvien[fieldName][0];
+                  console.log(`✅ Tìm thấy ảnh ở trường: ${fieldName} (student: ${studentName})`);
+                  break;
+                }
+              }
+            }
+            
+            if (!anhValue && i === 0) {
+              console.log("⚠️  Không tìm thấy ảnh trong các trường phổ biến. Tất cả các keys:", Object.keys(hocvien));
+              for (const key in hocvien) {
+                const value = hocvien[key]?.[0];
+                if (value && typeof value === 'string' && value.length > 100) {
+                  console.log(`  - ${key}: length=${value.length}, preview=${value.substring(0, 50)}...`);
+                }
+              }
+            }
+            if (anhValue && typeof anhValue === 'object') {
+              if (anhValue._) {
+                anhValue = anhValue._;
+              } else if (typeof anhValue === 'object' && Object.keys(anhValue).length > 0) {
+                const firstKey = Object.keys(anhValue)[0];
+                anhValue = anhValue[firstKey];
+              }
+            }
+            let anh = null;
+            if (anhValue) {
+              if (typeof anhValue === 'string') {
+                anh = anhValue.trim().replace(/\s+/g, '');
+                if (!anh || anh.length === 0) {
+                  anh = null;
+                } else {
+                  console.log(`📸 Ảnh của ${studentName}: length=${anh.length}, startsWith=${anh.substring(0, 30)}...`);
+                }
+              } else {
+                anh = String(anhValue);
+                if (anh === 'null' || anh === 'undefined' || anh.trim().length === 0) {
+                  anh = null;
+                }
+              }
+            }
+            if (!anh) {
+              const valToString = (x) => {
+                if (x == null) return null;
+                if (Array.isArray(x)) x = x[0];
+                if (typeof x === 'object') {
+                  if (x._ != null) x = x._;
+                  else {
+                    const keys = Object.keys(x);
+                    if (keys.length) {
+                      let y = x[keys[0]];
+                      if (Array.isArray(y)) y = y[0];
+                      if (y && typeof y === 'object' && y._ != null) y = y._;
+                      x = y;
+                    }
+                  }
+                }
+                if (x == null) return null;
+                return typeof x === 'string' ? x : String(x);
+              };
+              const findImage = (obj) => {
+                const stack = [];
+                if (obj) stack.push(obj);
+                while (stack.length) {
+                  const cur = stack.pop();
+                  if (!cur || typeof cur !== 'object') continue;
+                  for (const key of Object.keys(cur)) {
+                    const v = cur[key];
+                    const k = key.toLowerCase();
+                    if (k.includes('anh') && k.includes('chan') && k.includes('dung')) {
+                      const s = valToString(v);
+                      if (s && s.replace(/\s+/g,'').length > 100) return s;
+                    }
+                    if (Array.isArray(v)) {
+                      for (const item of v) stack.push(item);
+                    } else if (typeof v === 'object') {
+                      stack.push(v);
+                    }
+                  }
+                }
+                return null;
+              };
+              const candidate = findImage(hocvien) || findImage(hocvien.HO_SO);
+              if (candidate) {
+                const normalized = candidate.trim().replace(/\s+/g,'');
+                if (normalized) anh = normalized;
+              }
+            }
+            if (!anh) {
+              console.log(`⚠️  [${i + 1}/${hocvienList.length}] Không có ảnh cho học viên: ${studentName}`);
+            } else {
+              console.log(`💾 [${i + 1}/${hocvienList.length}] Đã lấy ảnh cho ${studentName} (length: ${anh.length})`);
+            }
+            
+            try {
+              const [result] = await conn.query(sqlstudent, [
+                hocvien.HO_VA_TEN?.[0] || "",
+                hocvien.NGAY_SINH?.[0] || null,
+                hocvien.HANG_GPLX?.[0] || khoa.HANG_GPLX?.[0] || "",
+                hocvien.SO_CMT?.[0] || "",
+                khoa.MA_KHOA_HOC?.[0] || "",
+                "chua thi",
+                anh, // Lưu ảnh vào database (null nếu không có)
+              ]);
+              
+              // Kiểm tra lại sau khi insert và tự sửa nếu thiếu ảnh
+              if (anh && result.insertId) {
+                const [check] = await conn.query(
+                  "SELECT anh_chan_dung, LENGTH(anh_chan_dung) as anh_length FROM students WHERE id = ?",
+                  [result.insertId]
+                );
+                if (check[0]) {
+                  if (check[0].anh_chan_dung) {
+                    console.log(`   ✅ Đã lưu thành công! Length trong DB: ${check[0].anh_length}`);
+                  } else {
+                    console.log(`   ⚠️  Ảnh không được lưu vào DB (NULL) → thử UPDATE trực tiếp...`);
+                    try {
+                      await conn.query(
+                        "UPDATE students SET anh_chan_dung = ? WHERE id = ?",
+                        [anh, result.insertId]
+                      );
+                      const [recheck] = await conn.query(
+                        "SELECT LENGTH(anh_chan_dung) as anh_length FROM students WHERE id = ?",
+                        [result.insertId]
+                      );
+                      if (recheck[0]?.anh_length > 0) {
+                        console.log(`   ✅ Đã cập nhật ảnh qua UPDATE! Length: ${recheck[0].anh_length}`);
+                      } else {
+                        console.log(`   ❌ UPDATE ảnh vẫn không thành công (NULL)`);
+                      }
+                    } catch (updErr) {
+                      console.error(`   ❌ Lỗi UPDATE ảnh:`, updErr.message);
+                    }
+                  }
+                }
+              }
+            } catch (insertErr) {
+              console.error(`❌ Lỗi khi insert học viên ${studentName}:`, insertErr.message);
+              if (insertErr.message.includes('Data too long')) {
+                console.error(`   ⚠️  Ảnh quá lớn! Đang tự động chuyển cột anh_chan_dung sang LONGTEXT và thử lại...`);
+                try {
+                  await conn.query(`ALTER TABLE students MODIFY COLUMN anh_chan_dung LONGTEXT NULL`);
+                  const [retry] = await conn.query(sqlstudent, [
+                    hocvien.HO_VA_TEN?.[0] || "",
+                    hocvien.NGAY_SINH?.[0] || null,
+                    hocvien.HANG_GPLX?.[0] || khoa.HANG_GPLX?.[0] || "",
+                    hocvien.SO_CMT?.[0] || "",
+                    khoa.MA_KHOA_HOC?.[0] || "",
+                    "chua thi",
+                    anh,
+                  ]);
+                  if (retry.insertId) {
+                    console.log(`   ✅ Đã retry insert thành công sau khi ALTER LONGTEXT (id=${retry.insertId})`);
+                  }
+                } catch (alterErr) {
+                  console.error(`   ❌ Retry insert thất bại:`, alterErr.message);
+                  throw alterErr;
+                }
+              } else {
+                throw insertErr;
+              }
+            }
           }
           await conn.commit();
+          console.log(`\n✅ Hoàn thành! Đã thêm ${hocvienList.length} học viên vào database.\n`);
           res.json({ success: true });
         } catch (err) {
           if (conn) await conn.rollback();
@@ -331,7 +642,9 @@ app.put("/api/courses/:id", async (req, res) => {
 app.get("/api/students", async (req, res) => {
   const { name, cccd, status, ma_khoa_hoc } = req.query;
   let sql = `
-    SELECT s.*, c.ten_khoa_hoc
+    SELECT s.*,
+           c.ten_khoa_hoc,
+           COALESCE(s.anh_chan_dung, '') as anh
     FROM students s
     LEFT JOIN courses c ON s.ma_khoa_hoc = c.ma_khoa_hoc
     WHERE 1=1
@@ -357,7 +670,8 @@ app.get("/api/students", async (req, res) => {
     const [results] = await pool.query(sql, params);
     res.json(results);
   } catch (err) {
-    res.status(500).json(err);
+    console.error('Students API error:', err);
+    res.status(500).json({ message: 'Database error', error: err.message });
   }
 });
 
@@ -483,6 +797,172 @@ app.get("/api/quick-stats", async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: "Lỗi lấy thống kê nhanh!" });
+  }
+});
+
+// API: Tạo table students_xml nếu chưa có
+app.post("/api/init-students-xml-table", async (req, res) => {
+  try {
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS students_xml (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ho_ten VARCHAR(255) NOT NULL,
+        so_dien_thoai VARCHAR(20),
+        email VARCHAR(255),
+        ngay_sinh DATE,
+        dia_chi TEXT,
+        ma_khoa_hoc VARCHAR(50),
+        anh_chan_dung LONGTEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `;
+    await pool.query(createTableSQL);
+    res.json({ message: "Table students_xml đã được tạo hoặc đã tồn tại!" });
+  } catch (err) {
+    console.error("Error creating table:", err);
+    res.status(500).json({ message: "Lỗi tạo table", error: err.message });
+  }
+});
+
+// API: Lấy danh sách học viên từ XML
+app.get("/api/students/xml", async (req, res) => {
+  try {
+    const [results] = await pool.query(`SELECT ho_ten, so_dien_thoai, email, ngay_sinh, dia_chi, ma_khoa_hoc, COALESCE(anh_chan_dung, '') as anh, id, created_at, updated_at FROM students_xml ORDER BY created_at DESC`);
+    res.json(results);
+  } catch (err) {
+    console.error("Error fetching XML students:", err);
+    res.status(500).json({ message: "Lỗi lấy danh sách học viên XML", error: err.message });
+  }
+});
+
+// API: Upload file XML cho học viên
+app.post("/api/students/xml/upload", upload.single("file"), async (req, res) => {
+  const filePath = req.file.path;
+  const parser = new xml2js.Parser();
+
+  fs.readFile(filePath, async (err, data) => {
+    if (err) return res.status(500).json({ message: "Lỗi đọc file", error: err.message });
+
+    parser.parseString(data, async (err, result) => {
+      if (err) return res.status(400).json({ message: "Lỗi parse XML", error: err.message });
+
+      try {
+        // Kiểm tra cấu trúc XML
+        let students = [];
+        if (result.students && result.students.student) {
+          students = Array.isArray(result.students.student)
+            ? result.students.student
+            : [result.students.student];
+        } else if (result.HO_SO) {
+          // Single HO_SO item
+          students = [result.HO_SO];
+        } else {
+          return res.status(400).json({ message: "Cấu trúc XML không đúng. Cần có <students><student>...</student></students> hoặc <HO_SO>" });
+        }
+
+        // Tạo table nếu chưa có
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS students_xml (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            ho_ten VARCHAR(255) NOT NULL,
+            so_dien_thoai VARCHAR(20),
+            email VARCHAR(255),
+            ngay_sinh DATE,
+            dia_chi TEXT,
+            ma_khoa_hoc VARCHAR(50),
+            anh_chan_dung LONGTEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        `);
+
+        // Cố gắng thay đổi anh_chan_dung từ VARCHAR(500) thành LONGTEXT nếu table cũ
+        try {
+          await pool.query(`ALTER TABLE students_xml MODIFY COLUMN anh_chan_dung LONGTEXT`);
+        } catch (alterErr) {
+          console.warn("ALTER anh_chan_dung column failed, might already be LONGTEXT:", alterErr.message);
+        }
+
+        // Insert học viên
+        const insertSQL = `
+          INSERT INTO students_xml (ho_ten, so_dien_thoai, email, ngay_sinh, dia_chi, ma_khoa_hoc, anh_chan_dung)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        for (const student of students) {
+          // Xử lý trường anh: tùy theo cấu trúc XML
+          let anhValue;
+          if (result.students && result.students.student) {
+            anhValue = student.anh?.[0];
+          } else if (result.HO_SO) {
+            anhValue = student.ANH_CHAN_DUNG?.[0];
+          }
+          console.log("Raw anh value:", anhValue);
+          let anh = "";
+          if (typeof anhValue === 'string') {
+            anh = anhValue || "";
+          } else if (anhValue && typeof anhValue === 'object' && anhValue._) {
+            anh = anhValue._ || "";
+          } else {
+            anh = anhValue || "";
+          }
+          console.log("Processed anh:", anh);
+
+          await pool.query(insertSQL, [
+            student.ho_ten?.[0] || "",
+            student.so_dien_thoai?.[0] || "",
+            student.email?.[0] || "",
+            student.ngay_sinh?.[0] || null,
+            student.dia_chi?.[0] || "",
+            student.ma_khoa_hoc?.[0] || "",
+            anh
+          ]);
+        }
+
+        res.json({ message: `Đã thêm ${students.length} học viên thành công!` });
+
+      } catch (dbErr) {
+        console.error("Database error:", dbErr);
+        if (dbErr.code === "ER_DUP_ENTRY") {
+          res.status(409).json({ message: "Một số học viên đã tồn tại trong database!" });
+        } else {
+          res.status(500).json({ message: "Lỗi lưu vào database", error: dbErr.message });
+        }
+      }
+    });
+  });
+});
+
+// API: Cập nhật học viên XML
+app.put("/api/students/xml/:id", async (req, res) => {
+  const { id } = req.params;
+  const { ho_ten, so_dien_thoai, email, ngay_sinh, dia_chi, ma_khoa_hoc, anh_chan_dung } = req.body;
+
+  try {
+    await pool.query(`
+      UPDATE students_xml
+      SET ho_ten = ?, so_dien_thoai = ?, email = ?, ngay_sinh = ?, dia_chi = ?, ma_khoa_hoc = ?, anh_chan_dung = ?
+      WHERE id = ?
+    `, [ho_ten, so_dien_thoai, email, ngay_sinh, dia_chi, ma_khoa_hoc, anh_chan_dung, id]);
+
+    res.json({ message: "Cập nhật thành công!" });
+  } catch (err) {
+    console.error("Update error:", err);
+    res.status(500).json({ message: "Lỗi cập nhật", error: err.message });
+  }
+});
+
+// API: Xóa học viên XML
+app.delete("/api/students/xml/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await pool.query("DELETE FROM students_xml WHERE id = ?", [id]);
+    res.json({ message: "Đã xóa học viên!" });
+  } catch (err) {
+    console.error("Delete error:", err);
+    res.status(500).json({ message: "Lỗi xóa học viên", error: err.message });
   }
 });
 
