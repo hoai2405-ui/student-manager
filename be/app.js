@@ -1,6 +1,8 @@
+const { execSync } = require("child_process"); // Thêm dòng này để chạy lệnh hệ thống
+const path = require("path");
 const express = require("express");
 const multer = require("multer");
-
+const sharp = require("sharp"); 
 const cors = require("cors");
 const fs = require("fs");
 const xml2js = require("xml2js");
@@ -190,280 +192,340 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
           ]);
           // Thêm học viên
           console.log(`\n📋 Bắt đầu xử lý ${hocvienList.length} học viên...`);
+          // for (let i = 0; i < hocvienList.length; i++) {
+          //   const hocvien = hocvienList[i];
+          //   // Lấy tên, nếu lỗi font hoặc mảng thì lấy phần tử đầu
+          //   const studentName = Array.isArray(hocvien.HO_VA_TEN)
+          //     ? hocvien.HO_VA_TEN[0]
+          //     : hocvien.HO_VA_TEN || `Student_${i + 1}`;
+
+          //   console.log(`\n--- Đang xử lý: ${studentName} ---`);
+
+          //   // --- 1. HÀM HỖ TRỢ LẤY DỮ LIỆU SẠCH TỪ XML ---
+          //   // Giúp lấy text bất kể nó nằm trong mảng [0] hay object có thuộc tính _
+          //   const getCleanText = (node) => {
+          //     if (!node) return null;
+          //     if (Array.isArray(node)) return getCleanText(node[0]); // Nếu là mảng, bóc lớp vỏ mảng ra
+          //     if (typeof node === "object") {
+          //       // Trường hợp XML có thuộc tính (VD: <ANH format="jpg">Base64...</ANH>)
+          //       if (node._) return node._;
+          //       return null;
+          //     }
+          //     return String(node).trim(); // Trả về chuỗi sạch
+          //   };
+
+          //   // --- 2. TÌM DỮ LIỆU ẢNH (QUÉT MỌI NGÓC NGÁCH) ---
+          //   let rawAnh = null;
+
+          //   // Cách 1: Tìm trong HO_SO (Cấu trúc chuẩn thường gặp)
+          //   if (hocvien.HO_SO) {
+          //     let hoSoNode = Array.isArray(hocvien.HO_SO)
+          //       ? hocvien.HO_SO[0]
+          //       : hocvien.HO_SO;
+          //     // Danh sách các tên trường ảnh có thể xuất hiện
+          //     const possibleKeys = [
+          //       "ANH_CHAN_DUNG",
+          //       "anh_chan_dung",
+          //       "IMAGE",
+          //       "AnhChanDung",
+          //       "ANH",
+          //       "anh",
+          //     ];
+
+          //     for (const key of possibleKeys) {
+          //       if (hoSoNode[key]) {
+          //         rawAnh = getCleanText(hoSoNode[key]);
+          //         if (rawAnh) {
+          //           console.log(`✅ Tìm thấy ảnh trong HO_SO.${key}`);
+          //           break;
+          //         }
+          //       }
+          //     }
+          //   }
+
+          //   // Cách 2: Tìm trực tiếp bên ngoài (nếu không có HO_SO)
+          //   if (!rawAnh) {
+          //     const directKeys = [
+          //       "ANH_CHAN_DUNG",
+          //       "anh_chan_dung",
+          //       "IMAGE",
+          //       "ANH",
+          //     ];
+          //     for (const key of directKeys) {
+          //       if (hocvien[key]) {
+          //         rawAnh = getCleanText(hocvien[key]);
+          //         if (rawAnh) {
+          //           console.log(`✅ Tìm thấy ảnh trực tiếp ở key: ${key}`);
+          //           break;
+          //         }
+          //       }
+          //     }
+          //   }
+
+          //   // --- 3. XỬ LÝ CHUỖI BASE64 ---
+          //   let anhFinal = null;
+          //   if (rawAnh && rawAnh.length > 100) {
+          //     // Ảnh phải có dữ liệu dài dài chút
+          //     // Quan trọng: Xóa hết dấu cách, xuống dòng (\n) thì ảnh mới hiển thị được
+          //     anhFinal = rawAnh.replace(/\s+/g, "");
+          //     console.log(`📸 Kích thước ảnh: ${anhFinal.length} ký tự.`);
+          //   } else {
+          //     console.log(
+          //       `⚠️ CẢNH BÁO: Không tìm thấy ảnh hoặc dữ liệu quá ngắn! (Set NULL)`
+          //     );
+          //     // Debug: in ra các key hiện có để soi lỗi
+          //     // console.log("Các trường dữ liệu đang có:", Object.keys(hocvien));
+          //   }
+
+          //   // --- 4. LƯU VÀO DATABASE ---
+          //   // Lấy các thông tin khác
+          //   const ngaySinh = getCleanText(hocvien.NGAY_SINH);
+          //   const hangGplx =
+          //     getCleanText(hocvien.HANG_GPLX) ||
+          //     getCleanText(khoa.HANG_GPLX) ||
+          //     "";
+          //   const soCmt = getCleanText(hocvien.SO_CMT) || "";
+
+          //   try {
+          //     // Câu lệnh SQL insert
+          //     const [result] = await conn.query(sqlstudent, [
+          //       studentName,
+          //       ngaySinh,
+          //       hangGplx,
+          //       soCmt,
+          //       getCleanText(khoa.MA_KHOA_HOC) || "",
+          //       "chua thi",
+          //       anhFinal, // Truyền chuỗi ảnh đã xử lý sạch vào đây
+          //     ]);
+          //     console.log(`💾 Đã lưu thành công ID: ${result.insertId}`);
+          //   } catch (insertErr) {
+          //     // Nếu lỗi do ảnh quá lớn (Packet too large) -> set ảnh null để lưu thông tin khác
+          //     console.error(
+          //       `❌ Lỗi lưu DB cho ${studentName}:`,
+          //       insertErr.message
+          //     );
+          //     if (
+          //       insertErr.message.includes("large") ||
+          //       insertErr.message.includes("packet")
+          //     ) {
+          //       console.log(
+          //         "⚠️ Ảnh quá lớn, đang lưu lại học viên không kèm ảnh..."
+          //       );
+          //       await conn.query(sqlstudent, [
+          //         studentName,
+          //         ngaySinh,
+          //         hangGplx,
+          //         soCmt,
+          //         getCleanText(khoa.MA_KHOA_HOC) || "",
+          //         "chua thi",
+          //         null,
+          //       ]);
+          //     }
+          //   }
+          // }
+          console.log(
+            `\n📋 Bắt đầu xử lý ${hocvienList.length} học viên (Chế độ quét sâu)...`
+          );
+
+          // --- HÀM TÌM ẢNH ĐỆ QUY (QUÉT MỌI NGÓC NGÁCH) ---
+          const findLongString = (obj, depth = 0) => {
+            if (!obj || depth > 5) return null; // Tránh lặp vô hạn, chỉ quét sâu 5 cấp
+
+            // Nếu bản thân nó là chuỗi dài > 1000 ký tự -> Khả năng cao là ảnh
+            if (typeof obj === "string" && obj.length > 1000) {
+              return obj;
+            }
+
+            // Nếu là Mảng hoặc Object, đệ quy tìm bên trong
+            if (typeof obj === "object") {
+              // Ưu tiên tìm trong key có chữ "ANH" hoặc "IMAGE" trước
+              const keys = Object.keys(obj);
+              const priorityKeys = keys.filter(
+                (k) =>
+                  k.toUpperCase().includes("ANH") ||
+                  k.toUpperCase().includes("IMG")
+              );
+              const otherKeys = keys.filter(
+                (k) =>
+                  !k.toUpperCase().includes("ANH") &&
+                  !k.toUpperCase().includes("IMG")
+              );
+
+              // Quét key ưu tiên trước
+              for (const key of [...priorityKeys, ...otherKeys]) {
+                // Bỏ qua các key hệ thống của xml2js
+                if (key === "$") continue;
+
+                const result = findLongString(obj[key], depth + 1);
+                if (result) return result;
+              }
+            }
+            return null;
+          };
+          // --- HÀM LẤY TEXT NGẮN (GIỮ NGUYÊN) ---
+          const getText = (node) => {
+            if (!node) return "";
+            if (Array.isArray(node)) return getText(node[0]);
+            if (typeof node === "object") return node._ || "";
+            return String(node).trim();
+          };
+// vòng lặp chính
           for (let i = 0; i < hocvienList.length; i++) {
             const hocvien = hocvienList[i];
-            const studentName = hocvien.HO_VA_TEN?.[0] || `Student_${i + 1}`;
-            
-            // Debug: Log cấu trúc của học viên đầu tiên để xem có những trường gì
-            if (i === 0) {
-              console.log("\n=== DEBUG: Cấu trúc học viên đầu tiên ===");
-              console.log("Tên học viên:", studentName);
-              console.log("Tất cả các keys:", Object.keys(hocvien));
-              console.log("Có HO_SO?", !!hocvien.HO_SO);
-              if (hocvien.HO_SO) {
-                const isArray = Array.isArray(hocvien.HO_SO);
-                console.log("HO_SO là array?", isArray);
-                if (isArray) {
-                  console.log("HO_SO length:", hocvien.HO_SO.length);
-                  if (hocvien.HO_SO[0]) {
-                    console.log("HO_SO[0] keys:", Object.keys(hocvien.HO_SO[0]));
-                    console.log("Có ANH_CHAN_DUNG?", !!hocvien.HO_SO[0].ANH_CHAN_DUNG);
-                    if (hocvien.HO_SO[0].ANH_CHAN_DUNG) {
-                      console.log("ANH_CHAN_DUNG[0] type:", typeof hocvien.HO_SO[0].ANH_CHAN_DUNG[0]);
-                      console.log("ANH_CHAN_DUNG[0] length:", hocvien.HO_SO[0].ANH_CHAN_DUNG[0]?.length || 0);
-                      console.log("ANH_CHAN_DUNG[0] preview:", hocvien.HO_SO[0].ANH_CHAN_DUNG[0]?.substring(0, 50) || "null");
+
+            // Lấy tên (xử lý an toàn)
+            let studentName = "Unknown";
+            if (hocvien.HO_VA_TEN)
+              studentName = Array.isArray(hocvien.HO_VA_TEN)
+                ? hocvien.HO_VA_TEN[0]
+                : hocvien.HO_VA_TEN;
+
+            console.log(
+              `\n--- [${i + 1}] Đang quét dữ liệu của: ${studentName} ---`
+            );
+
+            // 1. GỌI HÀM QUÉT ẢNH
+            let rawAnh = findLongString(hocvien);
+            let anhFinal = null;
+
+            if (rawAnh) {
+              try {
+                // 1. Làm sạch chuỗi
+                let cleanString = rawAnh.replace(/\s+/g, "");
+                if (cleanString.includes(","))
+                  cleanString = cleanString.split(",")[1];
+
+                // 2. Tạo Buffer
+                const imageBuffer = Buffer.from(cleanString, "base64");
+
+                // 3. Kiểm tra xem có phải JPEG 2000 không (Magic bytes: 00 00 00 0C 6A 50)
+                const isJP2 = imageBuffer
+                  .toString("hex", 0, 12)
+                  .includes("0000000c6a50");
+
+                if (isJP2) {
+                  console.log(
+                    `⚠️ Phát hiện JPEG 2000 (${studentName}). Đang gọi ImageMagick...`
+                  );
+
+                  const tempDir = path.join(__dirname, "temp_images");
+                  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+
+                  const tempFileName = `temp_${Date.now()}_${Math.random()
+                    .toString(36)
+                    .substring(7)}`;
+                  const inputPath = path.join(tempDir, `${tempFileName}.jp2`);
+                  const outputPath = path.join(tempDir, `${tempFileName}.jpg`);
+
+                  // Ghi file tạm
+                  fs.writeFileSync(inputPath, imageBuffer);
+
+                  // 👇👇👇 SỬA ĐƯỜNG DẪN NÀY NẾU MÁY BẠN CÀI KHÁC 👇👇👇
+                  // Lưu ý: Dùng 2 dấu gạch chéo "\\"
+                  const magickPath =
+                    "C:\\Program Files\\ImageMagick-7.1.2-Q16-HDRI\\magick.exe";
+                  // 👆👆👆
+
+                  try {
+                    // Kiểm tra file exe có tồn tại không trước khi chạy
+                    if (!fs.existsSync(magickPath)) {
+                      throw new Error(
+                        `Không tìm thấy file magick.exe tại: ${magickPath}`
+                      );
                     }
-                  }
-                } else {
-                  // HO_SO là object
-                  console.log("HO_SO keys:", Object.keys(hocvien.HO_SO));
-                  console.log("Có ANH_CHAN_DUNG?", !!hocvien.HO_SO.ANH_CHAN_DUNG);
-                  if (hocvien.HO_SO.ANH_CHAN_DUNG) {
-                    console.log("ANH_CHAN_DUNG là array?", Array.isArray(hocvien.HO_SO.ANH_CHAN_DUNG));
-                    if (hocvien.HO_SO.ANH_CHAN_DUNG[0]) {
-                      console.log("ANH_CHAN_DUNG[0] type:", typeof hocvien.HO_SO.ANH_CHAN_DUNG[0]);
-                      console.log("ANH_CHAN_DUNG[0] length:", hocvien.HO_SO.ANH_CHAN_DUNG[0]?.length || 0);
-                      console.log("ANH_CHAN_DUNG[0] preview:", hocvien.HO_SO.ANH_CHAN_DUNG[0]?.substring(0, 50) || "null");
-                    }
-                  }
-                }
-              }
-            }
-            
-            // Xử lý ảnh từ XML - ảnh nằm trong HO_SO.ANH_CHAN_DUNG[0]
-            let anhValue = null;
-            
-            // Kiểm tra trong HO_SO (cấu trúc XML thực tế: HO_SO là object, không phải array)
-            if (hocvien.HO_SO) {
-              // HO_SO có thể là array hoặc object
-              if (Array.isArray(hocvien.HO_SO)) {
-                // Nếu là array, lấy phần tử đầu tiên
-                if (hocvien.HO_SO[0]) {
-                  if (hocvien.HO_SO[0].ANH_CHAN_DUNG) {
-                    if (hocvien.HO_SO[0].ANH_CHAN_DUNG[0]) {
-                      anhValue = hocvien.HO_SO[0].ANH_CHAN_DUNG[0];
-                      console.log(`✅ [${i + 1}/${hocvienList.length}] Tìm thấy ảnh trong HO_SO[0].ANH_CHAN_DUNG[0] (student: ${studentName})`);
+
+                    // Gọi lệnh trực tiếp vào file exe
+                    execSync(
+                      `"${magickPath}" "${inputPath}" -quality 90 "${outputPath}"`
+                    );
+
+                    // Đọc lại file JPG
+                    if (fs.existsSync(outputPath)) {
+                      const jpgData = fs.readFileSync(outputPath);
+                      anhFinal = `data:image/jpeg;base64,${jpgData.toString(
+                        "base64"
+                      )}`;
+                      console.log(
+                        `✅ ImageMagick convert thành công! (Size: ${anhFinal.length})`
+                      );
                     } else {
-                      if (i === 0) console.log(`⚠️  HO_SO[0].ANH_CHAN_DUNG tồn tại nhưng [0] là undefined/null`);
+                      throw new Error(
+                        "Convert xong nhưng không thấy file output jpg"
+                      );
                     }
-                  } else {
-                    if (i === 0) console.log(`⚠️  HO_SO[0] không có ANH_CHAN_DUNG. Keys:`, Object.keys(hocvien.HO_SO[0]));
+                  } catch (exeErr) {
+                    console.error(`❌ Lỗi chạy ImageMagick: ${exeErr.message}`);
+                    // Fallback: Lưu ảnh gốc (dù không hiện nhưng không mất dữ liệu)
+                    anhFinal = `data:image/jp2;base64,${cleanString}`;
+                  } finally {
+                    // Dọn rác
+                    if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+                    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
                   }
                 } else {
-                  if (i === 0) console.log(`⚠️  HO_SO là array nhưng [0] không tồn tại`);
+                  // --- Ảnh thường (JPG/PNG) ---
+                  const jpegBuffer = await sharp(imageBuffer)
+                    .toFormat("jpeg")
+                    .jpeg({ quality: 90 })
+                    .toBuffer();
+                  anhFinal = `data:image/jpeg;base64,${jpegBuffer.toString(
+                    "base64"
+                  )}`;
+                  console.log(`✅ Sharp convert thành công!`);
                 }
-              } else {
-                // HO_SO là object trực tiếp (cấu trúc thực tế từ XML)
-                if (hocvien.HO_SO.ANH_CHAN_DUNG) {
-                  if (Array.isArray(hocvien.HO_SO.ANH_CHAN_DUNG)) {
-                    if (hocvien.HO_SO.ANH_CHAN_DUNG[0]) {
-                      anhValue = hocvien.HO_SO.ANH_CHAN_DUNG[0];
-                      console.log(`✅ [${i + 1}/${hocvienList.length}] Tìm thấy ảnh trong HO_SO.ANH_CHAN_DUNG[0] (student: ${studentName})`);
-                    } else {
-                      if (i === 0) console.log(`⚠️  HO_SO.ANH_CHAN_DUNG là array nhưng [0] là undefined/null`);
-                    }
-                  } else {
-                    // ANH_CHAN_DUNG không phải array, có thể là string trực tiếp
-                    anhValue = hocvien.HO_SO.ANH_CHAN_DUNG;
-                    console.log(`✅ [${i + 1}/${hocvienList.length}] Tìm thấy ảnh trong HO_SO.ANH_CHAN_DUNG (không phải array) (student: ${studentName})`);
-                  }
-                } else {
-                  if (i === 0) {
-                    console.log(`⚠️  HO_SO không có ANH_CHAN_DUNG`);
-                    console.log(`   HO_SO keys:`, Object.keys(hocvien.HO_SO));
-                    // In ra một vài keys để debug
-                    const sampleKeys = Object.keys(hocvien.HO_SO).slice(0, 10);
-                    sampleKeys.forEach(key => {
-                      const val = hocvien.HO_SO[key];
-                      if (Array.isArray(val) && val[0] && typeof val[0] === 'string' && val[0].length > 100) {
-                        console.log(`   - ${key}: có dữ liệu dài (${val[0].length} ký tự)`);
-                      }
-                    });
-                  }
-                }
+              } catch (convertErr) {
+                console.error(`❌ Lỗi xử lý ảnh chung: ${convertErr.message}`);
+                anhFinal = rawAnh; // Lưu tạm cái cũ
               }
             } else {
-              if (i === 0) {
-                console.log(`⚠️  Học viên không có HO_SO`);
-                console.log(`   Tất cả keys của học viên:`, Object.keys(hocvien));
-              }
+              console.log(`❌ KHÔNG CÓ DỮ LIỆU ẢNH`);
             }
-            
-            // Nếu không tìm thấy trong HO_SO, thử các tên trường phổ biến khác
-            if (!anhValue) {
-              const possibleImageFields = [
-                'ANH_CHAN_DUNG', 'ANH_CHAN_DUNG_64', 'ANH_CHAN_DUNG_BASE64',
-                'ANH', 'ANH_64', 'ANH_BASE64', 'IMAGE', 'PHOTO',
-                'anh_chan_dung', 'anh_chan_dung_64', 'anh',
-                'AnhChanDung', 'Anh', 'Image', 'Photo'
-              ];
-              
-              for (const fieldName of possibleImageFields) {
-                if (hocvien[fieldName] && hocvien[fieldName][0]) {
-                  anhValue = hocvien[fieldName][0];
-                  console.log(`✅ Tìm thấy ảnh ở trường: ${fieldName} (student: ${studentName})`);
-                  break;
-                }
-              }
-            }
-            
-            if (!anhValue && i === 0) {
-              console.log("⚠️  Không tìm thấy ảnh trong các trường phổ biến. Tất cả các keys:", Object.keys(hocvien));
-              for (const key in hocvien) {
-                const value = hocvien[key]?.[0];
-                if (value && typeof value === 'string' && value.length > 100) {
-                  console.log(`  - ${key}: length=${value.length}, preview=${value.substring(0, 50)}...`);
-                }
-              }
-            }
-            if (anhValue && typeof anhValue === 'object') {
-              if (anhValue._) {
-                anhValue = anhValue._;
-              } else if (typeof anhValue === 'object' && Object.keys(anhValue).length > 0) {
-                const firstKey = Object.keys(anhValue)[0];
-                anhValue = anhValue[firstKey];
-              }
-            }
-            let anh = null;
-            if (anhValue) {
-              if (typeof anhValue === 'string') {
-                anh = anhValue.trim().replace(/\s+/g, '');
-                if (!anh || anh.length === 0) {
-                  anh = null;
-                } else {
-                  console.log(`📸 Ảnh của ${studentName}: length=${anh.length}, startsWith=${anh.substring(0, 30)}...`);
-                }
-              } else {
-                anh = String(anhValue);
-                if (anh === 'null' || anh === 'undefined' || anh.trim().length === 0) {
-                  anh = null;
-                }
-              }
-            }
-            if (!anh) {
-              const valToString = (x) => {
-                if (x == null) return null;
-                if (Array.isArray(x)) x = x[0];
-                if (typeof x === 'object') {
-                  if (x._ != null) x = x._;
-                  else {
-                    const keys = Object.keys(x);
-                    if (keys.length) {
-                      let y = x[keys[0]];
-                      if (Array.isArray(y)) y = y[0];
-                      if (y && typeof y === 'object' && y._ != null) y = y._;
-                      x = y;
-                    }
-                  }
-                }
-                if (x == null) return null;
-                return typeof x === 'string' ? x : String(x);
-              };
-              const findImage = (obj) => {
-                const stack = [];
-                if (obj) stack.push(obj);
-                while (stack.length) {
-                  const cur = stack.pop();
-                  if (!cur || typeof cur !== 'object') continue;
-                  for (const key of Object.keys(cur)) {
-                    const v = cur[key];
-                    const k = key.toLowerCase();
-                    if (k.includes('anh') && k.includes('chan') && k.includes('dung')) {
-                      const s = valToString(v);
-                      if (s && s.replace(/\s+/g,'').length > 100) return s;
-                    }
-                    if (Array.isArray(v)) {
-                      for (const item of v) stack.push(item);
-                    } else if (typeof v === 'object') {
-                      stack.push(v);
-                    }
-                  }
-                }
-                return null;
-              };
-              const candidate = findImage(hocvien) || findImage(hocvien.HO_SO);
-              if (candidate) {
-                const normalized = candidate.trim().replace(/\s+/g,'');
-                if (normalized) anh = normalized;
-              }
-            }
-            if (!anh) {
-              console.log(`⚠️  [${i + 1}/${hocvienList.length}] Không có ảnh cho học viên: ${studentName}`);
-            } else {
-              console.log(`💾 [${i + 1}/${hocvienList.length}] Đã lấy ảnh cho ${studentName} (length: ${anh.length})`);
-            }
-            
+
+            // 2. LẤY CÁC THÔNG TIN KHÁC (Hàm hỗ trợ lấy text ngắn)
+            const getText = (node) => {
+              if (!node) return "";
+              if (Array.isArray(node)) return getText(node[0]);
+              if (typeof node === "object") return node._ || "";
+              return String(node).trim();
+            };
+
+            const ngaySinh = getText(hocvien.NGAY_SINH);
+            const hangGplx =
+              getText(hocvien.HANG_GPLX) || getText(khoa.HANG_GPLX) || "";
+            const soCmt = getText(hocvien.SO_CMT) || "";
+
+            // 3. LƯU VÀO DB
             try {
               const [result] = await conn.query(sqlstudent, [
-                hocvien.HO_VA_TEN?.[0] || "",
-                hocvien.NGAY_SINH?.[0] || null,
-                hocvien.HANG_GPLX?.[0] || khoa.HANG_GPLX?.[0] || "",
-                hocvien.SO_CMT?.[0] || "",
-                khoa.MA_KHOA_HOC?.[0] || "",
+                studentName,
+                ngaySinh,
+                hangGplx,
+                soCmt,
+                getText(khoa.MA_KHOA_HOC) || "",
                 "chua thi",
-                anh, // Lưu ảnh vào database (null nếu không có)
+                anhFinal, // Truyền ảnh vào
               ]);
-              
-              // Kiểm tra lại sau khi insert và tự sửa nếu thiếu ảnh
-              if (anh && result.insertId) {
-                const [check] = await conn.query(
-                  "SELECT anh_chan_dung, LENGTH(anh_chan_dung) as anh_length FROM students WHERE id = ?",
-                  [result.insertId]
-                );
-                if (check[0]) {
-                  if (check[0].anh_chan_dung) {
-                    console.log(`   ✅ Đã lưu thành công! Length trong DB: ${check[0].anh_length}`);
-                  } else {
-                    console.log(`   ⚠️  Ảnh không được lưu vào DB (NULL) → thử UPDATE trực tiếp...`);
-                    try {
-                      await conn.query(
-                        "UPDATE students SET anh_chan_dung = ? WHERE id = ?",
-                        [anh, result.insertId]
-                      );
-                      const [recheck] = await conn.query(
-                        "SELECT LENGTH(anh_chan_dung) as anh_length FROM students WHERE id = ?",
-                        [result.insertId]
-                      );
-                      if (recheck[0]?.anh_length > 0) {
-                        console.log(`   ✅ Đã cập nhật ảnh qua UPDATE! Length: ${recheck[0].anh_length}`);
-                      } else {
-                        console.log(`   ❌ UPDATE ảnh vẫn không thành công (NULL)`);
-                      }
-                    } catch (updErr) {
-                      console.error(`   ❌ Lỗi UPDATE ảnh:`, updErr.message);
-                    }
-                  }
-                }
-              }
+              console.log(`💾 Saved ID: ${result.insertId}`);
             } catch (insertErr) {
-              console.error(`❌ Lỗi khi insert học viên ${studentName}:`, insertErr.message);
-              if (insertErr.message.includes('Data too long')) {
-                console.error(`   ⚠️  Ảnh quá lớn! Đang tự động chuyển cột anh_chan_dung sang LONGTEXT và thử lại...`);
-                try {
-                  await conn.query(`ALTER TABLE students MODIFY COLUMN anh_chan_dung LONGTEXT NULL`);
-                  const [retry] = await conn.query(sqlstudent, [
-                    hocvien.HO_VA_TEN?.[0] || "",
-                    hocvien.NGAY_SINH?.[0] || null,
-                    hocvien.HANG_GPLX?.[0] || khoa.HANG_GPLX?.[0] || "",
-                    hocvien.SO_CMT?.[0] || "",
-                    khoa.MA_KHOA_HOC?.[0] || "",
-                    "chua thi",
-                    anh,
-                  ]);
-                  if (retry.insertId) {
-                    console.log(`   ✅ Đã retry insert thành công sau khi ALTER LONGTEXT (id=${retry.insertId})`);
-                  }
-                } catch (alterErr) {
-                  console.error(`   ❌ Retry insert thất bại:`, alterErr.message);
-                  throw alterErr;
-                }
-              } else {
-                throw insertErr;
+              console.error(`❌ Lỗi Insert DB:`, insertErr.message);
+              // Nếu lỗi do gói tin quá lớn
+              if (
+                insertErr.message.includes("packet") ||
+                insertErr.message.includes("large")
+              ) {
+                console.log(
+                  "⚠️  LỖI: Ảnh quá lớn so với cấu hình MySQL (max_allowed_packet)."
+                );
+                console.log(
+                  "👉 Bạn cần chạy lệnh SQL: SET GLOBAL max_allowed_packet = 1073741824;"
+                );
               }
             }
           }
           await conn.commit();
-          console.log(`\n✅ Hoàn thành! Đã thêm ${hocvienList.length} học viên vào database.\n`);
+          console.log(
+            `\n✅ Hoàn thành! Đã thêm ${hocvienList.length} học viên vào database.\n`
+          );
           res.json({ success: true });
         } catch (err) {
           if (conn) await conn.rollback();
