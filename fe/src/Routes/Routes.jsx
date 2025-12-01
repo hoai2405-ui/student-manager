@@ -16,6 +16,7 @@ import StudentsXML from "../Pages/Students/StudentsXML";
 import StatsPage from "../Pages/Students/state";
 import Students from "../Pages/Students/index";
 import UsersPage from "../Pages/Users/Users";
+import ManageLessons from "../Pages/Lessons/ManageLessons";
 import PrivateRoute from "../Components/PrivateRoute";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -25,7 +26,8 @@ import StudentDashboard from "../Pages/Student/Dashboard"; // Sửa lại tên i
 import LoginStudent from "../Pages/Student/LoginStudent";
 import Learning from "../Pages/Student/Learning";
 
-// --- IMPORTS CỦA ADMIN LOGIN ---
+// --- IMPORTS CỦA ADMIN ---
+import AdminLayout from "../Layout/AdminLayout";
 import LoginPage from "../Pages/Auth/Login";
 
 
@@ -61,6 +63,9 @@ function Navigation() {
       <Link className="nav-link" to="/admin/courses">
         Khóa học
       </Link>
+
+      {/* 👇 THÊM MENU QUẢN LÝ BÀI GIẢNG CHO ADMIN */}
+      <Link className="nav-link" style={{ backgroundColor: '#e3f2fd', color: '#0d47a1' }} to="/admin/lessons">🎥 Bài giảng điện tử</Link>
 
       {/* Dropdown Học viên */}
       <div style={{ position: "relative", zIndex: 10000 }} ref={dropdownRef}>
@@ -165,17 +170,7 @@ function Navigation() {
   );
 }
 
-// 2. TẠO LAYOUT RIÊNG CHO ADMIN (GOM NAVIGATION VÀO ĐÂY)
-const AdminLayout = () => {
-  return (
-    <div className="container mt-4">
-      {/* Chỉ hiện Navigation khi ở trang Admin */}
-      <Navigation />
-      {/* Outlet là nơi hiển thị nội dung các trang con (Courses, Students...) */}
-      <Outlet />
-    </div>
-  );
-};
+// AdminLayout is now imported from "../Layout/AdminLayout"
 
 // 3. ROUTER CHÍNH (SỬA ĐỔI LỚN TẠI ĐÂY)
 export default function Router() {
@@ -185,21 +180,29 @@ export default function Router() {
         {/* === PHẦN 1: ROUTE CỦA HỌC VIÊN (STUDENT) === */}
         {/* Trang đăng nhập học viên (Không có layout) */}
         <Route path="/student/login" element={<LoginStudent />} />
-        
+
         {/* Các trang bên trong của học viên (Có Sidebar, Header riêng) */}
         <Route path="/student" element={<StudentLayout />}>
           <Route index element={<StudentDashboard />} />{" "}
           {/* Mặc định vào Dashboard */}
           <Route path="learning" element={<Learning />} />
           {/* Thêm các route khác của học viên tại đây */}
+
+
+           <Route path="history" element={<div className="p-4">Chức năng Lịch sử thi đang phát triển...</div>} />
+          <Route path="chat-ai" element={<div className="p-4">Chức năng Trợ lý AI đang phát triển...</div>} />
         </Route>
+
+        
         {/* === PHẦN 2: ROUTE CỦA QUẢN TRỊ (ADMIN) === */}
         {/* Trang đăng nhập admin */}
         <Route path="/admin/login" element={<LoginPage />} />
 
         {/* Bọc tất cả route admin vào PrivateRoute để kiểm tra đăng nhập */}
         <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
+          <Route index element={<CoursePage />} />
           <Route path="courses" element={<CoursePage />} />
+          <Route path="lessons" element={<ManageLessons />} />
           <Route path="students" element={<Students />} />
           <Route path="students-xml" element={<StudentsXML />} />
           <Route path="stats" element={<StatsPage />} />

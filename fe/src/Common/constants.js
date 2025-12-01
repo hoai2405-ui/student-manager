@@ -3,6 +3,7 @@ export const ROUTES_PATH = {
   ADMIN_LOGIN: "/admin/login",
   ADMIN_DASHBOARD: "/admin", // Default admin page (index route)
   ADMIN_COURSES: "/admin/courses",
+  ADMIN_LESSONS: "/admin/lessons",
   ADMIN_STUDENTS: "/admin/students",
   ADMIN_STUDENTS_XML: "/admin/students-xml",
   ADMIN_STATS: "/admin/stats",

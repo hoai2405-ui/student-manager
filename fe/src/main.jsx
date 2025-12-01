@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+// import App from './App.js'
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./assets/main.css";
@@ -20,6 +21,7 @@ import CreateSchedule from "./Pages/Schedule/CreateSchedule";
 import RegisterSchedule from "./Pages/Schedule/RegisterSchedule";
 import RegisteredSchedules from "./Pages/Schedule/RegisteredSchedules";
 import StudentsXML from "./Pages/Students/StudentsXML";
+import ManageLessons from "./Pages/Lessons/ManageLessons";
 
 // Import Student Pages
 import LoginStudent from "./Pages/Student/LoginStudent";
@@ -63,6 +65,7 @@ export default function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="courses" element={<CoursePage />} />
+              <Route path="lessons" element={<ManageLessons />} />
               <Route path="students/new" element={<StudentsNew />} />
               <Route path="students" element={<Students />} />
               <Route path="stats" element={<StatsPage />} />

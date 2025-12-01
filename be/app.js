@@ -2,7 +2,7 @@ const { execSync } = require("child_process"); // Thêm dòng này để chạy 
 const path = require("path");
 const express = require("express");
 const multer = require("multer");
-const sharp = require("sharp"); 
+const sharp = require("sharp");
 const cors = require("cors");
 const fs = require("fs");
 const xml2js = require("xml2js");
@@ -14,6 +14,111 @@ const app = express();
 const upload = multer({ dest: "uploads/" });
 app.use(cors());
 app.use(express.json());
+
+// Tạo admin mặc định nếu chưa có
+async function createDefaultAdmin() {
+  try {
+    // Kiểm tra xem có user nào có is_admin = 1 chưa
+    const [admins] = await pool.query("SELECT id FROM users WHERE is_admin = 1 LIMIT 1");
+    if (admins.length === 0) {
+      // Tạo admin mặc định
+      const defaultAdmin = {
+        username: "admin",
+        password: await bcrypt.hash("admin123", 10),
+        email: "admin@hoangthinh.vn",
+        phone: "0123456789"
+      };
+      // Kiểm tra users table có cột is_admin không, nếu không thì thêm
+      try {
+        await pool.query(`
+          ALTER TABLE users
+          ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0
+        `);
+        console.log("✅ Đã thêm cột is_admin vào bảng users");
+      } catch (err) {
+        // Nếu cột đã tồn tại, bỏ qua
+      }
+
+      await pool.query(
+        "INSERT INTO users (username, password, email, phone, is_admin) VALUES (?, ?, ?, ?, 1)",
+        [defaultAdmin.username, defaultAdmin.password, defaultAdmin.email, defaultAdmin.phone]
+      );
+      console.log("✅ Đã tạo tài khoản admin mặc định:");
+      console.log("   Username: admin");
+      console.log("   Password: admin123");
+      await pool.query(
+        "INSERT INTO users (username, password, email, phone, is_admin) VALUES (?, ?, ?, ?, 1)",
+        [defaultAdmin.username, defaultAdmin.password, defaultAdmin.email, defaultAdmin.phone]
+      );
+      console.log("✅ Đã tạo tài khoản admin mặc định:");
+      console.log("   Username: admin");
+      console.log("   Password: admin123");
+      console.log("   Email: admin@hoangthinh.vn");
+    }
+  } catch (err) {
+    console.error("❌ Lỗi tạo admin mặc định:", err.message);
+  }
+}
+
+// Tạo tables cần thiết nếu chưa có
+async function createTables() {
+  try {
+    // Tạo table subjects
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS subjects (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log("✅ Đảm bảo table subjects tồn tại");
+
+    // Tạo table lessons
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lessons (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        subject_id INT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        video_url TEXT,
+        lesson_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log("✅ Đảm bảo table lessons tồn tại");
+
+    // Insert một số môn học mẫu nếu chưa có
+    const [[{ count: subjectsCount }]] = await pool.query("SELECT COUNT(*) as count FROM subjects");
+    if (subjectsCount === 0) {
+      await pool.query(`
+        INSERT INTO subjects (name, description) VALUES
+        ('Lý thuyết lái xe B1', 'Các bài giảng lý thuyết về luật giao thông và kỹ năng lái xe an toàn'),
+        ('Thực hành lái xe B1', 'Các bài thực hành kỹ năng lái xe trên đường'),
+        ('Luật giao thông đường bộ', 'Kiến thức về luật giao thông và biển báo')
+      `);
+      console.log("✅ Đã tạo dữ liệu mẫu cho subjects");
+    }
+
+  } catch (err) {
+    console.error("❌ Lỗi tạo tables:", err.message);
+  }
+}
+
+async function initializeApp() {
+  try {
+    await createDefaultAdmin();
+    await createTables();
+    console.log("✅ Database setup completed successfully");
+  } catch (error) {
+    console.error("❌ Database setup failed:", error);
+    process.exit(1);
+  }
+}
+
+initializeApp();
 
 // Đã chuyển toàn bộ truy vấn sang dùng pool từ db.js (MySQL)
 app.use((req, res, next) => {

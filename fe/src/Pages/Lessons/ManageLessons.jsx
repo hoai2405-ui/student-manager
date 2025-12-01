@@ -14,6 +14,7 @@ import {
   DeleteOutlined,
   VideoCameraOutlined,
 } from "@ant-design/icons";
+import axios from "../../Common/axios";
 
 const ManageLessons = () => {
   const [lessons, setLessons] = useState([]);
@@ -38,29 +39,29 @@ const ManageLessons = () => {
   }, [selectedSubject]);
 
   const fetchSubjects = async () => {
-    const res = await fetch("http://localhost:3001/api/subjects");
-    const data = await res.json();
-    setSubjects(data);
-    if (data.length > 0) setSelectedSubject(data[0].id); // Mặc định chọn môn đầu
+    try {
+      const res = await axios.get("/subjects");
+      setSubjects(res.data);
+      if (res.data.length > 0) setSelectedSubject(res.data[0].id); // Mặc định chọn môn đầu
+    } catch (error) {
+      message.error("Lỗi tải danh sách môn học");
+    }
   };
 
   const fetchLessons = async (subjectId) => {
     setLoading(true);
-    const res = await fetch(
-      `http://localhost:3001/api/lessons?subject_id=${subjectId}`
-    );
-    const data = await res.json();
-    setLessons(data);
+    try {
+      const res = await axios.get(`/lessons?subject_id=${subjectId}`);
+      setLessons(res.data);
+    } catch (error) {
+      message.error("Lỗi tải danh sách bài giảng");
+    }
     setLoading(false);
   };
 
   const handleAddLesson = async (values) => {
     try {
-      await fetch("http://localhost:3001/api/lessons", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, subject_id: selectedSubject }),
-      });
+      await axios.post("/lessons", { ...values, subject_id: selectedSubject });
       message.success("Thêm bài giảng thành công!");
       setIsModalOpen(false);
       form.resetFields();
@@ -71,11 +72,13 @@ const ManageLessons = () => {
   };
 
   const handleDelete = async (id) => {
-    await fetch(`http://localhost:3001/api/lessons/${id}`, {
-      method: "DELETE",
-    });
-    message.success("Đã xóa");
-    fetchLessons(selectedSubject);
+    try {
+      await axios.delete(`/lessons/${id}`);
+      message.success("Đã xóa");
+      fetchLessons(selectedSubject);
+    } catch (error) {
+      message.error("Lỗi xóa bài giảng");
+    }
   };
 
   const columns = [

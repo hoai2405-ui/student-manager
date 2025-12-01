@@ -52,12 +52,15 @@ const AdminLayout = () => {
       key = ROUTES_PATH.ADMIN_REGISTERED_SCHEDULES;
     else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_USERS))
       key = ROUTES_PATH.ADMIN_USERS;
+    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_LESSONS))
+      key = ROUTES_PATH.ADMIN_LESSONS;
     setSelectedKey(key);
   }, [location.pathname]);
 
   const items = [
     { key: ROUTES_PATH.ADMIN_DASHBOARD, icon: <HomeOutlined />, label: "Trang chủ" },
     { key: ROUTES_PATH.ADMIN_COURSES, icon: <BookOutlined />, label: "Khoá học" },
+    {key: ROUTES_PATH.ADMIN_LESSONS, icon: <BookOutlined />, label: "Quản lý bài giảng" },
     {
       key: "admin-students-submenu",
       icon: <UsergroupDeleteOutlined />,
