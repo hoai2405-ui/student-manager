@@ -1135,8 +1135,138 @@ app.get('/api/schedules/:id/registrations', authenticateToken, checkAdmin, async
   }
 });
 
-// ...existing code...
+// API: Lấy danh sách tất cả đăng ký lịch học (cho trang quản lý)
+app.get('/api/schedule-registrations', authenticateToken, checkAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT
+        r.id,
+        r.registered_at,
+        r.status,
+        s.ho_va_ten as student_name,
+        s.so_cmt as student_username,
+        c.ten_khoa_hoc as course_name,
+        c.ma_khoa_hoc as course_code,
+        sch.start_time,
+        sch.end_time,
+        sch.location
+      FROM registrations r
+      JOIN students s ON r.student_id = s.id
+      JOIN schedules sch ON r.schedule_id = sch.id
+      LEFT JOIN courses c ON sch.course_id = c.id
+      ORDER BY r.registered_at DESC
+    `);
 
+    // Group by registration to create selected_slots structure
+    const groupedData = rows.reduce((acc, row) => {
+      const key = `${row.student_name}-${row.course_name}`;
+      if (!acc[key]) {
+        acc[key] = {
+          id: row.id,
+          student_name: row.student_name,
+          student_username: row.student_username,
+          course_name: row.course_name,
+          course_code: row.course_code,
+          registered_at: row.registered_at,
+          status: row.status || 'active',
+          selected_slots: []
+        };
+      }
+
+      // Add slot information
+      acc[key].selected_slots.push({
+        date: new Date(row.start_time).toISOString().split('T')[0],
+        period: new Date(row.start_time).getHours() < 12 ? 'morning' : 'afternoon',
+        start_time: row.start_time,
+        end_time: row.end_time,
+        location: row.location
+      });
+
+      return acc;
+    }, {});
+
+    const result = Object.values(groupedData);
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching schedule registrations:', err);
+    res.status(500).json({ message: 'Lỗi lấy danh sách đăng ký lịch học', error: err.message });
+  }
+});
+
+// ...existing code...
+// dành cho trang học viên
+
+app.post("/api/student/login", async (req, res) => {
+  const { so_cmt } = req.body;
+  try {
+    const [rows] = await pool.query("SELECT * FROM students WHERE so_cmt = ?", [so_cmt]);
+    if (rows.length === 0) return res.status(404).json({ message: "Không tìm thấy học viên với số CCCD này" });
+
+    const student = rows[0];
+    // Trả về dữ liệu
+    res.json({
+      token: "sample-token",
+      student: student
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+// --- API QUẢN LÝ BÀI GIẢNG ---
+
+// 1. Lấy danh sách tất cả môn học
+app.get("/api/subjects", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM subjects");
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Lấy danh sách bài giảng theo Môn học (Dùng cho cả Admin và Học viên)
+app.get("/api/lessons", async (req, res) => {
+  const { subject_id } = req.query;
+  try {
+    let sql = "SELECT * FROM lessons";
+    const params = [];
+    if (subject_id) {
+      sql += " WHERE subject_id = ? ORDER BY lesson_order ASC";
+      params.push(subject_id);
+    }
+    const [rows] = await pool.query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Thêm bài giảng mới (Dành cho Admin)
+app.post("/api/lessons", async (req, res) => {
+  const { subject_id, title, video_url, lesson_order } = req.body;
+  try {
+    await pool.query(
+      "INSERT INTO lessons (subject_id, title, video_url, lesson_order) VALUES (?, ?, ?, ?)",
+      [subject_id, title, video_url, lesson_order || 0]
+    );
+    res.json({ message: "Thêm bài giảng thành công" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Xóa bài giảng
+app.delete("/api/lessons/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM lessons WHERE id = ?", [req.params.id]);
+    res.json({ message: "Đã xóa bài giảng" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 
 
