@@ -249,17 +249,17 @@ const Students = () => {
       title: "Ảnh",
       dataIndex: "anh_chan_dung",
       key: "avatar",
-      width: screens.xs ? 60 : 80,
+      width: screens.xs ? 80 : 110,
       responsive: ["xs", "sm", "md", "lg", "xl"],
       render: (avatar, record) => {
         // Try multiple field names for photos
         let photoUrl = avatar || record.anh || record.anh_chan_dung;
-        
+
         // Xử lý base64: nếu có dữ liệu nhưng không có prefix, thêm prefix
         if (photoUrl && typeof photoUrl === 'string' && photoUrl.trim()) {
           // Nếu là base64 string nhưng không có prefix data:image
-          if (!photoUrl.startsWith('data:') && 
-              !photoUrl.startsWith('http') && 
+          if (!photoUrl.startsWith('data:') &&
+              !photoUrl.startsWith('http') &&
               !photoUrl.startsWith('https') &&
               !photoUrl.startsWith('/')) {
             // Thử thêm prefix data:image/png;base64,
@@ -271,15 +271,16 @@ const Students = () => {
         } else {
           photoUrl = undefined; // Không có ảnh
         }
-        
+
         return (
           <Avatar
-            size={screens.xs ? 40 : 50}
+            size={screens.xs ? 60 : 80}
             src={photoUrl}
             icon={<UserOutlined />}
             style={{
-              border: "2px solid #e1e5e9",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              border: "3px solid #e1e5e9",
+              boxShadow: "0 3px 6px rgba(0,0,0,0.15)",
+              transition: "transform 0.2s ease",
             }}
           >
             {record.ho_va_ten?.charAt(0)?.toUpperCase()}

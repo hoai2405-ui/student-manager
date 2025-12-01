@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Link,
+  Outlet,
+  Navigate,
+} from "react-router-dom"; // Thêm Outlet, Navigate
+
+// --- IMPORTS CỦA ADMIN (CŨ) ---
 import CoursePage from "../Pages/Students/CoursePage";
 import SchedulePage from "../Pages/Schedule";
 import RegisteredSchedules from "../Pages/Schedule/RegisteredSchedules";
@@ -10,6 +19,17 @@ import UsersPage from "../Pages/Users/Users";
 import PrivateRoute from "../Components/PrivateRoute";
 import { useAuth } from "../contexts/AuthContext";
 
+// --- IMPORTS CỦA STUDENT (MỚI) ---
+import StudentLayout from "../Layout/StudentLayout";
+import StudentDashboard from "../Pages/Student/Dashboard"; // Sửa lại tên import cho chuẩn viết hoa
+import LoginStudent from "../Pages/Student/LoginStudent";
+import Learning from "../Pages/Student/Learning";
+
+// --- IMPORTS CỦA ADMIN LOGIN ---
+import LoginPage from "../Pages/Auth/Login";
+
+
+// 1. COMPONENT NAVIGATION (GIỮ NGUYÊN CỦA BẠN - MENU ADMIN)
 function Navigation() {
   const { user } = useAuth();
   const isAdmin = user?.is_admin;
@@ -22,7 +42,6 @@ function Navigation() {
         setShowDropdown(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -39,12 +58,12 @@ function Navigation() {
         zIndex: 10,
       }}
     >
-      <Link className="nav-link" to="/courses">
+      <Link className="nav-link" to="/admin/courses">
         Khóa học
       </Link>
 
       {/* Dropdown Học viên */}
-      <div style={{ position: "relative", zIndex: 10000 }}>
+      <div style={{ position: "relative", zIndex: 10000 }} ref={dropdownRef}>
         <button
           type="button"
           onClick={() => setShowDropdown((prev) => !prev)}
@@ -57,7 +76,6 @@ function Navigation() {
             padding: "12px 20px",
             borderRadius: "8px",
             fontSize: "16px",
-            textDecoration: "none",
             margin: "0 10px",
           }}
         >
@@ -80,11 +98,18 @@ function Navigation() {
               padding: "10px",
             }}
           >
-            <div style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "10px", textAlign: "center" }}>
+            <div
+              style={{
+                fontSize: "18px",
+                fontWeight: "bold",
+                marginBottom: "10px",
+                textAlign: "center",
+              }}
+            >
               Chọn loại học viên:
             </div>
             <Link
-              to="/students"
+              to="/admin/students"
               style={{
                 display: "block",
                 padding: "15px 20px",
@@ -102,7 +127,7 @@ function Navigation() {
               📝 THI SÁT HẠCH
             </Link>
             <Link
-              to="/students-xml"
+              to="/admin/students-xml"
               style={{
                 display: "block",
                 padding: "15px 20px",
@@ -122,53 +147,83 @@ function Navigation() {
         )}
       </div>
 
-      <Link className="nav-link" to="/stats">
+      <Link className="nav-link" to="/admin/stats">
         Biểu đồ
       </Link>
-
       {isAdmin && (
-        <Link className="nav-link" to="/users">
+        <Link className="nav-link" to="/admin/users">
           Người dùng
         </Link>
       )}
-
-      <Link className="nav-link" to="/schedules">
+      <Link className="nav-link" to="/admin/schedules">
         Đăng ký lịch học cabin
       </Link>
-
-      <Link className="nav-link" to="/registered-schedules">
+      <Link className="nav-link" to="/admin/registered-schedules">
         Lịch học đã đăng ký
       </Link>
     </nav>
   );
 }
 
+// 2. TẠO LAYOUT RIÊNG CHO ADMIN (GOM NAVIGATION VÀO ĐÂY)
+const AdminLayout = () => {
+  return (
+    <div className="container mt-4">
+      {/* Chỉ hiện Navigation khi ở trang Admin */}
+      <Navigation />
+      {/* Outlet là nơi hiển thị nội dung các trang con (Courses, Students...) */}
+      <Outlet />
+    </div>
+  );
+};
+
+// 3. ROUTER CHÍNH (SỬA ĐỔI LỚN TẠI ĐÂY)
 export default function Router() {
   return (
     <BrowserRouter>
-      <div className="container mt-4">
-        <Navigation />
-        <Routes>
-          <Route path="/courses" element={<CoursePage />} />
-          <Route path="/students" element={<Students />} />
-          <Route path="/students-xml" element={<StudentsXML />} />
-          <Route path="/stats" element={<StatsPage />} />
+      <Routes>
+        {/* === PHẦN 1: ROUTE CỦA HỌC VIÊN (STUDENT) === */}
+        {/* Trang đăng nhập học viên (Không có layout) */}
+        <Route path="/student/login" element={<LoginStudent />} />
+        
+        {/* Các trang bên trong của học viên (Có Sidebar, Header riêng) */}
+        <Route path="/student" element={<StudentLayout />}>
+          <Route index element={<StudentDashboard />} />{" "}
+          {/* Mặc định vào Dashboard */}
+          <Route path="learning" element={<Learning />} />
+          {/* Thêm các route khác của học viên tại đây */}
+        </Route>
+        {/* === PHẦN 2: ROUTE CỦA QUẢN TRỊ (ADMIN) === */}
+        {/* Trang đăng nhập admin */}
+        <Route path="/admin/login" element={<LoginPage />} />
+
+        {/* Bọc tất cả route admin vào PrivateRoute để kiểm tra đăng nhập */}
+        <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
+          <Route path="courses" element={<CoursePage />} />
+          <Route path="students" element={<Students />} />
+          <Route path="students-xml" element={<StudentsXML />} />
+          <Route path="stats" element={<StatsPage />} />
+          <Route path="schedules" element={<SchedulePage />} />
           <Route
-            path="/users"
+            path="registered-schedules"
+            element={<RegisteredSchedules />}
+          />
+
+          <Route
+            path="users"
             element={
               <PrivateRoute adminOnly={true}>
                 <UsersPage />
               </PrivateRoute>
             }
           />
-          <Route path="/schedules" element={<SchedulePage />} />
-          <Route
-            path="/registered-schedules"
-            element={<RegisteredSchedules />}
-          />
-          <Route path="*" element={<CoursePage />} />
-        </Routes>
-      </div>
+        </Route>
+        {/* === PHẦN 3: ĐIỀU HƯỚNG MẶC ĐỊNH === */}
+        {/* Vào trang chủ ("/") thì chuyển hướng tới Login học viên hoặc Admin tùy bạn */}
+        <Route path="/" element={<Navigate to="/student/login" />} />
+        {/* Nếu gõ linh tinh thì về trang khóa học (Admin) hoặc 404 */}
+        <Route path="*" element={<Navigate to="/admin/courses" />} />
+      </Routes>
     </BrowserRouter>
   );
 }

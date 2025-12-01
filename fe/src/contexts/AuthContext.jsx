@@ -40,12 +40,16 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     console.log("AuthContext: Logging out");
+    const isAdmin = Boolean(
+      user?.is_admin ?? user?.isAdmin ?? user?.user?.is_admin ?? user?.user?.isAdmin ?? false
+    );
     setUser(null);
     setToken(null);
     localStorage.removeItem("auth");
-    // Redirect to login page
-    window.location.href = "/login";
-  }, []);
+    // Redirect to appropriate login page based on user type
+    const loginPath = isAdmin ? "/admin/login" : "/student/login";
+    window.location.href = loginPath;
+  }, [user]);
 
   const value = useMemo(() => ({
     user,

@@ -45,7 +45,7 @@ export default function RegisterSchedule() {
 
   const fetchExistingRegistrations = async () => {
     try {
-      const response = await axios.get(`/api/schedule-registrations?schedule_id=${scheduleId}`);
+      const response = await axios.get(`/api/schedules/${scheduleId}/registrations`);
       setExistingRegistrations(response.data || []);
     } catch (error) {
       console.error("Error fetching existing registrations:", error);
@@ -57,17 +57,34 @@ export default function RegisterSchedule() {
   const fetchCourseStudents = async () => {
     if (!schedule?.course_id) return;
 
+    console.log("Schedule course_id:", schedule.course_id);
+    console.log("Schedule full object:", schedule);
+
     try {
-      const response = await axios.get(`/api/courses/${schedule.course_id}/students`);
-      setCourseStudents(response.data || []);
-    } catch (error) {
-      console.error("Error fetching course students:", error);
-      // Try alternative endpoint
-      try {
-        const response = await axios.get(`/api/students?course_id=${schedule.course_id}`);
+      // First, fetch course details to get the correct ma_khoa_hoc
+      const courseResponse = await axios.get(`/api/courses/${schedule.course_id}`);
+      const course = courseResponse.data;
+      console.log("Course details:", course);
+      console.log("Course ma_khoa_hoc:", course?.ma_khoa_hoc);
+
+      if (course?.ma_khoa_hoc) {
+        // Use the actual course code from the course table
+        const response = await axios.get(`/api/students?ma_khoa_hoc=${course.ma_khoa_hoc}`);
         setCourseStudents(response.data || []);
-      } catch (secondError) {
-        console.error("Alternative API also failed:", secondError);
+        console.log("✅ Fetched students for course", course.ma_khoa_hoc, "-", response.data?.length || 0, "students");
+      } else {
+        throw new Error("Course has no ma_khoa_hoc");
+      }
+    } catch (error) {
+      console.error("❌ Error fetching course details or students:", error);
+      console.log("🔄 Fallback - trying all students...");
+      // Fallback: try to get all students if course fetching fails
+      try {
+        const response = await axios.get("/api/students");
+        setCourseStudents(response.data || []);
+        console.log("🚨 FALLBACK - fetched ALL students:", response.data?.length || 0);
+      } catch (fallbackError) {
+        console.error("❌ Fallback API also failed:", fallbackError);
         setCourseStudents([]);
       }
     }
@@ -133,31 +150,36 @@ export default function RegisterSchedule() {
 
     setSubmitting(true);
     try {
-      // Prepare registration data with student-time assignments
-      const registrations = [];
-      Object.entries(studentTimeSelections).forEach(([studentId, timeSlots]) => {
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Register students individually (current backend only supports individual registration)
+      for (const [studentId, timeSlots] of Object.entries(studentTimeSelections)) {
         if (timeSlots && timeSlots.length > 0) {
-          timeSlots.forEach(slotId => {
-            registrations.push({
-              student_id: studentId,
-              slot_id: slotId,
-              schedule_id: scheduleId
+          try {
+            // Use the existing individual registration endpoint
+            await axios.post(`/api/schedules/${scheduleId}/register`, {
+              student_id: studentId
             });
-          });
+            successCount++;
+          } catch (regError) {
+            console.error(`Failed to register student ${studentId}:`, regError);
+            errorCount++;
+          }
         }
-      });
+      }
 
-      const registrationData = {
-        schedule_id: scheduleId,
-        registrations: registrations
-      };
+      if (successCount > 0) {
+        message.success(`Đăng ký thành công ${successCount} học viên!`);
+        // Note: Time slot assignments are not persisted due to backend limitations
+        navigate('/schedules');
+      } else {
+        message.error("Không thể đăng ký học viên nào!");
+      }
 
-      // Save registration data to API
-      await axios.post("/api/schedule-registrations", registrationData);
-
-      message.success("Lưu phân công học viên thành công!");
-      // Reload the page to show updated registrations
-      window.location.reload();
+      if (errorCount > 0) {
+        message.warning(`Có ${errorCount} học viên đăng ký thất bại!`);
+      }
     } catch (error) {
       console.error("Registration error:", error);
       message.error("Lưu phân công thất bại, vui lòng thử lại");
@@ -312,7 +334,7 @@ export default function RegisterSchedule() {
                         color: 'white'
                       }}
                     >
-                      {registration.student_name?.charAt(0) || 'U'}
+                      {registration.ho_va_ten?.charAt(0) || 'U'}
                     </Avatar>
                     <div style={{ flex: 1 }}>
                       <div style={{
@@ -320,20 +342,20 @@ export default function RegisterSchedule() {
                         fontWeight: 600,
                         color: 'var(--text-primary)'
                       }}>
-                        {registration.student_name}
+                        {registration.ho_va_ten}
                       </div>
                       <div style={{
                         fontSize: '0.8rem',
                         color: 'var(--text-secondary)'
                       }}>
-                        @{registration.student_username}
+                        ID: {registration.id} • CCCD: {registration.so_cmt || 'Chưa có'}
                       </div>
                       <div style={{
                         fontSize: '0.75rem',
                         color: 'var(--text-muted)',
                         marginTop: '2px'
                       }}>
-                        {registration.selected_slots?.length || 0} buổi học
+                        Đã đăng ký
                       </div>
                     </div>
                   </div>

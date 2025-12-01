@@ -12,7 +12,14 @@ export default function LoginPage() {
   const [activeKey, setActiveKey] = useState("login");
 
   useEffect(() => {
-    if (user) navigate("/");
+    if (user) {
+      // If user is already logged in, redirect based on user type
+      const isAdmin = Boolean(
+        user.is_admin ?? user.isAdmin ?? user.role === 'admin'
+      );
+      const redirectPath = isAdmin ? "/admin/courses" : "/student";
+      navigate(redirectPath);
+    }
   }, [user, navigate]);
 
   const onLogin = async (values) => {
@@ -44,7 +51,13 @@ export default function LoginPage() {
       login(userData, tokenData);
       localStorage.setItem("token", tokenData);
       message.success("Đăng nhập thành công!");
-      navigate("/");
+
+      // Redirect based on user type
+      const isAdmin = Boolean(
+        userData.is_admin ?? userData.isAdmin ?? userData.role === 'admin'
+      );
+      const redirectPath = isAdmin ? "/admin/courses" : "/student";
+      navigate(redirectPath);
     } catch (err) {
       console.error("Login error:", err);
       message.error("Sai tài khoản hoặc mật khẩu");

@@ -8,7 +8,7 @@ import ErrorBoundary from "./Components/ErrorBoundary";
 import LoginPage from "./Pages/Auth/Login";
 import AdminLayout from "./Layout/AdminLayout";
 import UsersPage from "./Pages/Users/Users";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"; // Nhớ import Navigate
 import Students from "./Pages/Students/index";
 import StatsPage from "./Pages/Students/state";
 import CoursePage from "./Pages/Students/CoursePage";
@@ -21,13 +21,11 @@ import RegisterSchedule from "./Pages/Schedule/RegisterSchedule";
 import RegisteredSchedules from "./Pages/Schedule/RegisteredSchedules";
 import StudentsXML from "./Pages/Students/StudentsXML";
 
-// Component to redirect to schedules page
-function RedirectToSchedules() {
-  React.useEffect(() => {
-    window.location.href = '/schedules';
-  }, []);
-  return null;
-}
+// Import Student Pages
+import LoginStudent from "./Pages/Student/LoginStudent";
+import StudentLayout from "./Layout/StudentLayout";
+import StudentDashboard from "./Pages/Student/Dashboard";
+import Learning from "./Pages/Student/Learning";
 
 export default function App() {
   return (
@@ -35,9 +33,28 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/login" element={<LoginPage />} />
+            {/* 1. ĐIỀU HƯỚNG MẶC ĐỊNH: Vào web là chuyển ngay tới Login Học viên */}
             <Route
               path="/"
+              element={<Navigate to="/student/login" replace />}
+            />
+
+            {/* 2. KHU VỰC HỌC VIÊN */}
+            <Route path="/student/login" element={<LoginStudent />} />
+
+            <Route path="/student" element={<StudentLayout />}>
+              <Route index element={<StudentDashboard />} />
+              <Route path="learning" element={<Learning />} />
+              <Route path="courses" element={<CoursePage />} />
+            </Route>
+
+            {/* 3. KHU VỰC QUẢN TRỊ (ADMIN) - Giờ đây phải gõ /admin mới vào được */}
+
+            {/* Trang login Admin */}
+            <Route path="/admin/login" element={<LoginPage />} />
+
+            <Route
+              path="/admin"
               element={
                 <PrivateRoute>
                   <AdminLayout />
@@ -60,8 +77,14 @@ export default function App() {
               />
               <Route path="schedules" element={<SchedulePage />} />
               <Route path="schedules/create" element={<CreateSchedule />} />
-              <Route path="schedules/register/:scheduleId" element={<RegisterSchedule />} />
-              <Route path="registered-schedules" element={<RegisteredSchedules />} />
+              <Route
+                path="schedules/register/:scheduleId"
+                element={<RegisterSchedule />}
+              />
+              <Route
+                path="registered-schedules"
+                element={<RegisteredSchedules />}
+              />
             </Route>
           </Routes>
         </BrowserRouter>

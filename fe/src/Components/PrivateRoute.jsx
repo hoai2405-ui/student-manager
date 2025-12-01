@@ -44,7 +44,10 @@ export default function PrivateRoute({ children, adminOnly = false }) {
   // Only redirect if we're sure there's no auth
   if (!user && initialized) {
     console.log("Redirecting to login - No user after init");
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // Redirect to admin login if accessing admin routes, otherwise student login
+    const isAdminRoute = location.pathname.startsWith('/admin');
+    const loginPath = isAdminRoute ? '/admin/login' : '/student/login';
+    return <Navigate to={loginPath} state={{ from: location }} replace />;
   }
 
   const isAdmin = Boolean(

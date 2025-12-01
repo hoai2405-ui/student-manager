@@ -37,53 +37,53 @@ const AdminLayout = () => {
   }, [user]);
 
   useEffect(() => {
-    let key = ROUTES_PATH.DASHBOARD;
-    if (location.pathname === "/students-xml")
-      key = "/students-xml";
-    else if (location.pathname.startsWith(ROUTES_PATH.STUDENTS))
-      key = ROUTES_PATH.STUDENTS;
-    else if (location.pathname.startsWith(ROUTES_PATH.COURSES))
-      key = ROUTES_PATH.COURSES;
-    else if (location.pathname.startsWith(ROUTES_PATH.STATS))
-      key = ROUTES_PATH.STATS;
-    else if (location.pathname.startsWith(ROUTES_PATH.SCHEDULES))
-      key = ROUTES_PATH.SCHEDULES;
-    else if (location.pathname === "/registered-schedules")
-      key = "/registered-schedules";
-    else if (location.pathname.startsWith(ROUTES_PATH.USERS))
-      key = ROUTES_PATH.USERS;
+    let key = ROUTES_PATH.ADMIN_DASHBOARD;
+    if (location.pathname.startsWith(ROUTES_PATH.ADMIN_STUDENTS_XML))
+      key = ROUTES_PATH.ADMIN_STUDENTS_XML;
+    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_STUDENTS))
+      key = ROUTES_PATH.ADMIN_STUDENTS;
+    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_COURSES))
+      key = ROUTES_PATH.ADMIN_COURSES;
+    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_STATS))
+      key = ROUTES_PATH.ADMIN_STATS;
+    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_SCHEDULES))
+      key = ROUTES_PATH.ADMIN_SCHEDULES;
+    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_REGISTERED_SCHEDULES))
+      key = ROUTES_PATH.ADMIN_REGISTERED_SCHEDULES;
+    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_USERS))
+      key = ROUTES_PATH.ADMIN_USERS;
     setSelectedKey(key);
   }, [location.pathname]);
 
   const items = [
-    { key: ROUTES_PATH.DASHBOARD, icon: <HomeOutlined />, label: "Trang chủ" },
-    { key: ROUTES_PATH.COURSES, icon: <BookOutlined />, label: "Khoá học" },
+    { key: ROUTES_PATH.ADMIN_DASHBOARD, icon: <HomeOutlined />, label: "Trang chủ" },
+    { key: ROUTES_PATH.ADMIN_COURSES, icon: <BookOutlined />, label: "Khoá học" },
     {
-      key: "students",
+      key: "admin-students-submenu",
       icon: <UsergroupDeleteOutlined />,
       label: "Học Viên",
       children: [
         {
-          key: ROUTES_PATH.STUDENTS,
-          label: "📝 Thi sát hạch",
+          key: ROUTES_PATH.ADMIN_STUDENTS,
+          label: "📝 Học viên thi sát hạch",
         },
         {
-          key: "/students-xml",
-          label: "📸 Từ XML",
+          key: ROUTES_PATH.ADMIN_STUDENTS_XML,
+          label: "📸 Danh sách học viên",
         },
       ],
     },
-    { key: ROUTES_PATH.STATS, icon: <BarChartOutlined />, label: "Thống kê" },
-    { key: ROUTES_PATH.SCHEDULES, icon: <CalendarOutlined />, label: "Lịch học" }, // <-- thêm mục schedules
+    { key: ROUTES_PATH.ADMIN_STATS, icon: <BarChartOutlined />, label: "Thống kê" },
+    { key: ROUTES_PATH.ADMIN_SCHEDULES, icon: <CalendarOutlined />, label: "Lịch học" },
     ...(userInfo?.is_admin
       ? [
           {
-            key: "/registered-schedules",
+            key: ROUTES_PATH.ADMIN_REGISTERED_SCHEDULES,
             icon: <CalendarOutlined />,
             label: "Lịch đã đăng ký",
           },
           {
-            key: ROUTES_PATH.USERS,
+            key: ROUTES_PATH.ADMIN_USERS,
             icon: <UserSwitchOutlined />,
             label: "Users",
           },
@@ -140,11 +140,16 @@ const AdminLayout = () => {
             transition: "all 0.3s ease",
           }}
         >
-          <a 
-            href="/" 
-            style={{ 
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate(ROUTES_PATH.ADMIN_DASHBOARD);
+            }}
+            style={{
               display: "inline-block",
               transition: "transform 0.3s ease",
+              cursor: "pointer",
             }}
             onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
             onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
@@ -424,4 +429,3 @@ const AdminLayout = () => {
 };
 
 export default AdminLayout;
-

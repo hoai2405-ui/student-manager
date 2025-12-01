@@ -58,7 +58,7 @@ export default function DashboardBanner() {
     : 0;
 
   return (
-    <div className="dashboard-header animate-fade-in-up">
+    <div className="dashboard-header">
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr auto',
@@ -68,108 +68,87 @@ export default function DashboardBanner() {
         zIndex: 1,
         maxWidth: '1400px',
         margin: '0 auto',
-        padding: '0 var(--space-xl)',
+        padding: 'var(--space-2xl) var(--space-xl)',
 
       }}>
         {/* Welcome Content */}
         <div>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >
-            <h1 style={{
-              fontSize: 'clamp(2.5rem, 3vw, 3rem)',
-              fontWeight: 800,
-              marginBottom: 'var(--space-lg)',
-              background: 'linear-gradient(135deg, var(--text-primary) 0%, var(--accent-color) 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              lineHeight: 1.1
-            }}>
-              Chào mừng đến với<br />
-              <span style={{ color: 'var(--accent-color)' }}>Hệ Thống Quản Lý Học Viên</span>
-            </h1>
-          </motion.div>
+          <h1 style={{
+            fontSize: 'clamp(2.2rem, 2.5vw, 2.8rem)',
+            fontWeight: 700,
+            marginBottom: 'var(--space-lg)',
+            color: 'var(--text-primary)',
+            lineHeight: 1.2,
+            fontFamily: 'Tahoma, sans-serif'
+          }}>
+            Chào mừng đến với<br />
+            <span style={{ color: 'var(--accent-color)' }}>Hệ Thống Quản Lý Học Viên</span>
+          </h1>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-          >
-            <p style={{
-              fontSize: '1.25rem',
-              color: 'var(--text-secondary)',
-              marginBottom: 'var(--space-2xl)',
-              lineHeight: 1.6,
-              maxWidth: '600px'
-            }}>
-              <RocketOutlined style={{ color: 'var(--accent-color)', marginRight: 'var(--space-sm)', fontSize: '1.2em' }} />
-              <strong style={{ color: 'var(--text-primary)' }}>Xem thống kê chi tiết</strong> về học viên và khóa học
-              <br />
-              <UserAddOutlined style={{ color: 'var(--success-color)', marginRight: 'var(--space-sm)', fontSize: '1.2em' }} />
-              <strong style={{ color: 'var(--text-primary)' }}>Quản lý học viên dễ dàng</strong> với giao diện hiện đại
-              <br />
-              <HeartOutlined style={{ color: 'var(--error-color)', marginRight: 'var(--space-sm)', fontSize: '1.2em' }} />
-              Trải nghiệm dashboard <strong style={{ color: 'var(--text-primary)' }}>chuyên nghiệp và thân thiện</strong>
-            </p>
-          </motion.div>
+          <p style={{
+            fontSize: '1.1rem',
+            color: 'var(--text-secondary)',
+            marginBottom: 'var(--space-2xl)',
+            lineHeight: 1.6,
+            maxWidth: '600px',
+            fontFamily: 'Inter, sans-serif'
+          }}>
+            Quản lý và theo dõi học viên một cách chuyên nghiệp và hiệu quả với bảng điều khiển toàn diện, cập nhật thời gian thực và giao diện thân thiện với người dùng.
+          </p>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.6 }}
-            style={{
-              display: 'flex',
-              gap: 'var(--space-lg)',
-              flexWrap: 'wrap',
-              marginBottom: 'var(--space-2xl)'
-            }}
-          >
+          <div style={{
+            display: 'flex',
+            gap: 'var(--space-lg)',
+            flexWrap: 'wrap',
+            marginBottom: 'var(--space-2xl)'
+          }}>
             <div className="card-admin" style={{
-              background: 'linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%)',
-              color: 'white',
-              minWidth: '160px',
-              textAlign: 'center'
+              background: 'var(--surface-bg)',
+              border: '2px solid var(--accent-color)',
+              color: 'var(--accent-color)',
+              minWidth: '140px',
+              textAlign: 'center',
+              borderRadius: 'var(--radius-lg'
             }}>
               <div style={{
-                fontSize: '2.5rem',
-                fontWeight: 800,
+                fontSize: '2.2rem',
+                fontWeight: 700,
                 marginBottom: 'var(--space-sm)',
-                color: 'white'
+                color: 'var(--accent-color)'
               }}>
                 {quickStats.students}
               </div>
               <div style={{
-                fontSize: '0.9rem',
-                color: 'rgba(255,255,255,0.9)',
+                fontSize: '0.85rem',
+                color: 'var(--text-secondary)',
                 fontWeight: 600,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px'
               }}>
                 <TeamOutlined style={{ marginRight: 'var(--space-xs)' }} />
-                Tổng học viên
+                Học viên
               </div>
             </div>
 
             <div className="card-admin" style={{
-              background: 'linear-gradient(135deg, var(--success-color) 0%, #059669 100%)',
-              color: 'white',
-              minWidth: '160px',
-              textAlign: 'center'
+              background: 'var(--surface-bg)',
+              border: '2px solid var(--success-color)',
+              color: 'var(--success-color)',
+              minWidth: '140px',
+              textAlign: 'center',
+              borderRadius: 'var(--radius-lg)'
             }}>
               <div style={{
-                fontSize: '2.5rem',
-                fontWeight: 800,
+                fontSize: '2.2rem',
+                fontWeight: 700,
                 marginBottom: 'var(--space-sm)',
-                color: 'white'
+                color: 'var(--success-color)'
               }}>
                 {passRate}%
               </div>
               <div style={{
-                fontSize: '0.9rem',
-                color: 'rgba(255,255,255,0.9)',
+                fontSize: '0.85rem',
+                color: 'var(--text-secondary)',
                 fontWeight: 600,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px'
@@ -180,47 +159,51 @@ export default function DashboardBanner() {
             </div>
 
             <div className="card-admin" style={{
-              background: 'linear-gradient(135deg, var(--warning-color) 0%, #d97706 100%)',
-              color: 'white',
-              minWidth: '160px',
-              textAlign: 'center'
+              background: 'var(--surface-bg)',
+              border: '2px solid var(--warning-color)',
+              color: 'var(--warning-color)',
+              minWidth: '140px',
+              textAlign: 'center',
+              borderRadius: 'var(--radius-lg)'
             }}>
               <div style={{
-                fontSize: '2.5rem',
-                fontWeight: 800,
+                fontSize: '2.2rem',
+                fontWeight: 700,
                 marginBottom: 'var(--space-sm)',
-                color: 'white'
+                color: 'var(--warning-color)'
               }}>
                 {quickStats.courses}
               </div>
               <div style={{
-                fontSize: '0.9rem',
-                color: 'rgba(255,255,255,0.9)',
+                fontSize: '0.85rem',
+                color: 'var(--text-secondary)',
                 fontWeight: 600,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px'
               }}>
                 <BookOutlined style={{ marginRight: 'var(--space-xs)' }} />
-                Tổng khóa học
+                Khóa học
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8, duration: 0.6 }}
-            style={{ display: 'flex', gap: 'var(--space-lg)', flexWrap: 'wrap' }}
-          >
-            <button className="btn-modern" onClick={() => window.location.href = '/students'}>
-              <RocketOutlined />
-              Quản lý học viên ngay
+          <div style={{ display: 'flex', gap: 'var(--space-lg)', flexWrap: 'wrap' }}>
+            <button
+              className="btn-modern"
+              onClick={() => window.location.href = '/students'}
+              style={{ background: 'var(--accent-color)', border: 'none' }}
+            >
+              <UserAddOutlined />
+              Quản lý học viên
             </button>
 
-            <button className="btn-outline" onClick={() => window.location.href = '/schedule'}>
+            <button
+              className="btn-outline"
+              onClick={() => window.location.href = '/schedule'}
+            >
               📅 Xem lịch học
             </button>
-          </motion.div>
+          </div>
         </div>
 
         {/* Weather Widget */}
