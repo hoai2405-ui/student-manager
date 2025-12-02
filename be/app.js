@@ -15,6 +15,10 @@ const upload = multer({ dest: "uploads/" });
 app.use(cors());
 app.use(express.json());
 
+// Serve static files từ thư mục uploads (ĐỂ TRẮNG VÀO TRƯỚC ĐỂ SERVE FILE PDF VÀ VIDEO)
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/temp_images", express.static(path.join(__dirname, "temp_images")));
+
 // Tạo admin mặc định nếu chưa có
 async function createDefaultAdmin() {
   try {
@@ -81,7 +85,9 @@ async function createTables() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         subject_id INT NOT NULL,
         title VARCHAR(255) NOT NULL,
+        lesson_code VARCHAR(100),
         video_url TEXT,
+        pdf_url TEXT,
         lesson_order INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -126,6 +132,57 @@ console.log("Nhận request:", req.method, req.url);
 next();
 
 })
+
+
+// 1. Cấu hình nơi lưu file (Hỗ trợ cả PDF và Video)
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    // Tạo folder chung 'uploads/files' cho gọn
+    const dir = './uploads/files';
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: function (req, file, cb) {
+    // Giữ nguyên tên file nhưng thêm timestamp để không trùng
+    // Dùng Buffer để giữ tên tiếng Việt không bị lỗi font
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    cb(null, Date.now() + '-' + originalName);
+  }
+});
+
+// 2. Bộ lọc file (Cho phép PDF và Video)
+const fileFilter = (req, file, cb) => {
+  if (
+    file.mimetype === 'application/pdf' || 
+    file.mimetype.startsWith('video/') // Chấp nhận mọi loại video (mp4, webm...)
+  ) {
+    cb(null, true);
+  } else {
+    cb(new Error('Chỉ cho phép upload PDF hoặc Video!'), false);
+  }
+};
+
+// 3. Khởi tạo Upload (Tăng giới hạn lên 100MB cho video)
+const uploadFile = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+});
+
+// 4. API Upload chung (Thay thế API upload cũ)
+app.post("/api/upload/file", uploadFile.single("file"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "Lỗi upload hoặc file không hợp lệ" });
+  }
+  // Trả về đường dẫn file
+  const fileUrl = `/uploads/files/${req.file.filename}`;
+  // Trả về thêm loại file để Frontend biết đường xử lý
+  const fileType = req.file.mimetype.startsWith('video/') ? 'video' : 'pdf';
+  
+  res.json({ url: fileUrl, type: fileType });
+});
+
+
 
 
 // api đăng ký
@@ -527,8 +584,8 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
 
                   // 👇👇👇 SỬA ĐƯỜNG DẪN NÀY NẾU MÁY BẠN CÀI KHÁC 👇👇👇
                   // Lưu ý: Dùng 2 dấu gạch chéo "\\"
-                  const magickPath =
-                    "C:\\Program Files\\ImageMagick-7.1.2-Q16-HDRI\\magick.exe";
+                 
+                    const magickPath = "magick"; // Trên Linux chỉ cần gọi tên lệnh là được
                   // 👆👆👆
 
                   try {
@@ -1350,14 +1407,50 @@ app.get("/api/lessons", async (req, res) => {
 });
 
 // 3. Thêm bài giảng mới (Dành cho Admin)
+// API Thêm bài giảng (Đã sửa lại thứ tự tham số chuẩn 100%)
 app.post("/api/lessons", async (req, res) => {
-  const { subject_id, title, video_url, lesson_order } = req.body;
+  // 1. Log ra xem Frontend gửi gì lên (Quan trọng để debug)
+  console.log("Dữ liệu nhận được:", req.body);
+
+  const { subject_id, title, lesson_code, video_url, pdf_url, lesson_order } = req.body;
+
   try {
-    await pool.query(
-      "INSERT INTO lessons (subject_id, title, video_url, lesson_order) VALUES (?, ?, ?, ?)",
-      [subject_id, title, video_url, lesson_order || 0]
-    );
+    // 2. Tự động tính số thứ tự nếu không nhập
+    let finalOrder = lesson_order;
+    if (!lesson_order) {
+      const [rows] = await pool.query("SELECT MAX(lesson_order) as maxOrder FROM lessons WHERE subject_id = ?", [subject_id]);
+      finalOrder = (rows[0].maxOrder || 0) + 1;
+    }
+
+    // 3. CÂU LỆNH INSERT CHUẨN (Thứ tự biến trong mảng [] phải khớp 1-1 với dấu ?)
+    const sql = `
+      INSERT INTO lessons 
+      (subject_id, title, lesson_code, video_url, pdf_url, lesson_order) 
+      VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    
+    await pool.query(sql, [
+      subject_id,
+      title,
+      lesson_code || "",  // Lưu mã bài
+      video_url || "",    // Lưu link video
+      pdf_url || "",      // Lưu link PDF
+      finalOrder
+    ]);
+
     res.json({ message: "Thêm bài giảng thành công" });
+  } catch (err) {
+    console.error("Lỗi SQL:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3.1. Lấy chi tiết bài giảng theo ID (Dành cho Học viên)
+app.get("/api/lessons/:id", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM lessons WHERE id = ?", [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ message: "Bài giảng không tồn tại" });
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1372,8 +1465,67 @@ app.delete("/api/lessons/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// 5. Sửa bài giảng (Thêm đoạn này vào be/app.js)
+app.put("/api/lessons/:id", async (req, res) => {
+  const { id } = req.params;
+  const { title, video_url, lesson_order } = req.body;
+  try {
+    await pool.query(
+      "UPDATE lessons SET title = ?, video_url = ?, lesson_order = ? WHERE id = ?",
+      [title, video_url, lesson_order, id]
+    );
+    res.json({ message: "Cập nhật bài giảng thành công" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// 👇 THÊM API NÀY: Lấy chi tiết 1 bài giảng theo ID
+app.get("/api/lessons/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.query("SELECT * FROM lessons WHERE id = ?", [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Không tìm thấy bài giảng" });
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 
+// API tạo dữ liệu mẫu môn học
+app.get("/api/init-subjects", async (req, res) => {
+  const subjects = [
+    { name: 'Pháp luật giao thông đường bộ', code: 'PL', hours: 90 },
+    { name: 'Đạo đức người lái xe', code: 'DD', hours: 15 },
+    { name: 'Cấu tạo và sửa chữa thông thường', code: 'CT', hours: 10 },
+    { name: 'Kỹ thuật lái xe', code: 'KT', hours: 20 },
+    { name: 'Tình huống mô phỏng', code: 'MP', hours: 4 }
+  ];
 
+  try {
+    // 1. Đảm bảo bảng có đủ cột
+    try {
+        await pool.query("ALTER TABLE subjects ADD COLUMN code VARCHAR(50) NULL");
+        await pool.query("ALTER TABLE subjects ADD COLUMN total_hours INT DEFAULT 0");
+    } catch (e) {
+        // Bỏ qua nếu cột đã tồn tại
+    }
+
+    // 2. Xóa cũ thêm mới
+    await pool.query("DELETE FROM subjects");
+    
+    for (const sub of subjects) {
+      await pool.query(
+        "INSERT INTO subjects (name, code, total_hours) VALUES (?, ?, ?)",
+        [sub.name, sub.code, sub.hours]
+      );
+    }
+    res.send("✅ Đã tạo thành công 5 môn học!");
+  } catch (err) {
+    res.status(500).send("Lỗi: " + err.message);
+  }
+});
 
 app.listen(3001, () => console.log("API running on http://localhost:3001"));
