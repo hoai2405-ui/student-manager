@@ -1,14 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Link,
-  Outlet,
-  Navigate,
-} from "react-router-dom"; // Thêm Outlet, Navigate
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-// --- IMPORTS CỦA ADMIN (CŨ) ---
+// --- IMPORTS CỦA ADMIN ---
 import CoursePage from "../Pages/Students/CoursePage";
 import SchedulePage from "../Pages/Schedule";
 import RegisteredSchedules from "../Pages/Schedule/RegisteredSchedules";
@@ -16,191 +9,82 @@ import StudentsXML from "../Pages/Students/StudentsXML";
 import StatsPage from "../Pages/Students/state";
 import Students from "../Pages/Students/index";
 import UsersPage from "../Pages/Users/Users";
-import ManageLessons from "../Pages/Lessons/ManageLessons";
+import ManageLessons from "../Pages/Lessons/ManageLessons"; // Kiểm tra lại đường dẫn này xem đúng file chưa nhé
 import PrivateRoute from "../Components/PrivateRoute";
-import { useAuth } from "../contexts/AuthContext";
+import { AuthProvider } from "../contexts/AuthContext";
+import LoginPage from "../Pages/Auth/Login";
+import AdminLayout from "../Layout/AdminLayout"; // Import Layout Admin
 
-// --- IMPORTS CỦA STUDENT (MỚI) ---
-import StudentLayout from "../Layout/StudentLayout";
-import StudentDashboard from "../Pages/Student/Dashboard"; // Sửa lại tên import cho chuẩn viết hoa
+// --- IMPORTS CỦA STUDENT ---
+import StudentLayout from "../Layout/StudentLayout"; // Import Layout Student
+import StudentDashboard from "../Pages/Student/Dashboard";
 import LoginStudent from "../Pages/Student/LoginStudent";
 import Learning from "../Pages/Student/Learning";
+import StudentMyCourses from "../Pages/Student/StudentMyCourse";
+// 👇 Bổ sung Import trang chi tiết môn học
+import StudentCourseDetail from "../Pages/Student/StudentCourseDetail";
 
-// --- IMPORTS CỦA ADMIN ---
-import AdminLayout from "../Layout/AdminLayout";
-import LoginPage from "../Pages/Auth/Login";
-
-
-// 1. COMPONENT NAVIGATION (GIỮ NGUYÊN CỦA BẠN - MENU ADMIN)
-function Navigation() {
-  const { user } = useAuth();
-  const isAdmin = user?.is_admin;
-  const [showDropdown, setShowDropdown] = useState(false);
-  const dropdownRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <nav
-      className="nav mb-4"
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "8px",
-        alignItems: "center",
-        position: "relative",
-        zIndex: 10,
-      }}
-    >
-      <Link className="nav-link" to="/admin/courses">
-        Khóa học
-      </Link>
-
-      {/* 👇 THÊM MENU QUẢN LÝ BÀI GIẢNG CHO ADMIN */}
-      <Link className="nav-link" style={{ backgroundColor: '#e3f2fd', color: '#0d47a1' }} to="/admin/lessons">🎥 Bài giảng điện tử</Link>
-
-      {/* Dropdown Học viên */}
-      <div style={{ position: "relative", zIndex: 10000 }} ref={dropdownRef}>
-        <button
-          type="button"
-          onClick={() => setShowDropdown((prev) => !prev)}
-          style={{
-            background: "red",
-            border: "2px solid black",
-            color: "white",
-            cursor: "pointer",
-            fontWeight: "bold",
-            padding: "12px 20px",
-            borderRadius: "8px",
-            fontSize: "16px",
-            margin: "0 10px",
-          }}
-        >
-          👥 HỌC VIÊN {showDropdown ? "▲" : "▼"}
-        </button>
-
-        {showDropdown && (
-          <div
-            style={{
-              position: "fixed",
-              top: "80px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              background: "yellow",
-              border: "3px solid red",
-              borderRadius: "8px",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
-              zIndex: 10001,
-              minWidth: "300px",
-              padding: "10px",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "18px",
-                fontWeight: "bold",
-                marginBottom: "10px",
-                textAlign: "center",
-              }}
-            >
-              Chọn loại học viên:
-            </div>
-            <Link
-              to="/admin/students"
-              style={{
-                display: "block",
-                padding: "15px 20px",
-                background: "#007bff",
-                color: "white",
-                textDecoration: "none",
-                borderRadius: "5px",
-                marginBottom: "10px",
-                textAlign: "center",
-                fontSize: "16px",
-                fontWeight: "bold",
-              }}
-              onClick={() => setShowDropdown(false)}
-            >
-              📝 THI SÁT HẠCH
-            </Link>
-            <Link
-              to="/admin/students-xml"
-              style={{
-                display: "block",
-                padding: "15px 20px",
-                background: "#28a745",
-                color: "white",
-                textDecoration: "none",
-                borderRadius: "5px",
-                textAlign: "center",
-                fontSize: "16px",
-                fontWeight: "bold",
-              }}
-              onClick={() => setShowDropdown(false)}
-            >
-              📸 TỪ XML
-            </Link>
-          </div>
-        )}
-      </div>
-
-      <Link className="nav-link" to="/admin/stats">
-        Biểu đồ
-      </Link>
-      {isAdmin && (
-        <Link className="nav-link" to="/admin/users">
-          Người dùng
-        </Link>
-      )}
-      <Link className="nav-link" to="/admin/schedules">
-        Đăng ký lịch học cabin
-      </Link>
-      <Link className="nav-link" to="/admin/registered-schedules">
-        Lịch học đã đăng ký
-      </Link>
-    </nav>
-  );
-}
-
-// AdminLayout is now imported from "../Layout/AdminLayout"
-
-// 3. ROUTER CHÍNH (SỬA ĐỔI LỚN TẠI ĐÂY)
+// 3. ROUTER CHÍNH
 export default function Router() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* === PHẦN 1: ROUTE CỦA HỌC VIÊN (STUDENT) === */}
-        {/* Trang đăng nhập học viên (Không có layout) */}
+        {/* =========================================
+            PHẦN 1: ROUTE CỦA HỌC VIÊN (STUDENT)
+           ========================================= */}
+
+        {/* Trang đăng nhập (Không có Layout) */}
         <Route path="/student/login" element={<LoginStudent />} />
 
-        {/* Các trang bên trong của học viên (Có Sidebar, Header riêng) */}
+        {/* Khu vực sau khi đăng nhập (Có Sidebar, Header) */}
         <Route path="/student" element={<StudentLayout />}>
-          <Route index element={<StudentDashboard />} />{" "}
-          {/* Mặc định vào Dashboard */}
-          <Route path="learning" element={<Learning />} />
-          {/* Thêm các route khác của học viên tại đây */}
+          {/* 1. Trang chủ (Dashboard) */}
+          <Route index element={<StudentDashboard />} />
 
+          {/* 2. Route ảo để Menu "Môn học của tôi" hoạt động */}
+          <Route path="learning" element={<StudentMyCourses />} />
 
-           <Route path="history" element={<div className="p-4">Chức năng Lịch sử thi đang phát triển...</div>} />
-          <Route path="chat-ai" element={<div className="p-4">Chức năng Trợ lý AI đang phát triển...</div>} />
+          {/* 3. Trang danh sách bài học của 1 môn */}
+          {/* Khi vào đây, Sidebar vẫn hiển thị */}
+          <Route path="subjects/:subjectId" element={<StudentCourseDetail />} />
+
+          {/* 4. Trang học bài (PDF/Video) */}
+          <Route path="learning/:lessonId" element={<Learning />} />
+
+          {/* Các trang phụ khác */}
+          <Route
+            path="history"
+            element={
+              <div className="p-4">
+                Chức năng Lịch sử thi đang phát triển...
+              </div>
+            }
+          />
+          <Route
+            path="chat-ai"
+            element={
+              <div className="p-4">Chức năng Trợ lý AI đang phát triển...</div>
+            }
+          />
         </Route>
 
-        
-        {/* === PHẦN 2: ROUTE CỦA QUẢN TRỊ (ADMIN) === */}
-        {/* Trang đăng nhập admin */}
+        {/* =========================================
+            PHẦN 2: ROUTE CỦA QUẢN TRỊ (ADMIN)
+           ========================================= */}
+
         <Route path="/admin/login" element={<LoginPage />} />
 
-        {/* Bọc tất cả route admin vào PrivateRoute để kiểm tra đăng nhập */}
-        <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
-          <Route index element={<CoursePage />} />
+        <Route
+          path="/admin"
+          element={
+            <PrivateRoute>
+              <AdminLayout />
+            </PrivateRoute>
+          }
+        >
+          {/* Mặc định vào admin thì chuyển tới courses */}
+          <Route index element={<Navigate to="courses" replace />} />
+
           <Route path="courses" element={<CoursePage />} />
           <Route path="lessons" element={<ManageLessons />} />
           <Route path="students" element={<Students />} />
@@ -221,11 +105,13 @@ export default function Router() {
             }
           />
         </Route>
-        {/* === PHẦN 3: ĐIỀU HƯỚNG MẶC ĐỊNH === */}
-        {/* Vào trang chủ ("/") thì chuyển hướng tới Login học viên hoặc Admin tùy bạn */}
+
+        {/* =========================================
+            PHẦN 3: ĐIỀU HƯỚNG MẶC ĐỊNH
+           ========================================= */}
         <Route path="/" element={<Navigate to="/student/login" />} />
-        {/* Nếu gõ linh tinh thì về trang khóa học (Admin) hoặc 404 */}
-        <Route path="*" element={<Navigate to="/admin/courses" />} />
+        {/* Các đường dẫn lạ thì đẩy về trang chủ Admin hoặc Student tuỳ ý */}
+        <Route path="*" element={<Navigate to="/student/login" />} />
       </Routes>
     </BrowserRouter>
   );

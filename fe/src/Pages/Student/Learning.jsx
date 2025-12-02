@@ -1,122 +1,141 @@
 import React, { useState, useEffect } from "react";
-import { Layout, Menu, Empty, Button, Typography } from "antd";
-import { PlayCircleOutlined, MenuUnfoldOutlined, MenuFoldOutlined } from "@ant-design/icons";
-
-const { Sider, Content } = Layout;
-const { Title } = Typography;
+import { useParams, useNavigate } from "react-router-dom";
+import { Button, Spin, Result, Alert } from "antd";
+import {
+  ArrowLeftOutlined,
+  ClockCircleOutlined,
+  FilePdfOutlined,
+  VideoCameraOutlined,
+} from "@ant-design/icons";
+import axios from "../../Common/axios";
 
 const Learning = () => {
-  const [subjects, setSubjects] = useState([]);
-  const [currentSubjectId, setCurrentSubjectId] = useState(null);
-  const [lessons, setLessons] = useState([]);
-  const [currentLesson, setCurrentLesson] = useState(null); // Bài đang học
-  const [collapsed, setCollapsed] = useState(false);
+  const { lessonId } = useParams(); // Lấy ID bài học từ URL
+  const navigate = useNavigate();
 
-  // 1. Load danh sách môn học
+  const [lesson, setLesson] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [timer, setTimer] = useState(0); // Bộ đếm giờ
+
+  // 1. Gọi API lấy chi tiết bài học
   useEffect(() => {
-    fetch("http://localhost:3001/api/subjects")
-      .then(res => res.json())
-      .then(data => {
-        setSubjects(data);
-        if (data.length > 0) setCurrentSubjectId(data[0].id);
+    setLoading(true);
+    // Gọi API chi tiết (nếu chưa có API detail thì lọc từ danh sách như code cũ cũng được)
+    // Ở đây mình dùng API detail cho chuẩn
+    axios
+      .get(`/api/lessons/${lessonId}`)
+      .then((res) => {
+        setLesson(res.data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Lỗi:", err);
+        setLoading(false);
       });
+  }, [lessonId]);
+
+  // 2. Chạy đồng hồ đếm giờ học
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimer((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
 
-  // 2. Load bài giảng khi chọn môn
-  useEffect(() => {
-    if (currentSubjectId) {
-      fetch(`http://localhost:3001/api/lessons?subject_id=${currentSubjectId}`)
-        .then(res => res.json())
-        .then(data => {
-          setLessons(data);
-          if (data.length > 0) setCurrentLesson(data[0]); // Mặc định mở bài 1
-          else setCurrentLesson(null);
-        });
-    }
-  }, [currentSubjectId]);
+  // Format giây thành 00:00:00
+  const formatTime = (seconds) => {
+    const h = Math.floor(seconds / 3600)
+      .toString()
+      .padStart(2, "0");
+    const m = Math.floor((seconds % 3600) / 60)
+      .toString()
+      .padStart(2, "0");
+    const s = (seconds % 60).toString().padStart(2, "0");
+    return `${h}:${m}:${s}`;
+  };
+
+  if (loading)
+    return (
+      <div className="h-screen flex flex-col justify-center items-center">
+        <Spin size="large" />
+        <p className="mt-4 text-gray-600">Đang tải bài học...</p>
+      </div>
+    );
+
+  if (!lesson)
+    return (
+      <Result
+        status="404"
+        title="Không tìm thấy bài học"
+        subTitle="Có thể bài học này đã bị xóa hoặc đường dẫn sai."
+        extra={
+          <Button type="primary" onClick={() => navigate(-1)}>
+            Quay lại
+          </Button>
+        }
+      />
+    );
 
   return (
-    <div className="h-[calc(100vh-100px)] flex flex-col bg-white rounded-lg shadow overflow-hidden">
-      {/* Thanh chọn môn học ngang ở trên */}
-      <div className="flex overflow-x-auto gap-2 p-2 border-b bg-gray-50">
-        {subjects.map(sub => (
-          <button 
-            key={sub.id}
-            onClick={() => setCurrentSubjectId(sub.id)}
-            className={`px-4 py-2 rounded whitespace-nowrap text-sm font-bold transition
-              ${currentSubjectId === sub.id ? 'bg-blue-600 text-white' : 'bg-white border text-gray-600 hover:bg-gray-100'}`}
-          >
-            {sub.name}
-          </button>
-        ))}
+    <div className="flex flex-col h-screen bg-gray-100">
+      {/* --- HEADER --- */}
+      <div className="bg-white px-6 py-3 border-b shadow-sm flex justify-between items-center z-10">
+        <div className="flex items-center gap-4">
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>
+            Quay lại danh sách
+          </Button>
+          <div>
+            <h1 className="text-lg font-bold text-gray-800 m-0 leading-tight">
+              Bài: {lesson.title}
+            </h1>
+            {lesson.lesson_code && (
+              <span className="text-xs text-gray-500 font-mono bg-gray-100 px-2 rounded">
+                {lesson.lesson_code}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-full text-red-600 font-bold shadow-sm">
+            <ClockCircleOutlined className="animate-pulse" />
+            <span>Thời gian học: {formatTime(timer)}</span>
+          </div>
+        </div>
       </div>
 
-      <Layout className="flex-1">
-        {/* VIDEO PLAYER (Bên trái) */}
-        <Content className="bg-black flex flex-col items-center justify-center relative">
-          {currentLesson ? (
-            <div className="w-full h-full">
-              {/* Nếu là link YouTube Embed */}
-              {currentLesson.video_url?.includes("youtube") || currentLesson.video_url?.includes("embed") ? (
-                <iframe 
-                  src={currentLesson.video_url} 
-                  title={currentLesson.title}
-                  className="w-full h-full" 
-                  frameBorder="0" 
-                  allow="autoplay; encrypted-media" 
-                  allowFullScreen 
-                />
-              ) : (
-                // Nếu là file MP4 trực tiếp
-                <video controls className="w-full h-full max-h-[600px]" src={currentLesson.video_url}>
-                   Trình duyệt không hỗ trợ video.
-                </video>
-              )}
-            </div>
+      {/* --- BODY (NỘI DUNG) --- */}
+      <div className="flex-1 p-4 overflow-hidden relative">
+        <div className="w-full h-full bg-white shadow-lg rounded-lg border overflow-hidden relative">
+          {/* TRƯỜNG HỢP 1: CÓ PDF */}
+          {lesson.pdf_url ? (
+            <iframe
+              src={`http://localhost:3001${lesson.pdf_url}#toolbar=0&navpanes=0`}
+              className="w-full h-full border-none"
+              title="PDF Viewer"
+            />
+          ) : /* TRƯỜNG HỢP 2: CÓ VIDEO */
+          lesson.video_url ? (
+            <iframe
+              src={lesson.video_url}
+              className="w-full h-full border-none"
+              allow="autoplay; encrypted-media"
+              allowFullScreen
+              title="Video Player"
+            />
           ) : (
-             <div className="text-white">Chưa có bài giảng nào</div>
+            /* TRƯỜNG HỢP 3: KHÔNG CÓ GÌ */
+            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+              <FilePdfOutlined
+                style={{ fontSize: 60, marginBottom: 16, opacity: 0.5 }}
+              />
+              <p className="text-lg">
+                Bài học này chưa cập nhật nội dung tài liệu.
+              </p>
+              <Button onClick={() => navigate(-1)}>Chọn bài khác</Button>
+            </div>
           )}
-        </Content>
-
-        {/* DANH SÁCH BÀI HỌC (Bên phải) */}
-        <Sider 
-          width={320} 
-          theme="light" 
-          collapsible 
-          collapsed={collapsed} 
-          onCollapse={setCollapsed}
-          trigger={null}
-          className="border-l overflow-y-auto"
-        >
-          <div className="p-3 bg-gray-100 border-b flex justify-between items-center sticky top-0 z-10">
-            {!collapsed && <span className="font-bold text-gray-700">NỘI DUNG KHÓA HỌC</span>}
-            <Button type="text" icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed(!collapsed)} />
-          </div>
-          
-          <Menu
-            mode="inline"
-            selectedKeys={[currentLesson?.id?.toString()]}
-            items={lessons.map((lesson, index) => ({
-              key: lesson.id.toString(),
-              icon: <PlayCircleOutlined />,
-              label: (
-                <div className="whitespace-normal py-2 leading-tight">
-                  <div className="font-semibold text-xs text-gray-500">Bài {index + 1}</div>
-                  <div>{lesson.title}</div>
-                  <div className="text-xs text-gray-400 mt-1">10:00</div>
-                </div>
-              ),
-              onClick: () => setCurrentLesson(lesson)
-            }))}
-          />
-        </Sider>
-      </Layout>
-      
-      {/* Tiêu đề bài đang học */}
-      <div className="p-4 border-t bg-white">
-          <Title level={4} style={{margin:0}}>
-            {currentLesson ? currentLesson.title : "Chọn bài học để bắt đầu"}
-          </Title>
+        </div>
       </div>
     </div>
   );

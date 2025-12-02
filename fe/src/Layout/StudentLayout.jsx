@@ -8,22 +8,15 @@ import {
   LogoutOutlined,
   RobotOutlined,
 } from "@ant-design/icons";
-// import "../assets/main.css"; // Bỏ comment nếu bạn có file css chung
 
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-// import { ROUTES_PATH } from "../Common/constants"; // Nếu chưa có file này thì bỏ qua
-import AdminFooter from "../Components/Footer"; // Đảm bảo đường dẫn đúng
-// Giả sử bạn dùng context này, nếu chưa có thì dùng localStorage như mình hướng dẫn bên dưới
+import AdminFooter from "../Components/Footer";
 import { useAuth } from "../contexts/AuthContext";
 
 const { Content, Sider, Header } = Layout;
 
 const StudentLayout = () => {
-  // Lấy thông tin user.
-  // Nếu bạn chưa hoàn thiện AuthContext cho Student, ta có thể lấy tạm từ localStorage
   const { user, logout } = useAuth();
-
-  // Ưu tiên lấy từ Context, nếu không có thì lấy từ localStorage (fallback)
   const localStudent = JSON.parse(localStorage.getItem("studentInfo"));
   const userInfo = user?.student || user || localStudent;
 
@@ -36,27 +29,50 @@ const StudentLayout = () => {
     token: { borderRadiusLG },
   } = theme.useToken();
 
-  // Cập nhật active menu khi đổi trang
+  // --- SỬA LOGIC HIGHLIGHT MENU ---
   useEffect(() => {
-    setSelectedKey(location.pathname);
+    const path = location.pathname;
+
+    if (path === "/student") {
+      // Nếu đúng là trang chủ gốc
+      setSelectedKey("/student");
+    }
+    // Nếu đường dẫn bắt đầu bằng /student/learning (Bao gồm cả learning và learning/:id)
+    // Hoặc /student/subjects (Chi tiết môn)
+    else if (
+      path.startsWith("/student/learning") ||
+      path.startsWith("/student/subjects")
+    ) {
+      setSelectedKey("/student/learning");
+    } else {
+      setSelectedKey(path);
+    }
   }, [location.pathname]);
 
-  // MENU CỦA HỌC VIÊN
+  // --- MENU ITEMS ---
   const items = [
-    { key: "/student", icon: <HomeOutlined />, label: "Trang chủ" }, // Dashboard
     {
-      key: "/student/learning",
+      key: "/student",
+      icon: <HomeOutlined />,
+      label: "Trang chủ",
+    },
+    {
+      key: "/student/learning", // 👇 Dùng key này chuẩn theo ý bạn
       icon: <PlayCircleOutlined />,
-      label: "Vào học",
+      label: "Môn học của tôi",
     },
     {
       key: "/student/history",
       icon: <HistoryOutlined />,
       label: "Lịch sử thi",
     },
+    {
+      key: "/student/chat-ai",
+      icon: <RobotOutlined />,
+      label: "Trợ lý AI",
+    },
   ];
 
-  // MENU PROFILE (Góc phải trên)
   const profileMenu = [
     {
       key: "profile",
@@ -78,14 +94,10 @@ const StudentLayout = () => {
       label: "Đăng xuất",
       icon: <LogoutOutlined />,
       onClick: () => {
-        // Clear student-specific localStorage
         localStorage.removeItem("studentToken");
         localStorage.removeItem("studentInfo");
-        // Also clear any auth data if it exists
         localStorage.removeItem("auth");
-        // Reset user state if using AuthContext
         if (logout) logout();
-        // Navigate to student login
         navigate("/student/login");
       },
     },
@@ -93,7 +105,6 @@ const StudentLayout = () => {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      {/* --- SIDEBAR TRÁI --- */}
       <Sider
         collapsible
         collapsed={collapsed}
@@ -110,7 +121,6 @@ const StudentLayout = () => {
           zIndex: 100,
         }}
       >
-        {/* LOGO AREA */}
         <div
           style={{
             height: 64,
@@ -133,7 +143,6 @@ const StudentLayout = () => {
           {collapsed ? "LX" : "HỌC LÁI XE"}
         </div>
 
-        {/* MENU ITEMS */}
         <Menu
           theme="dark"
           selectedKeys={[selectedKey]}
@@ -144,7 +153,6 @@ const StudentLayout = () => {
         />
       </Sider>
 
-      {/* --- MAIN LAYOUT --- */}
       <Layout
         style={{
           marginLeft: collapsed ? 80 : 240,
@@ -153,7 +161,6 @@ const StudentLayout = () => {
           background: "#f0f2f5",
         }}
       >
-        {/* HEADER TRÊN CÙNG */}
         <Header
           style={{
             padding: "0 24px",
@@ -167,12 +174,10 @@ const StudentLayout = () => {
             boxShadow: "0 1px 4px rgba(0,21,41,0.08)",
           }}
         >
-          {/* Tiêu đề trang hoặc Breadcrumb */}
           <div style={{ fontSize: "18px", fontWeight: 600, color: "#001529" }}>
             Hệ thống E-Learning
           </div>
 
-          {/* User Info Dropdown */}
           <Dropdown
             menu={{ items: profileMenu }}
             trigger={["click"]}
@@ -186,13 +191,12 @@ const StudentLayout = () => {
                 gap: 10,
               }}
             >
-              {/* Hiển thị Avatar thật hoặc mặc định */}
               <Avatar
                 size={40}
                 src={userInfo?.anh_chan_dung}
                 icon={<UserOutlined />}
                 style={{ border: "2px solid #1890ff" }}
-                onError={() => true} // Nếu ảnh lỗi thì hiện icon
+                onError={() => true}
               />
 
               <div
@@ -215,21 +219,27 @@ const StudentLayout = () => {
           </Dropdown>
         </Header>
 
-        {/* NỘI DUNG CHÍNH (Outlet) */}
-        <Content style={{ margin: "24px 16px 0", overflow: "initial" }}>
+        <Content
+          style={{
+            margin: "24px 16px 0",
+            overflow: "initial",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <div
             style={{
               padding: 24,
               background: "#fff",
               borderRadius: borderRadiusLG,
-              minHeight: "calc(100vh - 150px)", // Trừ hao Header và Footer
+              minHeight: "calc(100vh - 150px)",
+              flex: 1,
             }}
           >
             <Outlet />
           </div>
         </Content>
 
-        {/* Footer */}
         <div style={{ textAlign: "center", padding: "20px", color: "#888" }}>
           <AdminFooter />
         </div>
