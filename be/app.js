@@ -1358,23 +1358,45 @@ app.get('/api/schedule-registrations', authenticateToken, checkAdmin, async (req
 // ...existing code...
 // dành cho trang học viên
 
+// be/app.js
+
 app.post("/api/student/login", async (req, res) => {
   const { so_cmt } = req.body;
   try {
-    const [rows] = await pool.query("SELECT * FROM students WHERE so_cmt = ?", [so_cmt]);
-    if (rows.length === 0) return res.status(404).json({ message: "Không tìm thấy học viên với số CCCD này" });
+    // 👇 CÂU LỆNH SQL CHUẨN:
+    // s.* : Lấy hết thông tin học viên (bao gồm ma_khoa_hoc là dãy số)
+    // c.ten_khoa_hoc : Lấy thêm Tên hiển thị (K17) từ bảng courses
+    const sql = `
+      SELECT 
+        s.*, 
+        c.ten_khoa_hoc 
+      FROM students s
+      LEFT JOIN courses c ON s.ma_khoa_hoc = c.ma_khoa_hoc
+      WHERE s.so_cmt = ?
+    `;
+
+    const [rows] = await pool.query(sql, [so_cmt]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Không tìm thấy học viên" });
+    }
 
     const student = rows[0];
-    // Trả về dữ liệu
+
+    // Debug: In ra xem server đã lấy được chữ "K17" chưa
+    console.log("--> Học viên:", student.ho_va_ten);
+    console.log("--> Mã liên kết (Số):", student.ma_khoa_hoc);
+    console.log("--> Tên khóa (K17):", student.ten_khoa_hoc);
+
     res.json({
       token: "sample-token",
-      student: student
+      student: student,
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
-
 
 
 // --- API QUẢN LÝ BÀI GIẢNG ---
@@ -1412,7 +1434,15 @@ app.post("/api/lessons", async (req, res) => {
   // 1. Log ra xem Frontend gửi gì lên (Quan trọng để debug)
   console.log("Dữ liệu nhận được:", req.body);
 
-  const { subject_id, title, lesson_code, video_url, pdf_url, lesson_order } = req.body;
+  const {
+    subject_id,
+    title,
+    lesson_code,
+    video_url,
+    pdf_url,
+    lesson_order,
+    duration_minutes,
+  } = req.body;
 
   try {
     // 2. Tự động tính số thứ tự nếu không nhập
@@ -1425,7 +1455,7 @@ app.post("/api/lessons", async (req, res) => {
     // 3. CÂU LỆNH INSERT CHUẨN (Thứ tự biến trong mảng [] phải khớp 1-1 với dấu ?)
     const sql = `
       INSERT INTO lessons 
-      (subject_id, title, lesson_code, video_url, pdf_url, lesson_order) 
+      (subject_id, title, lesson_code, video_url, pdf_url, lesson_order, duration_minutes) 
       VALUES (?, ?, ?, ?, ?, ?)
     `;
     
@@ -1435,7 +1465,8 @@ app.post("/api/lessons", async (req, res) => {
       lesson_code || "",  // Lưu mã bài
       video_url || "",    // Lưu link video
       pdf_url || "",      // Lưu link PDF
-      finalOrder
+      finalOrder,
+      duration_minutes || 45
     ]);
 
     res.json({ message: "Thêm bài giảng thành công" });
@@ -1468,11 +1499,26 @@ app.delete("/api/lessons/:id", async (req, res) => {
 // 5. Sửa bài giảng (Thêm đoạn này vào be/app.js)
 app.put("/api/lessons/:id", async (req, res) => {
   const { id } = req.params;
-  const { title, video_url, lesson_order } = req.body;
+  const {
+    title,
+    lesson_code,
+    video_url,
+    pdf_url,
+    lesson_order,
+    duration_minutes,
+  } = req.body;
   try {
     await pool.query(
-      "UPDATE lessons SET title = ?, video_url = ?, lesson_order = ? WHERE id = ?",
-      [title, video_url, lesson_order, id]
+      "UPDATE lessons SET title = ?, lesson_code = ?, video_url = ?, pdf_url = ?, lesson_order = ?, duration_minutes = ? WHERE id = ?",
+      [
+        title,
+        lesson_code,
+        video_url,
+        pdf_url,
+        lesson_order,
+        duration_minutes,
+        id,
+      ]
     );
     res.json({ message: "Cập nhật bài giảng thành công" });
   } catch (err) {
