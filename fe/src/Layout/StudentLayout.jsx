@@ -207,7 +207,7 @@ const StudentLayout = () => {
                 }}
               >
                 <span style={{ fontWeight: 600, color: "#333" }}>
-                  {userInfo?.ho_va_ten || "Khách"}
+                  {userInfo?.ho_va_ten || "Học viên"}
                 </span>
                 <span style={{ fontSize: 12, color: "#888" }}>
                   {userInfo?.hang_gplx

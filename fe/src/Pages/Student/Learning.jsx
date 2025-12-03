@@ -1,48 +1,80 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Button, Spin, Result, Alert } from "antd";
+import {
+  Button,
+  Spin,
+  Result,
+  Typography,
+  Progress,
+  message,
+  Modal,
+} from "antd";
 import {
   ArrowLeftOutlined,
   ClockCircleOutlined,
-  FilePdfOutlined,
-  VideoCameraOutlined,
+  LogoutOutlined,
 } from "@ant-design/icons";
 import axios from "../../Common/axios";
 
+const { Text, Title } = Typography;
+const SERVER_URL = "http://localhost:3001";
+
 const Learning = () => {
-  const { lessonId } = useParams(); // Lấy ID bài học từ URL
+  const { lessonId } = useParams();
   const navigate = useNavigate();
 
   const [lesson, setLesson] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [timer, setTimer] = useState(0); // Bộ đếm giờ
 
-  // 1. Gọi API lấy chi tiết bài học
+  // State thời gian
+  const [totalSeconds, setTotalSeconds] = useState(0); // Tổng giây quy định
+  const [timeLeft, setTimeLeft] = useState(0); // Thời gian còn lại (đếm ngược)
+  const [timeSpent, setTimeSpent] = useState(0); // Thời gian đã học (đếm xuôi)
+
+  // 1. Load bài học & Cài đặt thời gian ban đầu
   useEffect(() => {
     setLoading(true);
-    // Gọi API chi tiết (nếu chưa có API detail thì lọc từ danh sách như code cũ cũng được)
-    // Ở đây mình dùng API detail cho chuẩn
     axios
       .get(`/api/lessons/${lessonId}`)
       .then((res) => {
-        setLesson(res.data);
+        const data = res.data;
+        setLesson(data);
+
+        // Chuyển phút từ DB thành giây
+        // Nếu DB chưa có thì mặc định 45 phút = 2700s
+        const duration = (data.duration_minutes || 45) * 60;
+        setTotalSeconds(duration);
+        setTimeLeft(duration);
+
         setLoading(false);
       })
       .catch((err) => {
-        console.error("Lỗi:", err);
+        console.error(err);
         setLoading(false);
       });
   }, [lessonId]);
 
-  // 2. Chạy đồng hồ đếm giờ học
+  // 2. Logic Đếm ngược & Đếm xuôi
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTimer((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+    if (!lesson || timeLeft <= 0) return;
 
-  // Format giây thành 00:00:00
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          message.success("Chúc mừng! Bạn đã hoàn thành thời gian học.");
+          return 0;
+        }
+        return prev - 1;
+      });
+
+      setTimeSpent((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [lesson, timeLeft]);
+
+  // Hàm format giây thành HH:MM:SS
   const formatTime = (seconds) => {
     const h = Math.floor(seconds / 3600)
       .toString()
@@ -54,85 +86,91 @@ const Learning = () => {
     return `${h}:${m}:${s}`;
   };
 
+  const handleEndSession = () => {
+    Modal.confirm({
+      title: "Kết thúc phiên học?",
+      content: "Thời gian học của bạn sẽ được lưu lại.",
+      okText: "Kết thúc",
+      cancelText: "Học tiếp",
+      onOk: () => navigate(-1), // Quay về
+    });
+  };
+
   if (loading)
     return (
-      <div className="h-screen flex flex-col justify-center items-center">
+      <div className="h-screen flex justify-center items-center">
         <Spin size="large" />
-        <p className="mt-4 text-gray-600">Đang tải bài học...</p>
       </div>
     );
-
-  if (!lesson)
-    return (
-      <Result
-        status="404"
-        title="Không tìm thấy bài học"
-        subTitle="Có thể bài học này đã bị xóa hoặc đường dẫn sai."
-        extra={
-          <Button type="primary" onClick={() => navigate(-1)}>
-            Quay lại
-          </Button>
-        }
-      />
-    );
+  if (!lesson) return <Result status="404" title="Không tìm thấy bài học" />;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      {/* --- HEADER --- */}
-      <div className="bg-white px-6 py-3 border-b shadow-sm flex justify-between items-center z-10">
-        <div className="flex items-center gap-4">
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>
-            Quay lại danh sách
-          </Button>
+    <div className="flex flex-col h-screen bg-white">
+      {/* --- HEADER GIỐNG ẢNH MẪU --- */}
+      <div className="border-b shadow-sm bg-white">
+        {/* Dòng 1: Tên bài */}
+        <div className="px-6 py-4 flex justify-between items-start">
           <div>
-            <h1 className="text-lg font-bold text-gray-800 m-0 leading-tight">
+            <Title level={3} style={{ margin: 0, color: "#333" }}>
               Bài: {lesson.title}
-            </h1>
-            {lesson.lesson_code && (
-              <span className="text-xs text-gray-500 font-mono bg-gray-100 px-2 rounded">
-                {lesson.lesson_code}
+            </Title>
+            <div className="flex gap-4 mt-2 text-sm">
+              <span className="text-green-600 font-bold">
+                Thời gian còn lại: {formatTime(timeLeft)}
               </span>
-            )}
+              <span className="text-gray-500">|</span>
+              <span className="text-gray-600">
+                Thời lượng đã học:{" "}
+                <span className="text-red-500 font-bold">
+                  {formatTime(timeSpent)}
+                </span>
+              </span>
+            </div>
           </div>
+
+          {/* Logo hoặc Info user góc phải (nếu cần) */}
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-full text-red-600 font-bold shadow-sm">
-            <ClockCircleOutlined className="animate-pulse" />
-            <span>Thời gian học: {formatTime(timer)}</span>
+        {/* Dòng 2: Thanh điều khiển & Nút Kết thúc */}
+        <div className="px-6 py-2 bg-gray-50 border-t flex items-center justify-between gap-4">
+          {/* Giả lập thanh Audio Player như ảnh */}
+          <div className="flex-1 flex items-center gap-2 bg-white border rounded-full px-3 py-1 shadow-sm max-w-2xl">
+            <audio controls className="w-full h-8" src={lesson.video_url || ""}>
+              Trình duyệt không hỗ trợ.
+            </audio>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="primary"
+              danger
+              size="large"
+              icon={<LogoutOutlined />}
+              onClick={handleEndSession}
+              className="font-bold px-6"
+            >
+              KẾT THÚC PHIÊN HỌC
+            </Button>
+
+            <div className="bg-gray-600 text-white px-4 py-2 rounded font-bold">
+              {formatTime(timeLeft)} {/* Đồng hồ đếm ngược to ở góc phải */}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* --- BODY (NỘI DUNG) --- */}
-      <div className="flex-1 p-4 overflow-hidden relative">
-        <div className="w-full h-full bg-white shadow-lg rounded-lg border overflow-hidden relative">
-          {/* TRƯỜNG HỢP 1: CÓ PDF */}
+      {/* --- NỘI DUNG PDF --- */}
+      <div className="flex-1 bg-gray-100 p-4 overflow-hidden">
+        <div className="h-full w-full bg-white shadow-lg border mx-auto max-w-6xl">
           {lesson.pdf_url ? (
             <iframe
-              src={`http://localhost:3001${lesson.pdf_url}#toolbar=0&navpanes=0`}
+              src={`${SERVER_URL}${lesson.pdf_url}#toolbar=0`}
               className="w-full h-full border-none"
-              title="PDF Viewer"
-            />
-          ) : /* TRƯỜNG HỢP 2: CÓ VIDEO */
-          lesson.video_url ? (
-            <iframe
-              src={lesson.video_url}
-              className="w-full h-full border-none"
-              allow="autoplay; encrypted-media"
-              allowFullScreen
-              title="Video Player"
+              title="Nội dung bài học"
             />
           ) : (
-            /* TRƯỜNG HỢP 3: KHÔNG CÓ GÌ */
-            <div className="flex flex-col items-center justify-center h-full text-gray-400">
-              <FilePdfOutlined
-                style={{ fontSize: 60, marginBottom: 16, opacity: 0.5 }}
-              />
-              <p className="text-lg">
-                Bài học này chưa cập nhật nội dung tài liệu.
-              </p>
-              <Button onClick={() => navigate(-1)}>Chọn bài khác</Button>
+            <div className="h-full flex items-center justify-center text-gray-400">
+              Không có tài liệu hiển thị
             </div>
           )}
         </div>

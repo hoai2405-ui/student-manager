@@ -21,6 +21,7 @@ import {
   UploadOutlined,
   VideoCameraOutlined,
   SearchOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import axios from "axios";
 
@@ -30,6 +31,7 @@ const ManageLessons = () => {
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState(null);
+  const [editingLesson, setEditingLesson] = useState(null); // State for editing
 
   // State lưu file vừa upload (URL và Loại file)
   const [uploadedFile, setUploadedFile] = useState({ url: "", type: "" });
@@ -51,7 +53,7 @@ const ManageLessons = () => {
       const res = await axios.get("http://localhost:3001/api/subjects");
       setSubjects(res.data);
       if (res.data.length > 0) setSelectedSubject(res.data[0].id);
-    } catch (error) {
+    } catch {
       message.error("Lỗi tải môn học");
     }
   };
@@ -63,7 +65,7 @@ const ManageLessons = () => {
         `http://localhost:3001/api/lessons?subject_id=${subjectId}`
       );
       setLessons(res.data);
-    } catch (error) {
+    } catch {
       message.error("Lỗi tải bài giảng");
     } finally {
       setLoading(false);
@@ -96,8 +98,20 @@ const ManageLessons = () => {
     }
   };
 
-  // --- HÀM LƯU BÀI GIẢNG (Cập nhật logic lưu đúng cột) ---
-  const handleAddLesson = async (values) => {
+  // --- HÀM MỞ MODAL SỬA ---
+  const handleEdit = (lesson) => {
+    setEditingLesson(lesson);
+    form.setFieldsValue({
+      lesson_code: lesson.lesson_code,
+      title: lesson.title,
+      video_url: lesson.video_url,
+      lesson_order: lesson.lesson_order,
+    });
+    setIsModalOpen(true);
+  };
+
+  // --- HÀM LƯU/SỬA BÀI GIẢNG ---
+  const handleSubmitLesson = async (values) => {
     try {
       let pdfUrl = "";
       let videoUrl = values.video_url || ""; // Giữ link youtube nếu có
@@ -108,28 +122,42 @@ const ManageLessons = () => {
       } else if (uploadedFile.type === "video") {
         videoUrl = uploadedFile.url; // Ưu tiên file video upload lên
       }
-console.log("Dữ liệu gửi đi:", {
-  title: values.title,
-  code: values.lesson_code,
-  pdf: pdfUrl,
-  video: videoUrl,
-});
-      await axios.post("http://localhost:3001/api/lessons", {
-        subject_id: selectedSubject,
-        title: values.title,
-        lesson_code: values.lesson_code, // Lưu mã bài giảng
-        lesson_order: values.lesson_order,
-        video_url: videoUrl,
-        pdf_url: pdfUrl,
-      });
 
-      message.success("Thêm bài giảng thành công!");
+      if (editingLesson) {
+        // Sửa bài giảng
+        await axios.put(`http://localhost:3001/api/lessons/${editingLesson.id}`, {
+          title: values.title,
+          video_url: videoUrl,
+          lesson_order: values.lesson_order,
+        });
+        message.success("Cập nhật bài giảng thành công!");
+      } else {
+        // Thêm mới
+        console.log("Dữ liệu gửi đi:", {
+          title: values.title,
+          code: values.lesson_code,
+          pdf: pdfUrl,
+          video: videoUrl,
+        });
+        await axios.post("http://localhost:3001/api/lessons", {
+          subject_id: selectedSubject,
+          title: values.title,
+          lesson_code: values.lesson_code, // Lưu mã bài giảng
+          lesson_order: values.lesson_order,
+          video_url: videoUrl,
+          pdf_url: pdfUrl,
+          duration_minutes: values.duration_minutes,
+        });
+        message.success("Thêm bài giảng thành công!");
+      }
+
       setIsModalOpen(false);
+      setEditingLesson(null);
       form.resetFields();
       setUploadedFile({ url: "", type: "" }); // Reset upload
       fetchLessons(selectedSubject);
-    } catch (error) {
-      message.error("Lỗi thêm bài giảng");
+    } catch {
+      message.error(editingLesson ? "Lỗi cập nhật bài giảng" : "Lỗi thêm bài giảng");
     }
   };
 
@@ -138,7 +166,7 @@ console.log("Dữ liệu gửi đi:", {
       await axios.delete(`http://localhost:3001/api/lessons/${id}`);
       message.success("Đã xóa");
       fetchLessons(selectedSubject);
-    } catch (error) {
+    } catch {
       message.error("Lỗi xóa");
     }
   };
@@ -198,23 +226,26 @@ console.log("Dữ liệu gửi đi:", {
     {
       title: "Hành động",
       key: "action",
-      width: 80,
+      width: 120,
       align: "center",
       render: (_, record) => (
-        <Popconfirm
-          title="Xóa bài này?"
-          onConfirm={() => handleDelete(record.id)}
-        >
-          <Button danger type="text" icon={<DeleteOutlined />} />
-        </Popconfirm>
+        <div className="flex gap-1 justify-center">
+          <Button
+            type="text"
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+            className="text-blue-500"
+          />
+          <Popconfirm
+            title="Xóa bài này?"
+            onConfirm={() => handleDelete(record.id)}
+          >
+            <Button danger type="text" icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </div>
       ),
     },
   ];
-
-  const normFile = (e) => {
-    if (Array.isArray(e)) return e;
-    return e?.fileList;
-  };
 
   return (
     <div className="p-4 bg-gray-100 min-h-screen">
@@ -224,7 +255,7 @@ console.log("Dữ liệu gửi đi:", {
         </h2>
       </div>
 
-      <Card className="mb-4 shadow-sm" bodyStyle={{ padding: "15px" }}>
+      <Card className="mb-4 shadow-sm" styles={{ body: { padding: "15px" } }}>
         <Row gutter={16} align="middle">
           <Col flex="auto">
             <span className="mr-2 font-bold">Đang xem môn:</span>
@@ -262,16 +293,23 @@ console.log("Dữ liệu gửi đi:", {
 
       {/* MODAL */}
       <Modal
-        title="Thêm bài giảng mới"
+        title={editingLesson ? "Sửa bài giảng" : "Thêm bài giảng mới"}
         open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={() => {
+          setIsModalOpen(false);
+          setEditingLesson(null);
+          form.resetFields();
+          setUploadedFile({ url: "", type: "" });
+        }}
         footer={null}
         destroyOnClose // Reset form khi đóng
       >
-        <Form form={form} layout="vertical" onFinish={handleAddLesson}>
-          <Form.Item label="Mã bài giảng (VD: PL-C1)" name="lesson_code">
-            <Input placeholder="Nhập mã..." />
-          </Form.Item>
+        <Form form={form} layout="vertical" onFinish={handleSubmitLesson}>
+          {!editingLesson && (
+            <Form.Item label="Mã bài giảng (VD: PL-C1)" name="lesson_code">
+              <Input placeholder="Nhập mã..." />
+            </Form.Item>
+          )}
 
           <Form.Item
             label="Tên bài giảng"
@@ -280,27 +318,38 @@ console.log("Dữ liệu gửi đi:", {
           >
             <Input placeholder="Nhập tên..." />
           </Form.Item>
-
-          {/* UPLOAD FILE */}
           <Form.Item
-            label="Tài liệu (PDF hoặc Video MP4)"
-            extra="Hỗ trợ file PDF và Video (.mp4)"
+            label="Thời lượng (phút)"
+            name="duration_minutes"
+            initialValue={45}
+            rules={[{ required: true, message: "Nhập thời lượng" }]}
           >
-            <Upload
-              customRequest={handleUpload}
-              maxCount={1}
-              accept=".pdf,video/*"
-            >
-              <Button icon={<UploadOutlined />}>Chọn file</Button>
-            </Upload>
-
-            {/* Hiển thị trạng thái upload */}
-            {uploadedFile.url && (
-              <div className="text-green-600 mt-1 text-xs">
-                ✅ Đã upload: {uploadedFile.type === "video" ? "Video" : "PDF"}
-              </div>
-            )}
+            <Input type="number" suffix="phút" />
           </Form.Item>
+
+          {/* UPLOAD FILE - Chỉ hiện khi thêm mới */}
+          {!editingLesson && (
+            <Form.Item
+              label="Tài liệu (PDF hoặc Video MP4)"
+              extra="Hỗ trợ file PDF và Video (.mp4)"
+            >
+              <Upload
+                customRequest={handleUpload}
+                maxCount={1}
+                accept=".pdf,video/*"
+              >
+                <Button icon={<UploadOutlined />}>Chọn file</Button>
+              </Upload>
+
+              {/* Hiển thị trạng thái upload */}
+              {uploadedFile.url && (
+                <div className="text-green-600 mt-1 text-xs">
+                  ✅ Đã upload:{" "}
+                  {uploadedFile.type === "video" ? "Video" : "PDF"}
+                </div>
+              )}
+            </Form.Item>
+          )}
 
           <Form.Item
             label="Link Youtube (Nếu không upload video)"
@@ -315,7 +364,9 @@ console.log("Dữ liệu gửi đi:", {
           <Form.Item
             label="Thứ tự hiển thị"
             name="lesson_order"
-            initialValue={lessons.length + 1}
+            initialValue={
+              editingLesson ? editingLesson.lesson_order : lessons.length + 1
+            }
           >
             <Input type="number" />
           </Form.Item>
@@ -327,7 +378,7 @@ console.log("Dữ liệu gửi đi:", {
             size="large"
             className="mt-4"
           >
-            LƯU BÀI GIẢNG
+            {editingLesson ? "CẬP NHẬT BÀI GIẢNG" : "LƯU BÀI GIẢNG"}
           </Button>
         </Form>
       </Modal>

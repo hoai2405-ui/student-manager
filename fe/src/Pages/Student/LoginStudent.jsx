@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
 // Đảm bảo bạn đã chạy: npm install react-icons
 import {
   FaIdCard,
@@ -15,6 +16,7 @@ const LoginStudent = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isHover, setIsHover] = useState(false); // State để làm hiệu ứng hover nút bấm
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -33,6 +35,8 @@ const LoginStudent = () => {
 
       localStorage.setItem("studentToken", data.token);
       localStorage.setItem("studentInfo", JSON.stringify(data.student));
+
+      login(data.student, data.token);
 
       navigate("/student");
     } catch (err) {
