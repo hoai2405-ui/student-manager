@@ -120,11 +120,20 @@ const StudentCourseDetail = () => {
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       {/* Breadcrumb điều hướng */}
-      <Breadcrumb className="mb-4">
-        <Breadcrumb.Item href="/student">Trang chủ</Breadcrumb.Item>
-        <Breadcrumb.Item href="/student/learning">Môn học</Breadcrumb.Item>
-        <Breadcrumb.Item>{subjectName}</Breadcrumb.Item>
-      </Breadcrumb>
+      <Breadcrumb 
+  className="mb-4"
+  items={[
+    {
+      title: <a href="/student"><HomeOutlined /> Trang chủ</a>,
+    },
+    {
+      title: <a href="/student/learning">Môn học</a>,
+    },
+    {
+      title: <span className="font-bold text-blue-600">{subjectName}</span>,
+    },
+  ]}
+/>
 
       <Card className="shadow-md border-t-4 border-t-blue-600 rounded-lg">
         {/* Header của Card */}

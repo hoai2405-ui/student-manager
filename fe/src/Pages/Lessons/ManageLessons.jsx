@@ -20,7 +20,6 @@ import {
   FilePdfOutlined,
   UploadOutlined,
   VideoCameraOutlined,
-  SearchOutlined,
   EditOutlined,
 } from "@ant-design/icons";
 import axios from "axios";
@@ -29,19 +28,22 @@ const ManageLessons = () => {
   const [lessons, setLessons] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedSubject, setSelectedSubject] = useState(null);
-  const [editingLesson, setEditingLesson] = useState(null); // State for editing
 
-  // State lưu file vừa upload (URL và Loại file)
+  // State quản lý Modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingLesson, setEditingLesson] = useState(null); // Lưu bài đang sửa (nếu có)
+
+  const [selectedSubject, setSelectedSubject] = useState(null);
   const [uploadedFile, setUploadedFile] = useState({ url: "", type: "" });
 
   const [form] = Form.useForm();
 
+  // 1. Load danh sách môn học
   useEffect(() => {
     fetchSubjects();
   }, []);
 
+  // 2. Load bài giảng khi chọn môn
   useEffect(() => {
     if (selectedSubject) {
       fetchLessons(selectedSubject);
@@ -52,8 +54,9 @@ const ManageLessons = () => {
     try {
       const res = await axios.get("http://localhost:3001/api/subjects");
       setSubjects(res.data);
-      if (res.data.length > 0) setSelectedSubject(res.data[0].id);
-    } catch {
+      if (res.data.length > 0 && !selectedSubject)
+        setSelectedSubject(res.data[0].id);
+    } catch (error) {
       message.error("Lỗi tải môn học");
     }
   };
@@ -65,99 +68,143 @@ const ManageLessons = () => {
         `http://localhost:3001/api/lessons?subject_id=${subjectId}`
       );
       setLessons(res.data);
-    } catch {
+    } catch (error) {
       message.error("Lỗi tải bài giảng");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- HÀM UPLOAD FILE (Sửa lại cho đúng) ---
+  // --- HÀM UPLOAD FILE ---
   const handleUpload = async ({ file, onSuccess, onError }) => {
     const formData = new FormData();
     formData.append("file", file);
 
     try {
-      // Gọi API upload mới (upload được cả PDF và Video)
       const res = await axios.post(
         "http://localhost:3001/api/upload/file",
         formData
       );
-
-      // Lưu thông tin file trả về
       setUploadedFile({
         url: res.data.url,
-        type: res.data.type, // 'video' hoặc 'pdf'
+        type: res.data.type,
       });
-
       message.success("Upload thành công!");
       onSuccess("Ok");
     } catch (err) {
-      message.error("Upload thất bại. File quá lớn hoặc sai định dạng.");
+      message.error("Lỗi upload file");
       onError(err);
     }
   };
 
-  // --- HÀM MỞ MODAL SỬA ---
-  const handleEdit = (lesson) => {
-    setEditingLesson(lesson);
-    form.setFieldsValue({
-      lesson_code: lesson.lesson_code,
-      title: lesson.title,
-      video_url: lesson.video_url,
-      lesson_order: lesson.lesson_order,
-    });
+  // --- HÀM MỞ MODAL ĐỂ THÊM MỚI ---
+  const openAddModal = () => {
+    setEditingLesson(null); // Xóa trạng thái sửa
+    setUploadedFile({ url: "", type: "" }); // Reset file
+    form.resetFields(); // Xóa form
+
+    // Gợi ý số thứ tự tiếp theo
+    const nextOrder =
+      lessons.length > 0
+        ? Math.max(...lessons.map((l) => l.lesson_order)) + 1
+        : 1;
+    form.setFieldsValue({ lesson_order: nextOrder });
+
     setIsModalOpen(true);
   };
 
-  // --- HÀM LƯU/SỬA BÀI GIẢNG ---
-  const handleSubmitLesson = async (values) => {
+  // --- HÀM MỞ MODAL ĐỂ SỬA (QUAN TRỌNG) ---
+  const openEditModal = (record) => {
+    setEditingLesson(record); // Lưu bài đang sửa
+
+    // Nếu bài cũ có file, set lại state để code biết
+    let fileType = "";
+    let fileUrl = "";
+    if (record.pdf_url) {
+      fileType = "pdf";
+      fileUrl = record.pdf_url;
+    } else if (record.video_url && record.video_url.startsWith("/uploads")) {
+      fileType = "video";
+      fileUrl = record.video_url;
+    }
+
+    setUploadedFile({ url: fileUrl, type: fileType });
+
+    // Điền dữ liệu cũ vào Form
+    form.setFieldsValue({
+      lesson_code: record.lesson_code,
+      title: record.title,
+      lesson_order: record.lesson_order,
+      duration_minutes: record.duration_minutes || 45,
+      content: record.content, // Điền nội dung cũ (nếu có)
+      video_url: !fileType && record.video_url ? record.video_url : "", // Nếu là link youtube thì điền vào ô input
+    });
+
+    setIsModalOpen(true);
+  };
+
+  // --- HÀM LƯU (XỬ LÝ CẢ THÊM VÀ SỬA) ---
+  const handleSave = async (values) => {
     try {
-      let pdfUrl = "";
-      let videoUrl = values.video_url || ""; // Giữ link youtube nếu có
+      let pdfUrl = editingLesson?.pdf_url || ""; // Giữ lại link cũ nếu không upload mới
+      let videoUrl = values.video_url || editingLesson?.video_url || "";
 
-      // Tự động gán vào đúng cột dựa trên loại file
-      if (uploadedFile.type === "pdf") {
-        pdfUrl = uploadedFile.url;
-      } else if (uploadedFile.type === "video") {
-        videoUrl = uploadedFile.url; // Ưu tiên file video upload lên
+      // Nếu có upload file mới thì lấy link mới
+      if (uploadedFile.url) {
+        if (uploadedFile.type === "pdf") {
+          pdfUrl = uploadedFile.url;
+          // Nếu up PDF mới, có thể muốn xóa video cũ đi (tuỳ logic)
+        } else if (uploadedFile.type === "video") {
+          videoUrl = uploadedFile.url;
+          pdfUrl = ""; // Nếu up Video thì xóa PDF
+        }
       }
+      // 2. Xử lý ID Môn học (QUAN TRỌNG: Sửa lỗi mất bài)
+      // Nếu đang Sửa (editingLesson có) -> Lấy subject_id của chính nó.
+      // Nếu Thêm mới -> Lấy selectedSubject từ dropdown.
+      const finalSubjectId = editingLesson?.subject_id || selectedSubject;
 
+      if (!finalSubjectId) {
+        message.error(
+          "Lỗi: Không xác định được môn học! Vui lòng chọn môn trước."
+        );
+        return;
+      }
+      const payload = {
+        subject_id: selectedSubject, // Quan trọng: Phải gửi lại ID môn học
+        title: values.title,
+        lesson_code: values.lesson_code,
+        lesson_order: values.lesson_order,
+        duration_minutes: values.duration_minutes,
+        content: values.content,
+        video_url: videoUrl,
+        pdf_url: pdfUrl,
+      };
+      console.log("Frontend gửi đi:", payload); // Bật F12 Console để check xem có subject_id không
       if (editingLesson) {
-        // Sửa bài giảng
-        await axios.put(`http://localhost:3001/api/lessons/${editingLesson.id}`, {
-          title: values.title,
-          video_url: videoUrl,
-          lesson_order: values.lesson_order,
-        });
-        message.success("Cập nhật bài giảng thành công!");
+        // --- LOGIC SỬA (PUT) ---
+        await axios.put(
+          `http://localhost:3001/api/lessons/${editingLesson.id}`,
+          payload
+        );
+        message.success("Cập nhật thành công!");
       } else {
-        // Thêm mới
-        console.log("Dữ liệu gửi đi:", {
-          title: values.title,
-          code: values.lesson_code,
-          pdf: pdfUrl,
-          video: videoUrl,
-        });
-        await axios.post("http://localhost:3001/api/lessons", {
-          subject_id: selectedSubject,
-          title: values.title,
-          lesson_code: values.lesson_code, // Lưu mã bài giảng
-          lesson_order: values.lesson_order,
-          video_url: videoUrl,
-          pdf_url: pdfUrl,
-          duration_minutes: values.duration_minutes,
-        });
-        message.success("Thêm bài giảng thành công!");
+        // --- LOGIC THÊM (POST) ---
+        await axios.post("http://localhost:3001/api/lessons", payload);
+        message.success("Thêm mới thành công!");
       }
 
       setIsModalOpen(false);
-      setEditingLesson(null);
-      form.resetFields();
-      setUploadedFile({ url: "", type: "" }); // Reset upload
-      fetchLessons(selectedSubject);
-    } catch {
-      message.error(editingLesson ? "Lỗi cập nhật bài giảng" : "Lỗi thêm bài giảng");
+      setUploadedFile({ url: "", type: "" }); // Reset file upload
+      form.resetFields(); // Xóa form
+
+      // Load lại danh sách (quan trọng)
+      fetchLessons(selectedSubject || finalSubjectId);
+    } catch (error) {
+      console.error(error);
+      message.error(
+        "Lỗi lưu dữ liệu: " + (error.response?.data?.message || error.message)
+      );
     }
   };
 
@@ -166,17 +213,16 @@ const ManageLessons = () => {
       await axios.delete(`http://localhost:3001/api/lessons/${id}`);
       message.success("Đã xóa");
       fetchLessons(selectedSubject);
-    } catch {
+    } catch (error) {
       message.error("Lỗi xóa");
     }
   };
 
-  // --- CẤU HÌNH CỘT BẢNG (Hiển thị đầy đủ thông tin) ---
   const columns = [
     {
-      title: "#",
+      title: "STT",
       dataIndex: "lesson_order",
-      width: 50,
+      width: 60,
       align: "center",
       sorter: (a, b) => a.lesson_order - b.lesson_order,
     },
@@ -184,39 +230,24 @@ const ManageLessons = () => {
       title: "Mã bài",
       dataIndex: "lesson_code",
       width: 120,
-      render: (text) => <Tag color="blue">{text || "---"}</Tag>, // Hiển thị mã bài đẹp hơn
+      render: (t) => <Tag color="blue">{t}</Tag>,
     },
-    {
-      title: "Tên bài giảng",
-      dataIndex: "title",
-      render: (text) => <b>{text}</b>,
-    },
+    { title: "Tên bài giảng", dataIndex: "title", render: (t) => <b>{t}</b> },
     {
       title: "Tài liệu",
       width: 150,
       render: (_, record) => (
         <div className="flex gap-2">
-          {/* Nếu có PDF */}
           {record.pdf_url && (
-            <a
-              href={`http://localhost:3001${record.pdf_url}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Tag color="red" icon={<FilePdfOutlined />}>
-                PDF
-              </Tag>
-            </a>
+            <Tag color="red" icon={<FilePdfOutlined />}>
+              PDF
+            </Tag>
           )}
-
-          {/* Nếu có Video */}
           {record.video_url && (
             <Tag color="geekblue" icon={<VideoCameraOutlined />}>
               Video
             </Tag>
           )}
-
-          {/* Nếu trống */}
           {!record.pdf_url && !record.video_url && (
             <span className="text-gray-400">Trống</span>
           )}
@@ -225,22 +256,25 @@ const ManageLessons = () => {
     },
     {
       title: "Hành động",
-      key: "action",
       width: 120,
       align: "center",
       render: (_, record) => (
-        <div className="flex gap-1 justify-center">
+        <div className="flex justify-center gap-2">
+          {/* Nút Sửa */}
           <Button
-            type="text"
+            type="primary"
+            ghost
+            size="small"
             icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-            className="text-blue-500"
+            onClick={() => openEditModal(record)}
           />
+
+          {/* Nút Xóa */}
           <Popconfirm
             title="Xóa bài này?"
             onConfirm={() => handleDelete(record.id)}
           >
-            <Button danger type="text" icon={<DeleteOutlined />} />
+            <Button danger size="small" icon={<DeleteOutlined />} />
           </Popconfirm>
         </div>
       ),
@@ -249,11 +283,9 @@ const ManageLessons = () => {
 
   return (
     <div className="p-4 bg-gray-100 min-h-screen">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-blue-800 uppercase">
-          Quản lý bài giảng
-        </h2>
-      </div>
+      <h2 className="text-xl font-bold text-blue-800 uppercase mb-4">
+        Quản lý bài giảng
+      </h2>
 
       <Card className="mb-4 shadow-sm" styles={{ body: { padding: "15px" } }}>
         <Row gutter={16} align="middle">
@@ -265,15 +297,15 @@ const ManageLessons = () => {
               value={selectedSubject}
               onChange={setSelectedSubject}
               options={subjects.map((s) => ({ label: s.name, value: s.id }))}
-              placeholder="Chọn môn học..."
             />
           </Col>
           <Col>
+            {/* Gọi hàm openAddModal khi bấm Thêm */}
             <Button
               type="primary"
               size="large"
               icon={<PlusOutlined />}
-              onClick={() => setIsModalOpen(true)}
+              onClick={openAddModal}
             >
               Thêm bài giảng
             </Button>
@@ -291,65 +323,74 @@ const ManageLessons = () => {
         locale={{ emptyText: "Chưa có bài giảng nào" }}
       />
 
-      {/* MODAL */}
       <Modal
-        title={editingLesson ? "Sửa bài giảng" : "Thêm bài giảng mới"}
+        title={editingLesson ? "Cập nhật bài giảng" : "Thêm bài giảng mới"}
         open={isModalOpen}
-        onCancel={() => {
-          setIsModalOpen(false);
-          setEditingLesson(null);
-          form.resetFields();
-          setUploadedFile({ url: "", type: "" });
-        }}
+        onCancel={() => setIsModalOpen(false)}
         footer={null}
-        destroyOnClose // Reset form khi đóng
+        destroyOnClose={true}
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmitLesson}>
-          {!editingLesson && (
-            <Form.Item label="Mã bài giảng (VD: PL-C1)" name="lesson_code">
-              <Input placeholder="Nhập mã..." />
-            </Form.Item>
-          )}
+        <Form form={form} layout="vertical" onFinish={handleSave}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="Mã bài (VD: PL-C1)" name="lesson_code">
+                <Input placeholder="Nhập mã..." />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Thứ tự" name="lesson_order">
+                <Input type="number" />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Form.Item
             label="Tên bài giảng"
             name="title"
-            rules={[{ required: true, message: "Nhập tên bài" }]}
+            rules={[{ required: true, message: "Bắt buộc nhập" }]}
           >
-            <Input placeholder="Nhập tên..." />
+            <Input placeholder="Nhập tên bài..." />
           </Form.Item>
+
           <Form.Item
             label="Thời lượng (phút)"
             name="duration_minutes"
             initialValue={45}
-            rules={[{ required: true, message: "Nhập thời lượng" }]}
           >
             <Input type="number" suffix="phút" />
           </Form.Item>
 
-          {/* UPLOAD FILE - Chỉ hiện khi thêm mới */}
-          {!editingLesson && (
-            <Form.Item
-              label="Tài liệu (PDF hoặc Video MP4)"
-              extra="Hỗ trợ file PDF và Video (.mp4)"
+          <Form.Item label="Tài liệu (PDF hoặc Video MP4)">
+            <Upload
+              customRequest={handleUpload}
+              maxCount={1}
+              accept=".pdf,video/*"
+              showUploadList={false}
             >
-              <Upload
-                customRequest={handleUpload}
-                maxCount={1}
-                accept=".pdf,video/*"
-              >
-                <Button icon={<UploadOutlined />}>Chọn file</Button>
-              </Upload>
+              <Button icon={<UploadOutlined />}>Bấm để chọn file mới</Button>
+            </Upload>
 
-              {/* Hiển thị trạng thái upload */}
-              {uploadedFile.url && (
-                <div className="text-green-600 mt-1 text-xs">
-                  ✅ Đã upload:{" "}
-                  {uploadedFile.type === "video" ? "Video" : "PDF"}
-                </div>
-              )}
-            </Form.Item>
-          )}
+            {/* Hiển thị file đã chọn hoặc file cũ */}
+            {(uploadedFile.url || editingLesson) && (
+              <div className="mt-2 text-xs bg-gray-50 p-2 rounded border">
+                {uploadedFile.url ? (
+                  <span className="text-green-600">
+                    ✅ Sẽ lưu file mới: {uploadedFile.type}
+                  </span>
+                ) : (
+                  // Nếu đang sửa và chưa chọn file mới thì hiện thông tin file cũ
+                  <span className="text-gray-500">
+                    ℹ️ Đang dùng:{" "}
+                    {editingLesson?.pdf_url
+                      ? "PDF cũ"
+                      : editingLesson?.video_url
+                      ? "Video cũ"
+                      : "Chưa có file"}
+                  </span>
+                )}
+              </div>
+            )}
+          </Form.Item>
 
           <Form.Item
             label="Link Youtube (Nếu không upload video)"
@@ -362,13 +403,13 @@ const ManageLessons = () => {
           </Form.Item>
 
           <Form.Item
-            label="Thứ tự hiển thị"
-            name="lesson_order"
-            initialValue={
-              editingLesson ? editingLesson.lesson_order : lessons.length + 1
-            }
+            label="Nội dung bài giảng (Để máy tự động đọc)"
+            name="content"
           >
-            <Input type="number" />
+            <Input.TextArea
+              rows={4}
+              placeholder="Để trống nếu muốn tự động lấy từ PDF..."
+            />
           </Form.Item>
 
           <Button
@@ -378,7 +419,7 @@ const ManageLessons = () => {
             size="large"
             className="mt-4"
           >
-            {editingLesson ? "CẬP NHẬT BÀI GIẢNG" : "LƯU BÀI GIẢNG"}
+            {editingLesson ? "CẬP NHẬT" : "LƯU MỚI"}
           </Button>
         </Form>
       </Modal>
