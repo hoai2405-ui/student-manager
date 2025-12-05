@@ -1,4 +1,5 @@
-const { execSync } = require("child_process"); // Thêm dòng này để chạy lệnh hệ thống
+const pdfParse = require("pdf-parse");
+const { execSync } = require("child_process");
 const path = require("path");
 const express = require("express");
 const multer = require("multer");
@@ -10,8 +11,54 @@ const xlsx = require("xlsx");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const pool = require("./db"); // file db.js dùng mysql2
+
+// Helper function to extract text from PDF
+// --- 2. HÀM PHỤ TRỢ ĐỌC PDF (ĐÃ SỬA LỖI TYPE OBJECT) ---
+// --- 2. HÀM PHỤ TRỢ ĐỌC PDF (PHIÊN BẢN KHÔNG CRASH) ---
+async function extractPdfText(fileUrl) {
+  if (!fileUrl) return "";
+  try {
+    const relativePath = fileUrl.startsWith('/') ? fileUrl.substring(1) : fileUrl;
+    const normalizedPath = relativePath.split('/').join(path.sep);
+    const absolutePath = path.resolve(__dirname, normalizedPath);
+
+    console.log(`👉 Đang xử lý file: ${absolutePath}`);
+
+    if (fs.existsSync(absolutePath)) {
+      const dataBuffer = fs.readFileSync(absolutePath);
+      
+      // Thử load thư viện
+      let pdfLib;
+      try {
+          pdfLib = require("pdf-parse");
+      } catch (e) {
+          console.warn("⚠️ Không tìm thấy module pdf-parse. Bỏ qua bước đọc text.");
+          return "";
+      }
+
+      // Kiểm tra xem thư viện có dùng được không
+      if (typeof pdfLib === 'function') {
+          const data = await pdfLib(dataBuffer);
+          return data.text ? data.text.replace(/\n\s*\n/g, '\n').trim() : "";
+      } else if (pdfLib && typeof pdfLib.default === 'function') {
+          const data = await pdfLib.default(dataBuffer);
+          return data.text ? data.text.replace(/\n\s*\n/g, '\n').trim() : "";
+      } else {
+          // Nếu thư viện lạ (như log bạn gửi), bỏ qua luôn để không lỗi
+          console.warn("⚠️ Thư viện PDF không tương thích cấu trúc. Bỏ qua bước đọc text.");
+          return ""; 
+      }
+    }
+  } catch (error) {
+    // Bắt tất cả lỗi để server không bao giờ bị dừng
+    console.error("⚠️ Lỗi đọc PDF (Đã bỏ qua để tiếp tục lưu):", error.message);
+  }
+  return ""; // Luôn trả về chuỗi rỗng nếu có lỗi
+}
+
 const app = express();
 const upload = multer({ dest: "uploads/" });
+
 app.use(cors());
 app.use(express.json());
 
@@ -23,14 +70,16 @@ app.use("/temp_images", express.static(path.join(__dirname, "temp_images")));
 async function createDefaultAdmin() {
   try {
     // Kiểm tra xem có user nào có is_admin = 1 chưa
-    const [admins] = await pool.query("SELECT id FROM users WHERE is_admin = 1 LIMIT 1");
+    const [admins] = await pool.query(
+      "SELECT id FROM users WHERE is_admin = 1 LIMIT 1"
+    );
     if (admins.length === 0) {
       // Tạo admin mặc định
       const defaultAdmin = {
         username: "admin",
         password: await bcrypt.hash("admin123", 10),
         email: "admin@hoangthinh.vn",
-        phone: "0123456789"
+        phone: "0123456789",
       };
       // Kiểm tra users table có cột is_admin không, nếu không thì thêm
       try {
@@ -45,14 +94,24 @@ async function createDefaultAdmin() {
 
       await pool.query(
         "INSERT INTO users (username, password, email, phone, is_admin) VALUES (?, ?, ?, ?, 1)",
-        [defaultAdmin.username, defaultAdmin.password, defaultAdmin.email, defaultAdmin.phone]
+        [
+          defaultAdmin.username,
+          defaultAdmin.password,
+          defaultAdmin.email,
+          defaultAdmin.phone,
+        ]
       );
       console.log("✅ Đã tạo tài khoản admin mặc định:");
       console.log("   Username: admin");
       console.log("   Password: admin123");
       await pool.query(
         "INSERT INTO users (username, password, email, phone, is_admin) VALUES (?, ?, ?, ?, 1)",
-        [defaultAdmin.username, defaultAdmin.password, defaultAdmin.email, defaultAdmin.phone]
+        [
+          defaultAdmin.username,
+          defaultAdmin.password,
+          defaultAdmin.email,
+          defaultAdmin.phone,
+        ]
       );
       console.log("✅ Đã tạo tài khoản admin mặc định:");
       console.log("   Username: admin");
@@ -96,8 +155,22 @@ async function createTables() {
     `);
     console.log("✅ Đảm bảo table lessons tồn tại");
 
+    // Đảm bảo cột duration_minutes và content tồn tại
+    try {
+      await pool.query("ALTER TABLE lessons ADD COLUMN duration_minutes INT DEFAULT 45");
+    } catch (e) {
+      // Bỏ qua nếu cột đã tồn tại
+    }
+    try {
+      await pool.query("ALTER TABLE lessons ADD COLUMN content LONGTEXT");
+    } catch (e) {
+      // Bỏ qua nếu cột đã tồn tại
+    }
+
     // Insert một số môn học mẫu nếu chưa có
-    const [[{ count: subjectsCount }]] = await pool.query("SELECT COUNT(*) as count FROM subjects");
+    const [[{ count: subjectsCount }]] = await pool.query(
+      "SELECT COUNT(*) as count FROM subjects"
+    );
     if (subjectsCount === 0) {
       await pool.query(`
         INSERT INTO subjects (name, description) VALUES
@@ -107,7 +180,6 @@ async function createTables() {
       `);
       console.log("✅ Đã tạo dữ liệu mẫu cho subjects");
     }
-
   } catch (err) {
     console.error("❌ Lỗi tạo tables:", err.message);
   }
@@ -128,62 +200,61 @@ initializeApp();
 
 // Đã chuyển toàn bộ truy vấn sang dùng pool từ db.js (MySQL)
 app.use((req, res, next) => {
-console.log("Nhận request:", req.method, req.url);
-next();
-
-})
-
+  console.log("Nhận request:", req.method, req.url);
+  next();
+});
 
 // 1. Cấu hình nơi lưu file (Hỗ trợ cả PDF và Video)
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     // Tạo folder chung 'uploads/files' cho gọn
-    const dir = './uploads/files';
+    const dir = "./uploads/files";
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: function (req, file, cb) {
     // Giữ nguyên tên file nhưng thêm timestamp để không trùng
     // Dùng Buffer để giữ tên tiếng Việt không bị lỗi font
-    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-    cb(null, Date.now() + '-' + originalName);
-  }
+    const originalName = Buffer.from(file.originalname, "latin1").toString(
+      "utf8"
+    );
+    cb(null, Date.now() + "-" + originalName);
+  },
 });
 
 // 2. Bộ lọc file (Cho phép PDF và Video)
 const fileFilter = (req, file, cb) => {
   if (
-    file.mimetype === 'application/pdf' || 
-    file.mimetype.startsWith('video/') // Chấp nhận mọi loại video (mp4, webm...)
+    file.mimetype === "application/pdf" ||
+    file.mimetype.startsWith("video/") // Chấp nhận mọi loại video (mp4, webm...)
   ) {
     cb(null, true);
   } else {
-    cb(new Error('Chỉ cho phép upload PDF hoặc Video!'), false);
+    cb(new Error("Chỉ cho phép upload PDF hoặc Video!"), false);
   }
 };
 
 // 3. Khởi tạo Upload (Tăng giới hạn lên 100MB cho video)
-const uploadFile = multer({ 
+const uploadFile = multer({
   storage: storage,
   fileFilter: fileFilter,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
 });
 
 // 4. API Upload chung (Thay thế API upload cũ)
 app.post("/api/upload/file", uploadFile.single("file"), (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ message: "Lỗi upload hoặc file không hợp lệ" });
+    return res
+      .status(400)
+      .json({ message: "Lỗi upload hoặc file không hợp lệ" });
   }
   // Trả về đường dẫn file
   const fileUrl = `/uploads/files/${req.file.filename}`;
   // Trả về thêm loại file để Frontend biết đường xử lý
-  const fileType = req.file.mimetype.startsWith('video/') ? 'video' : 'pdf';
-  
+  const fileType = req.file.mimetype.startsWith("video/") ? "video" : "pdf";
+
   res.json({ url: fileUrl, type: fileType });
 });
-
-
-
 
 // api đăng ký
 app.post("/api/register", async (req, res) => {
@@ -231,7 +302,9 @@ const JWT_SECRET = "supersecret"; // đổi thành secret của bạn
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   try {
-    const [rows] = await pool.query("SELECT * FROM users WHERE username = ?", [username]);
+    const [rows] = await pool.query("SELECT * FROM users WHERE username = ?", [
+      username,
+    ]);
     if (rows.length === 0)
       return res.status(400).json({ message: "Sai tài khoản hoặc mật khẩu" });
 
@@ -255,15 +328,13 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-
-
 // API: Lấy danh sách khoá học
 app.get("/api/courses", async (req, res) => {
   try {
     const [results] = await pool.query("SELECT * FROM courses");
     res.json(results);
   } catch (err) {
-    res.status(500).json({ message: 'Lỗi DB', err });
+    res.status(500).json({ message: "Lỗi DB", err });
   }
 });
 app.get("/", (req, res) => {
@@ -295,29 +366,54 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
         console.log("🔍 Đang tìm cấu trúc XML...");
         if (!result.BAO_CAO1) {
           console.error("❌ Không tìm thấy BAO_CAO1 trong XML");
-          return res.status(400).json({ message: "Cấu trúc XML không đúng: thiếu BAO_CAO1" });
+          return res
+            .status(400)
+            .json({ message: "Cấu trúc XML không đúng: thiếu BAO_CAO1" });
         }
         if (!result.BAO_CAO1.DATA || !result.BAO_CAO1.DATA[0]) {
           console.error("❌ Không tìm thấy DATA trong BAO_CAO1");
-          return res.status(400).json({ message: "Cấu trúc XML không đúng: thiếu DATA" });
+          return res
+            .status(400)
+            .json({ message: "Cấu trúc XML không đúng: thiếu DATA" });
         }
-        if (!result.BAO_CAO1.DATA[0].KHOA_HOC || !result.BAO_CAO1.DATA[0].KHOA_HOC[0]) {
+        if (
+          !result.BAO_CAO1.DATA[0].KHOA_HOC ||
+          !result.BAO_CAO1.DATA[0].KHOA_HOC[0]
+        ) {
           console.error("❌ Không tìm thấy KHOA_HOC trong DATA");
-          return res.status(400).json({ message: "Cấu trúc XML không đúng: thiếu KHOA_HOC" });
+          return res
+            .status(400)
+            .json({ message: "Cấu trúc XML không đúng: thiếu KHOA_HOC" });
         }
-        if (!result.BAO_CAO1.DATA[0].NGUOI_LXS || !result.BAO_CAO1.DATA[0].NGUOI_LXS[0]) {
+        if (
+          !result.BAO_CAO1.DATA[0].NGUOI_LXS ||
+          !result.BAO_CAO1.DATA[0].NGUOI_LXS[0]
+        ) {
           console.error("❌ Không tìm thấy NGUOI_LXS trong DATA");
-          return res.status(400).json({ message: "Cấu trúc XML không đúng: thiếu NGUOI_LXS" });
+          return res
+            .status(400)
+            .json({ message: "Cấu trúc XML không đúng: thiếu NGUOI_LXS" });
         }
-        
+
         const khoa = result.BAO_CAO1.DATA[0].KHOA_HOC[0];
         const hocvienList = result.BAO_CAO1.DATA[0].NGUOI_LXS[0].NGUOI_LX;
-        console.log("✅ Tìm thấy khóa học:", khoa.MA_KHOA_HOC?.[0] || khoa.TEN_KHOA_HOC?.[0]);
-        console.log("✅ Số lượng học viên:", Array.isArray(hocvienList) ? hocvienList.length : "Không phải array");
-        
+        console.log(
+          "✅ Tìm thấy khóa học:",
+          khoa.MA_KHOA_HOC?.[0] || khoa.TEN_KHOA_HOC?.[0]
+        );
+        console.log(
+          "✅ Số lượng học viên:",
+          Array.isArray(hocvienList) ? hocvienList.length : "Không phải array"
+        );
+
         if (!Array.isArray(hocvienList)) {
-          console.error("❌ hocvienList không phải là array:", typeof hocvienList);
-          return res.status(400).json({ message: " Không tìm thấy danh sách học viên trong XML" });
+          console.error(
+            "❌ hocvienList không phải là array:",
+            typeof hocvienList
+          );
+          return res
+            .status(400)
+            .json({ message: " Không tìm thấy danh sách học viên trong XML" });
         }
         const sql =
           "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, ngay_khai_giang, ngay_be_giang, so_hoc_sinh, hang_gplx) VALUES (?, ?, ?, ?, ?, ?)";
@@ -326,18 +422,25 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
         try {
-          await pool.query(`ALTER TABLE students ADD COLUMN anh_chan_dung LONGTEXT NULL`);
-          console.log('✅ Đảm bảo cột anh_chan_dung tồn tại (LONGTEXT)');
+          await pool.query(
+            `ALTER TABLE students ADD COLUMN anh_chan_dung LONGTEXT NULL`
+          );
+          console.log("✅ Đảm bảo cột anh_chan_dung tồn tại (LONGTEXT)");
         } catch (preErr) {
-          if (preErr.code === 'ER_DUP_FIELDNAME') {
+          if (preErr.code === "ER_DUP_FIELDNAME") {
             try {
-              await pool.query(`ALTER TABLE students MODIFY COLUMN anh_chan_dung LONGTEXT NULL`);
-              console.log('✅ Đã xác nhận cột anh_chan_dung là LONGTEXT');
+              await pool.query(
+                `ALTER TABLE students MODIFY COLUMN anh_chan_dung LONGTEXT NULL`
+              );
+              console.log("✅ Đã xác nhận cột anh_chan_dung là LONGTEXT");
             } catch (modErr) {
-              console.warn('⚠️ Không thể sửa cột anh_chan_dung:', modErr.message);
+              console.warn(
+                "⚠️ Không thể sửa cột anh_chan_dung:",
+                modErr.message
+              );
             }
           } else {
-            console.warn('⚠️ Bỏ qua bước đảm bảo cột ảnh:', preErr.message);
+            console.warn("⚠️ Bỏ qua bước đảm bảo cột ảnh:", preErr.message);
           }
         }
         conn = await pool.getConnection();
@@ -531,7 +634,7 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
             if (typeof node === "object") return node._ || "";
             return String(node).trim();
           };
-// vòng lặp chính
+          // vòng lặp chính
           for (let i = 0; i < hocvienList.length; i++) {
             const hocvien = hocvienList[i];
 
@@ -584,8 +687,8 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
 
                   // 👇👇👇 SỬA ĐƯỜNG DẪN NÀY NẾU MÁY BẠN CÀI KHÁC 👇👇👇
                   // Lưu ý: Dùng 2 dấu gạch chéo "\\"
-                 
-                    const magickPath = "magick"; // Trên Linux chỉ cần gọi tên lệnh là được
+
+                  const magickPath = "magick"; // Trên Linux chỉ cần gọi tên lệnh là được
                   // 👆👆👆
 
                   try {
@@ -693,7 +796,9 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
           if (conn) await conn.rollback();
           // MySQL duplicate entry error code: 'ER_DUP_ENTRY'
           if (err.code === "ER_DUP_ENTRY") {
-            return res.status(409).json({ message: "Khóa học hoặc học viên đã tồn tại!" });
+            return res
+              .status(409)
+              .json({ message: "Khóa học hoặc học viên đã tồn tại!" });
           }
           return res.status(500).json({ message: "Lỗi DB", err });
         } finally {
@@ -765,11 +870,14 @@ app.put("/api/students/:id", async (req, res) => {
     ]);
     res.json({ success: true });
   } catch (err) {
-    console.error('PUT /api/students/:id error:', err);
-    res.status(500).json({ message: "Lỗi khi cập nhật", error: err.message, code: err.code });
+    console.error("PUT /api/students/:id error:", err);
+    res.status(500).json({
+      message: "Lỗi khi cập nhật",
+      error: err.message,
+      code: err.code,
+    });
   }
 });
-
 
 // thêm học viên
 app.post("/api/students", async (req, res) => {
@@ -807,12 +915,14 @@ app.post("/api/students", async (req, res) => {
   }
 });
 
-
 // xoá khoá học
 app.delete("/api/courses/:id", async (req, res) => {
   const courseId = req.params.id;
   try {
-    const [result] = await pool.query("SELECT ma_khoa_hoc FROM courses WHERE id = ?", [courseId]);
+    const [result] = await pool.query(
+      "SELECT ma_khoa_hoc FROM courses WHERE id = ?",
+      [courseId]
+    );
     if (!result || result.length === 0) {
       return res.status(404).json({ message: "Không tìm thấy khoá học" });
     }
@@ -825,9 +935,6 @@ app.delete("/api/courses/:id", async (req, res) => {
   }
 });
 
-
-
-
 // sửa khoá học
 app.put("/api/courses/:id", async (req, res) => {
   const { id } = req.params;
@@ -837,7 +944,6 @@ app.put("/api/courses/:id", async (req, res) => {
     ngay_khai_giang,
     ngay_be_giang,
     so_hoc_sinh,
-    
   } = req.body;
   console.log("[PUT /courses/:id] Dữ liệu nhận:", req.body);
   const sql = `
@@ -855,7 +961,7 @@ app.put("/api/courses/:id", async (req, res) => {
       id,
     ]);
     // Lấy lại bản ghi mới nhất để trả về cho FE
-    const [rows] = await pool.query('SELECT * FROM courses WHERE id = ?', [id]);
+    const [rows] = await pool.query("SELECT * FROM courses WHERE id = ?", [id]);
     res.json({ success: true, course: rows[0] });
   } catch (err) {
     res.status(500).json({ message: "Lỗi khi cập nhật", err });
@@ -894,25 +1000,25 @@ app.get("/api/students", async (req, res) => {
     const [results] = await pool.query(sql, params);
     res.json(results);
   } catch (err) {
-    console.error('Students API error:', err);
-    res.status(500).json({ message: 'Database error', error: err.message });
+    console.error("Students API error:", err);
+    res.status(500).json({ message: "Database error", error: err.message });
   }
 });
 
 //// Cập nhật trạng thái học viên
-app.post('/api/students/update-status', async (req, res) => {
+app.post("/api/students/update-status", async (req, res) => {
   const { id, field, value } = req.body;
   const allowedFields = [
-    'status_ly_thuyet',
-    'status_mo_phong',
-    'status_duong',
-    'status_truong',
-    'status'
+    "status_ly_thuyet",
+    "status_mo_phong",
+    "status_duong",
+    "status_truong",
+    "status",
   ];
   if (!id || !field || !allowedFields.includes(field)) {
     return res.status(400).json({ error: "Thiếu hoặc sai thông tin update" });
   }
-  const validStatuses = ['thi', 'vang', 'rot', 'dat', 'chua thi'];
+  const validStatuses = ["thi", "vang", "rot", "dat", "chua thi"];
   if (!validStatuses.includes(value)) {
     return res.status(400).json({ error: "Trạng thái không hợp lệ" });
   }
@@ -924,7 +1030,6 @@ app.post('/api/students/update-status', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 // API: Thống kê trạng thái học viên (cho biểu đồ)
 app.get("/api/stats", async (req, res) => {
@@ -956,7 +1061,9 @@ const authenticateToken = (req, res, next) => {
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      return res.status(403).json({ message: "Token không hợp lệ hoặc hết hạn" });
+      return res
+        .status(403)
+        .json({ message: "Token không hợp lệ hoặc hết hạn" });
     }
     req.user = user;
     next();
@@ -967,7 +1074,9 @@ const authenticateToken = (req, res, next) => {
 const checkAdmin = async (req, res, next) => {
   console.log("[DEBUG] ID from token:", req.user?.id);
   try {
-    const [rows] = await pool.query('SELECT is_admin FROM users WHERE id = ?', [req.user.id]);
+    const [rows] = await pool.query("SELECT is_admin FROM users WHERE id = ?", [
+      req.user.id,
+    ]);
     if (rows.length === 0 || !rows[0].is_admin) {
       return res.status(403).json({ message: "Không có quyền truy cập" });
     }
@@ -978,9 +1087,11 @@ const checkAdmin = async (req, res, next) => {
 };
 
 // Route lấy danh sách người dùng
-app.get('/api/users', authenticateToken, checkAdmin, async (req, res) => {
+app.get("/api/users", authenticateToken, checkAdmin, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, username, email, phone FROM users');
+    const [rows] = await pool.query(
+      "SELECT id, username, email, phone FROM users"
+    );
     res.json(rows);
   } catch (err) {
     console.error("Lỗi truy vấn users:", err);
@@ -988,33 +1099,46 @@ app.get('/api/users', authenticateToken, checkAdmin, async (req, res) => {
   }
 });
 
-
-
-app.post('/api/users', authenticateToken, checkAdmin, async (req, res) => {
+app.post("/api/users", authenticateToken, checkAdmin, async (req, res) => {
   const { username, email, phone, password } = req.body;
   const hashedPassword = await bcrypt.hash(password, 10);
-  await pool.query('INSERT INTO users (username, email, phone, password) VALUES (?, ?, ?, ?)', [username, email, phone, hashedPassword]);
-  res.json({ message: 'Thêm người dùng thành công!' });
+  await pool.query(
+    "INSERT INTO users (username, email, phone, password) VALUES (?, ?, ?, ?)",
+    [username, email, phone, hashedPassword]
+  );
+  res.json({ message: "Thêm người dùng thành công!" });
 });
 
-app.put('/api/users/:id', authenticateToken, checkAdmin, async (req, res) => {
+app.put("/api/users/:id", authenticateToken, checkAdmin, async (req, res) => {
   const { id } = req.params;
   const { username, email, phone } = req.body;
-  await pool.query('UPDATE users SET username = ?, email = ?, phone = ? WHERE id = ?', [username, email, phone, id]);
-  res.json({ message: 'Cập nhật thành công!' });
+  await pool.query(
+    "UPDATE users SET username = ?, email = ?, phone = ? WHERE id = ?",
+    [username, email, phone, id]
+  );
+  res.json({ message: "Cập nhật thành công!" });
 });
 
-app.delete('/api/users/:id', authenticateToken, checkAdmin, async (req, res) => {
-  const { id } = req.params;
-  await pool.query('DELETE FROM users WHERE id = ?', [id]);
-  res.json({ message: 'Xóa thành công!' });
-});
+app.delete(
+  "/api/users/:id",
+  authenticateToken,
+  checkAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+    await pool.query("DELETE FROM users WHERE id = ?", [id]);
+    res.json({ message: "Xóa thành công!" });
+  }
+);
 
 // Thêm vào file app.js (BE)
 app.get("/api/quick-stats", async (req, res) => {
   try {
-    const [[{ count: studentCount }]] = await pool.query("SELECT COUNT(*) as count FROM students");
-    const [[{ count: courseCount }]] = await pool.query("SELECT COUNT(*) as count FROM courses");
+    const [[{ count: studentCount }]] = await pool.query(
+      "SELECT COUNT(*) as count FROM students"
+    );
+    const [[{ count: courseCount }]] = await pool.query(
+      "SELECT COUNT(*) as count FROM courses"
+    );
     res.json({
       students: studentCount,
       courses: courseCount,
@@ -1052,41 +1176,57 @@ app.post("/api/init-students-xml-table", async (req, res) => {
 // API: Lấy danh sách học viên từ XML
 app.get("/api/students/xml", async (req, res) => {
   try {
-    const [results] = await pool.query(`SELECT ho_ten, so_dien_thoai, email, ngay_sinh, dia_chi, ma_khoa_hoc, COALESCE(anh_chan_dung, '') as anh, id, created_at, updated_at FROM students_xml ORDER BY created_at DESC`);
+    const [results] = await pool.query(
+      `SELECT ho_ten, so_dien_thoai, email, ngay_sinh, dia_chi, ma_khoa_hoc, COALESCE(anh_chan_dung, '') as anh, id, created_at, updated_at FROM students_xml ORDER BY created_at DESC`
+    );
     res.json(results);
   } catch (err) {
     console.error("Error fetching XML students:", err);
-    res.status(500).json({ message: "Lỗi lấy danh sách học viên XML", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Lỗi lấy danh sách học viên XML", error: err.message });
   }
 });
 
 // API: Upload file XML cho học viên
-app.post("/api/students/xml/upload", upload.single("file"), async (req, res) => {
-  const filePath = req.file.path;
-  const parser = new xml2js.Parser();
+app.post(
+  "/api/students/xml/upload",
+  upload.single("file"),
+  async (req, res) => {
+    const filePath = req.file.path;
+    const parser = new xml2js.Parser();
 
-  fs.readFile(filePath, async (err, data) => {
-    if (err) return res.status(500).json({ message: "Lỗi đọc file", error: err.message });
+    fs.readFile(filePath, async (err, data) => {
+      if (err)
+        return res
+          .status(500)
+          .json({ message: "Lỗi đọc file", error: err.message });
 
-    parser.parseString(data, async (err, result) => {
-      if (err) return res.status(400).json({ message: "Lỗi parse XML", error: err.message });
+      parser.parseString(data, async (err, result) => {
+        if (err)
+          return res
+            .status(400)
+            .json({ message: "Lỗi parse XML", error: err.message });
 
-      try {
-        // Kiểm tra cấu trúc XML
-        let students = [];
-        if (result.students && result.students.student) {
-          students = Array.isArray(result.students.student)
-            ? result.students.student
-            : [result.students.student];
-        } else if (result.HO_SO) {
-          // Single HO_SO item
-          students = [result.HO_SO];
-        } else {
-          return res.status(400).json({ message: "Cấu trúc XML không đúng. Cần có <students><student>...</student></students> hoặc <HO_SO>" });
-        }
+        try {
+          // Kiểm tra cấu trúc XML
+          let students = [];
+          if (result.students && result.students.student) {
+            students = Array.isArray(result.students.student)
+              ? result.students.student
+              : [result.students.student];
+          } else if (result.HO_SO) {
+            // Single HO_SO item
+            students = [result.HO_SO];
+          } else {
+            return res.status(400).json({
+              message:
+                "Cấu trúc XML không đúng. Cần có <students><student>...</student></students> hoặc <HO_SO>",
+            });
+          }
 
-        // Tạo table nếu chưa có
-        await pool.query(`
+          // Tạo table nếu chưa có
+          await pool.query(`
           CREATE TABLE IF NOT EXISTS students_xml (
             id INT AUTO_INCREMENT PRIMARY KEY,
             ho_ten VARCHAR(255) NOT NULL,
@@ -1101,74 +1241,105 @@ app.post("/api/students/xml/upload", upload.single("file"), async (req, res) => 
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         `);
 
-        // Cố gắng thay đổi anh_chan_dung từ VARCHAR(500) thành LONGTEXT nếu table cũ
-        try {
-          await pool.query(`ALTER TABLE students_xml MODIFY COLUMN anh_chan_dung LONGTEXT`);
-        } catch (alterErr) {
-          console.warn("ALTER anh_chan_dung column failed, might already be LONGTEXT:", alterErr.message);
-        }
+          // Cố gắng thay đổi anh_chan_dung từ VARCHAR(500) thành LONGTEXT nếu table cũ
+          try {
+            await pool.query(
+              `ALTER TABLE students_xml MODIFY COLUMN anh_chan_dung LONGTEXT`
+            );
+          } catch (alterErr) {
+            console.warn(
+              "ALTER anh_chan_dung column failed, might already be LONGTEXT:",
+              alterErr.message
+            );
+          }
 
-        // Insert học viên
-        const insertSQL = `
+          // Insert học viên
+          const insertSQL = `
           INSERT INTO students_xml (ho_ten, so_dien_thoai, email, ngay_sinh, dia_chi, ma_khoa_hoc, anh_chan_dung)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
 
-        for (const student of students) {
-          // Xử lý trường anh: tùy theo cấu trúc XML
-          let anhValue;
-          if (result.students && result.students.student) {
-            anhValue = student.anh?.[0];
-          } else if (result.HO_SO) {
-            anhValue = student.ANH_CHAN_DUNG?.[0];
+          for (const student of students) {
+            // Xử lý trường anh: tùy theo cấu trúc XML
+            let anhValue;
+            if (result.students && result.students.student) {
+              anhValue = student.anh?.[0];
+            } else if (result.HO_SO) {
+              anhValue = student.ANH_CHAN_DUNG?.[0];
+            }
+            console.log("Raw anh value:", anhValue);
+            let anh = "";
+            if (typeof anhValue === "string") {
+              anh = anhValue || "";
+            } else if (anhValue && typeof anhValue === "object" && anhValue._) {
+              anh = anhValue._ || "";
+            } else {
+              anh = anhValue || "";
+            }
+            console.log("Processed anh:", anh);
+
+            await pool.query(insertSQL, [
+              student.ho_ten?.[0] || "",
+              student.so_dien_thoai?.[0] || "",
+              student.email?.[0] || "",
+              student.ngay_sinh?.[0] || null,
+              student.dia_chi?.[0] || "",
+              student.ma_khoa_hoc?.[0] || "",
+              anh,
+            ]);
           }
-          console.log("Raw anh value:", anhValue);
-          let anh = "";
-          if (typeof anhValue === 'string') {
-            anh = anhValue || "";
-          } else if (anhValue && typeof anhValue === 'object' && anhValue._) {
-            anh = anhValue._ || "";
+
+          res.json({
+            message: `Đã thêm ${students.length} học viên thành công!`,
+          });
+        } catch (dbErr) {
+          console.error("Database error:", dbErr);
+          if (dbErr.code === "ER_DUP_ENTRY") {
+            res
+              .status(409)
+              .json({ message: "Một số học viên đã tồn tại trong database!" });
           } else {
-            anh = anhValue || "";
+            res
+              .status(500)
+              .json({ message: "Lỗi lưu vào database", error: dbErr.message });
           }
-          console.log("Processed anh:", anh);
-
-          await pool.query(insertSQL, [
-            student.ho_ten?.[0] || "",
-            student.so_dien_thoai?.[0] || "",
-            student.email?.[0] || "",
-            student.ngay_sinh?.[0] || null,
-            student.dia_chi?.[0] || "",
-            student.ma_khoa_hoc?.[0] || "",
-            anh
-          ]);
         }
-
-        res.json({ message: `Đã thêm ${students.length} học viên thành công!` });
-
-      } catch (dbErr) {
-        console.error("Database error:", dbErr);
-        if (dbErr.code === "ER_DUP_ENTRY") {
-          res.status(409).json({ message: "Một số học viên đã tồn tại trong database!" });
-        } else {
-          res.status(500).json({ message: "Lỗi lưu vào database", error: dbErr.message });
-        }
-      }
+      });
     });
-  });
-});
+  }
+);
 
 // API: Cập nhật học viên XML
 app.put("/api/students/xml/:id", async (req, res) => {
   const { id } = req.params;
-  const { ho_ten, so_dien_thoai, email, ngay_sinh, dia_chi, ma_khoa_hoc, anh_chan_dung } = req.body;
+  const {
+    ho_ten,
+    so_dien_thoai,
+    email,
+    ngay_sinh,
+    dia_chi,
+    ma_khoa_hoc,
+    anh_chan_dung,
+  } = req.body;
 
   try {
-    await pool.query(`
+    await pool.query(
+      `
       UPDATE students_xml
       SET ho_ten = ?, so_dien_thoai = ?, email = ?, ngay_sinh = ?, dia_chi = ?, ma_khoa_hoc = ?, anh_chan_dung = ?
       WHERE id = ?
-    `, [ho_ten, so_dien_thoai, email, ngay_sinh, dia_chi, ma_khoa_hoc, anh_chan_dung, id]);
+    `,
+      [
+        ho_ten,
+        so_dien_thoai,
+        email,
+        ngay_sinh,
+        dia_chi,
+        ma_khoa_hoc,
+        anh_chan_dung,
+        id,
+      ]
+    );
 
     res.json({ message: "Cập nhật thành công!" });
   } catch (err) {
@@ -1190,17 +1361,24 @@ app.delete("/api/students/xml/:id", async (req, res) => {
   }
 });
 
-
 // đăng ký lích học
 // ...existing code...
 
 // Tạo lịch mới (admin)
-app.post('/api/schedules', authenticateToken, checkAdmin, async (req, res) => {
+app.post("/api/schedules", authenticateToken, checkAdmin, async (req, res) => {
   try {
-    const { course_id, start_time, end_time, capacity, location, notes } = req.body;
+    const { course_id, start_time, end_time, capacity, location, notes } =
+      req.body;
     const [result] = await pool.query(
-      'INSERT INTO schedules (course_id, start_time, end_time, capacity, location, notes) VALUES (?, ?, ?, ?, ?, ?)',
-      [course_id, start_time, end_time, capacity || 0, location || null, notes || null]
+      "INSERT INTO schedules (course_id, start_time, end_time, capacity, location, notes) VALUES (?, ?, ?, ?, ?, ?)",
+      [
+        course_id,
+        start_time,
+        end_time,
+        capacity || 0,
+        location || null,
+        notes || null,
+      ]
     );
     res.json({ id: result.insertId });
   } catch (err) {
@@ -1210,16 +1388,17 @@ app.post('/api/schedules', authenticateToken, checkAdmin, async (req, res) => {
 });
 
 // Lấy danh sách lịch (optionally filter by course_id)
-app.get('/api/schedules', async (req, res) => {
+app.get("/api/schedules", async (req, res) => {
   try {
     const { course_id } = req.query;
-    let q = 'SELECT s.*, c.ten_khoa_hoc, c.ma_khoa_hoc FROM schedules s LEFT JOIN courses c ON s.course_id = c.id';
+    let q =
+      "SELECT s.*, c.ten_khoa_hoc, c.ma_khoa_hoc FROM schedules s LEFT JOIN courses c ON s.course_id = c.id";
     const params = [];
     if (course_id) {
-      q += ' WHERE s.course_id = ?';
+      q += " WHERE s.course_id = ?";
       params.push(course_id);
     }
-    q += ' ORDER BY s.start_time';
+    q += " ORDER BY s.start_time";
     const [rows] = await pool.query(q, params);
     res.json(rows);
   } catch (err) {
@@ -1229,12 +1408,18 @@ app.get('/api/schedules', async (req, res) => {
 });
 
 // Chi tiết lịch kèm số đã đăng ký
-app.get('/api/schedules/:id', async (req, res) => {
+app.get("/api/schedules/:id", async (req, res) => {
   try {
     const id = req.params.id;
-    const [[schedule]] = await pool.query('SELECT s.*, c.ten_khoa_hoc FROM schedules s LEFT JOIN courses c ON s.course_id=c.id WHERE s.id = ?', [id]);
-    if (!schedule) return res.status(404).json({ error: 'Not found' });
-    const [countRows] = await pool.query('SELECT COUNT(*) AS cnt FROM registrations WHERE schedule_id = ?', [id]);
+    const [[schedule]] = await pool.query(
+      "SELECT s.*, c.ten_khoa_hoc FROM schedules s LEFT JOIN courses c ON s.course_id=c.id WHERE s.id = ?",
+      [id]
+    );
+    if (!schedule) return res.status(404).json({ error: "Not found" });
+    const [countRows] = await pool.query(
+      "SELECT COUNT(*) AS cnt FROM registrations WHERE schedule_id = ?",
+      [id]
+    );
     schedule.registered = countRows[0].cnt || 0;
     res.json(schedule);
   } catch (err) {
@@ -1244,63 +1429,91 @@ app.get('/api/schedules/:id', async (req, res) => {
 });
 
 // Đăng ký học viên vào 1 lịch (authenticated users)
-app.post('/api/schedules/:id/register', authenticateToken, async (req, res) => {
+app.post("/api/schedules/:id/register", authenticateToken, async (req, res) => {
   try {
     const scheduleId = req.params.id;
     const { student_id } = req.body;
     // kiểm tra schedule
-    const [sRows] = await pool.query('SELECT capacity FROM schedules WHERE id = ?', [scheduleId]);
-    if (!sRows.length) return res.status(404).json({ error: 'Schedule not found' });
+    const [sRows] = await pool.query(
+      "SELECT capacity FROM schedules WHERE id = ?",
+      [scheduleId]
+    );
+    if (!sRows.length)
+      return res.status(404).json({ error: "Schedule not found" });
     const capacity = sRows[0].capacity || 0;
     // đếm đã đăng ký
-    const [cRows] = await pool.query('SELECT COUNT(*) AS cnt FROM registrations WHERE schedule_id = ?', [scheduleId]);
+    const [cRows] = await pool.query(
+      "SELECT COUNT(*) AS cnt FROM registrations WHERE schedule_id = ?",
+      [scheduleId]
+    );
     const registered = cRows[0].cnt || 0;
-    if (capacity > 0 && registered >= capacity) return res.status(400).json({ error: 'Schedule is full' });
+    if (capacity > 0 && registered >= capacity)
+      return res.status(400).json({ error: "Schedule is full" });
     // tạo đăng ký
-    await pool.query('INSERT INTO registrations (schedule_id, student_id) VALUES (?, ?)', [scheduleId, student_id]);
+    await pool.query(
+      "INSERT INTO registrations (schedule_id, student_id) VALUES (?, ?)",
+      [scheduleId, student_id]
+    );
     res.json({ success: true });
   } catch (err) {
-    if (err && err.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Already registered' });
+    if (err && err.code === "ER_DUP_ENTRY")
+      return res.status(400).json({ error: "Already registered" });
     console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
 // Hủy đăng ký
-app.delete('/api/schedules/:id/register/:studentId', authenticateToken, async (req, res) => {
-  try {
-    const { id, studentId } = req.params;
-    await pool.query('DELETE FROM registrations WHERE schedule_id = ? AND student_id = ?', [id, studentId]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+app.delete(
+  "/api/schedules/:id/register/:studentId",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { id, studentId } = req.params;
+      await pool.query(
+        "DELETE FROM registrations WHERE schedule_id = ? AND student_id = ?",
+        [id, studentId]
+      );
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 // Lấy danh sách học viên đã đăng ký cho 1 lịch
-app.get('/api/schedules/:id/registrations', authenticateToken, checkAdmin, async (req, res) => {
-  try {
-    const scheduleId = req.params.id;
-    const [rows] = await pool.query(
-      `SELECT r.*, st.ho_va_ten, st.so_cmt, st.hang_gplx
+app.get(
+  "/api/schedules/:id/registrations",
+  authenticateToken,
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const scheduleId = req.params.id;
+      const [rows] = await pool.query(
+        `SELECT r.*, st.ho_va_ten, st.so_cmt, st.hang_gplx
        FROM registrations r
        JOIN students st ON r.student_id = st.id
        WHERE r.schedule_id = ?
        ORDER BY r.registered_at`,
-      [scheduleId]
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+        [scheduleId]
+      );
+      res.json(rows);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 // API: Lấy danh sách tất cả đăng ký lịch học (cho trang quản lý)
-app.get('/api/schedule-registrations', authenticateToken, checkAdmin, async (req, res) => {
-  try {
-    const [rows] = await pool.query(`
+app.get(
+  "/api/schedule-registrations",
+  authenticateToken,
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const [rows] = await pool.query(`
       SELECT
         r.id,
         r.registered_at,
@@ -1319,41 +1532,46 @@ app.get('/api/schedule-registrations', authenticateToken, checkAdmin, async (req
       ORDER BY r.registered_at DESC
     `);
 
-    // Group by registration to create selected_slots structure
-    const groupedData = rows.reduce((acc, row) => {
-      const key = `${row.student_name}-${row.course_name}`;
-      if (!acc[key]) {
-        acc[key] = {
-          id: row.id,
-          student_name: row.student_name,
-          student_username: row.student_username,
-          course_name: row.course_name,
-          course_code: row.course_code,
-          registered_at: row.registered_at,
-          status: row.status || 'active',
-          selected_slots: []
-        };
-      }
+      // Group by registration to create selected_slots structure
+      const groupedData = rows.reduce((acc, row) => {
+        const key = `${row.student_name}-${row.course_name}`;
+        if (!acc[key]) {
+          acc[key] = {
+            id: row.id,
+            student_name: row.student_name,
+            student_username: row.student_username,
+            course_name: row.course_name,
+            course_code: row.course_code,
+            registered_at: row.registered_at,
+            status: row.status || "active",
+            selected_slots: [],
+          };
+        }
 
-      // Add slot information
-      acc[key].selected_slots.push({
-        date: new Date(row.start_time).toISOString().split('T')[0],
-        period: new Date(row.start_time).getHours() < 12 ? 'morning' : 'afternoon',
-        start_time: row.start_time,
-        end_time: row.end_time,
-        location: row.location
+        // Add slot information
+        acc[key].selected_slots.push({
+          date: new Date(row.start_time).toISOString().split("T")[0],
+          period:
+            new Date(row.start_time).getHours() < 12 ? "morning" : "afternoon",
+          start_time: row.start_time,
+          end_time: row.end_time,
+          location: row.location,
+        });
+
+        return acc;
+      }, {});
+
+      const result = Object.values(groupedData);
+      res.json(result);
+    } catch (err) {
+      console.error("Error fetching schedule registrations:", err);
+      res.status(500).json({
+        message: "Lỗi lấy danh sách đăng ký lịch học",
+        error: err.message,
       });
-
-      return acc;
-    }, {});
-
-    const result = Object.values(groupedData);
-    res.json(result);
-  } catch (err) {
-    console.error('Error fetching schedule registrations:', err);
-    res.status(500).json({ message: 'Lỗi lấy danh sách đăng ký lịch học', error: err.message });
+    }
   }
-});
+);
 
 // ...existing code...
 // dành cho trang học viên
@@ -1398,7 +1616,6 @@ app.post("/api/student/login", async (req, res) => {
   }
 });
 
-
 // --- API QUẢN LÝ BÀI GIẢNG ---
 
 // 1. Lấy danh sách tất cả môn học
@@ -1431,9 +1648,6 @@ app.get("/api/lessons", async (req, res) => {
 // 3. Thêm bài giảng mới (Dành cho Admin)
 // API Thêm bài giảng (Đã sửa lại thứ tự tham số chuẩn 100%)
 app.post("/api/lessons", async (req, res) => {
-  // 1. Log ra xem Frontend gửi gì lên (Quan trọng để debug)
-  console.log("Dữ liệu nhận được:", req.body);
-
   const {
     subject_id,
     title,
@@ -1443,35 +1657,63 @@ app.post("/api/lessons", async (req, res) => {
     lesson_order,
     duration_minutes,
   } = req.body;
+  let { content } = req.body;
 
   try {
-    // 2. Tự động tính số thứ tự nếu không nhập
+    // Gọi hàm phụ trợ để lấy nội dung nếu cần
+    if (pdf_url && (!content || content.trim() === "")) {
+      try {
+        // Xử lý đường dẫn an toàn hơn
+        let cleanUrl = pdf_url.startsWith("/") ? pdf_url.substring(1) : pdf_url;
+        // Nếu chạy trên Windows, thay / thành \ cho đúng chuẩn
+        cleanUrl = cleanUrl.replace(/\//g, path.sep);
+
+        const absolutePath = path.resolve(__dirname, cleanUrl);
+
+        if (fs.existsSync(absolutePath)) {
+          const dataBuffer = fs.readFileSync(absolutePath);
+          const pdfData = await pdfParse(dataBuffer);
+          if (pdfData.text) {
+            content = pdfData.text.replace(/\n\s*\n/g, "\n").trim();
+          }
+        } else {
+          console.warn("⚠️ File PDF không tồn tại:", absolutePath);
+          // Không throw lỗi, vẫn cho lưu bài giảng nhưng content rỗng
+        }
+      } catch (e) {
+        console.error("⚠️ Lỗi đọc PDF (Bỏ qua để lưu):", e.message);
+        // Bắt lỗi ở đây và KHÔNG làm gì cả để code chạy tiếp xuống dưới
+      }
+    }
+
     let finalOrder = lesson_order;
-    if (!lesson_order) {
-      const [rows] = await pool.query("SELECT MAX(lesson_order) as maxOrder FROM lessons WHERE subject_id = ?", [subject_id]);
+    if (!finalOrder) {
+      const [rows] = await pool.query(
+        "SELECT MAX(lesson_order) as maxOrder FROM lessons WHERE subject_id = ?",
+        [subject_id]
+      );
       finalOrder = (rows[0].maxOrder || 0) + 1;
     }
 
-    // 3. CÂU LỆNH INSERT CHUẨN (Thứ tự biến trong mảng [] phải khớp 1-1 với dấu ?)
     const sql = `
       INSERT INTO lessons 
-      (subject_id, title, lesson_code, video_url, pdf_url, lesson_order, duration_minutes) 
-      VALUES (?, ?, ?, ?, ?, ?)
+      (subject_id, title, lesson_code, video_url, pdf_url, lesson_order, duration_minutes, content) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    
     await pool.query(sql, [
       subject_id,
       title,
-      lesson_code || "",  // Lưu mã bài
-      video_url || "",    // Lưu link video
-      pdf_url || "",      // Lưu link PDF
+      lesson_code || "",
+      video_url || "",
+      pdf_url || "",
       finalOrder,
-      duration_minutes || 45
+      duration_minutes || 45,
+      content || "",
     ]);
 
-    res.json({ message: "Thêm bài giảng thành công" });
+    res.json({ message: "Thêm thành công" });
   } catch (err) {
-    console.error("Lỗi SQL:", err);
+    console.error("Lỗi POST:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1479,8 +1721,11 @@ app.post("/api/lessons", async (req, res) => {
 // 3.1. Lấy chi tiết bài giảng theo ID (Dành cho Học viên)
 app.get("/api/lessons/:id", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM lessons WHERE id = ?", [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ message: "Bài giảng không tồn tại" });
+    const [rows] = await pool.query("SELECT * FROM lessons WHERE id = ?", [
+      req.params.id,
+    ]);
+    if (rows.length === 0)
+      return res.status(404).json({ message: "Bài giảng không tồn tại" });
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1497,9 +1742,11 @@ app.delete("/api/lessons/:id", async (req, res) => {
   }
 });
 // 5. Sửa bài giảng (Thêm đoạn này vào be/app.js)
+// --- API SỬA BÀI GIẢNG (PUT) ---
 app.put("/api/lessons/:id", async (req, res) => {
   const { id } = req.params;
   const {
+    subject_id,
     title,
     lesson_code,
     video_url,
@@ -1507,21 +1754,36 @@ app.put("/api/lessons/:id", async (req, res) => {
     lesson_order,
     duration_minutes,
   } = req.body;
+  let { content } = req.body;
+
   try {
-    await pool.query(
-      "UPDATE lessons SET title = ?, lesson_code = ?, video_url = ?, pdf_url = ?, lesson_order = ?, duration_minutes = ? WHERE id = ?",
-      [
-        title,
-        lesson_code,
-        video_url,
-        pdf_url,
-        lesson_order,
-        duration_minutes,
-        id,
-      ]
-    );
-    res.json({ message: "Cập nhật bài giảng thành công" });
+    // Gọi hàm phụ trợ khi sửa
+    if (pdf_url && (!content || content.trim() === "")) {
+      const extracted = await extractPdfText(pdf_url);
+      if (extracted) content = extracted; // Chỉ cập nhật nếu đọc được
+    }
+
+    const sql = `
+      UPDATE lessons SET 
+        subject_id = ?, title = ?, lesson_code = ?, video_url = ?, pdf_url = ?, 
+        lesson_order = ?, duration_minutes = ?, content = ?
+      WHERE id = ?
+    `;
+    await pool.query(sql, [
+      subject_id,
+      title,
+      lesson_code,
+      video_url,
+      pdf_url,
+      lesson_order,
+      duration_minutes,
+      content,
+      id,
+    ]);
+
+    res.json({ message: "Cập nhật thành công" });
   } catch (err) {
+    console.error("Lỗi PUT:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1539,29 +1801,30 @@ app.get("/api/lessons/:id", async (req, res) => {
   }
 });
 
-
 // API tạo dữ liệu mẫu môn học
 app.get("/api/init-subjects", async (req, res) => {
   const subjects = [
-    { name: 'Pháp luật giao thông đường bộ', code: 'PL', hours: 90 },
-    { name: 'Đạo đức người lái xe', code: 'DD', hours: 15 },
-    { name: 'Cấu tạo và sửa chữa thông thường', code: 'CT', hours: 10 },
-    { name: 'Kỹ thuật lái xe', code: 'KT', hours: 20 },
-    { name: 'Tình huống mô phỏng', code: 'MP', hours: 4 }
+    { name: "Pháp luật giao thông đường bộ", code: "PL", hours: 90 },
+    { name: "Đạo đức người lái xe", code: "DD", hours: 15 },
+    { name: "Cấu tạo và sửa chữa thông thường", code: "CT", hours: 10 },
+    { name: "Kỹ thuật lái xe", code: "KT", hours: 20 },
+    { name: "Tình huống mô phỏng", code: "MP", hours: 4 },
   ];
 
   try {
     // 1. Đảm bảo bảng có đủ cột
     try {
-        await pool.query("ALTER TABLE subjects ADD COLUMN code VARCHAR(50) NULL");
-        await pool.query("ALTER TABLE subjects ADD COLUMN total_hours INT DEFAULT 0");
+      await pool.query("ALTER TABLE subjects ADD COLUMN code VARCHAR(50) NULL");
+      await pool.query(
+        "ALTER TABLE subjects ADD COLUMN total_hours INT DEFAULT 0"
+      );
     } catch (e) {
-        // Bỏ qua nếu cột đã tồn tại
+      // Bỏ qua nếu cột đã tồn tại
     }
 
     // 2. Xóa cũ thêm mới
     await pool.query("DELETE FROM subjects");
-    
+
     for (const sub of subjects) {
       await pool.query(
         "INSERT INTO subjects (name, code, total_hours) VALUES (?, ?, ?)",
