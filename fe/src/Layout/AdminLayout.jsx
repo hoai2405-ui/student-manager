@@ -37,24 +37,38 @@ const AdminLayout = () => {
   }, [user]);
 
   useEffect(() => {
-    let key = ROUTES_PATH.ADMIN_DASHBOARD;
-    if (location.pathname.startsWith(ROUTES_PATH.ADMIN_STUDENTS_XML))
-      key = ROUTES_PATH.ADMIN_STUDENTS_XML;
-    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_STUDENTS))
-      key = ROUTES_PATH.ADMIN_STUDENTS;
-    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_COURSES))
-      key = ROUTES_PATH.ADMIN_COURSES;
-    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_STATS))
-      key = ROUTES_PATH.ADMIN_STATS;
-    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_SCHEDULES))
-      key = ROUTES_PATH.ADMIN_SCHEDULES;
-    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_REGISTERED_SCHEDULES))
-      key = ROUTES_PATH.ADMIN_REGISTERED_SCHEDULES;
-    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_USERS))
-      key = ROUTES_PATH.ADMIN_USERS;
-    else if (location.pathname.startsWith(ROUTES_PATH.ADMIN_LESSONS))
-      key = ROUTES_PATH.ADMIN_LESSONS;
-    setSelectedKey(key);
+    const path = location.pathname;
+
+    // 1. Nếu đúng là trang chủ Admin (/admin)
+    if (path === ROUTES_PATH.ADMIN_DASHBOARD) {
+      setSelectedKey(ROUTES_PATH.ADMIN_DASHBOARD);
+    }
+    // 2. Các trang con khác (check cụ thể trước)
+    else if (path === ROUTES_PATH.ADMIN_STUDENTS_XML) {
+      setSelectedKey(ROUTES_PATH.ADMIN_STUDENTS_XML);
+    }
+    else if (path === ROUTES_PATH.ADMIN_STUDENTS) {
+      setSelectedKey("admin-students-submenu");
+    }
+    else if (path.startsWith(ROUTES_PATH.ADMIN_LESSONS)) {
+      setSelectedKey(ROUTES_PATH.ADMIN_LESSONS);
+    }
+    else if (path.startsWith(ROUTES_PATH.ADMIN_COURSES)) {
+      setSelectedKey(ROUTES_PATH.ADMIN_COURSES);
+    }
+    else if (path.startsWith(ROUTES_PATH.ADMIN_STATS)) {
+      setSelectedKey(ROUTES_PATH.ADMIN_STATS);
+    }
+    else if (path === ROUTES_PATH.ADMIN_REGISTERED_SCHEDULES) {
+      setSelectedKey(ROUTES_PATH.ADMIN_REGISTERED_SCHEDULES);
+    }
+    else if (path.startsWith(ROUTES_PATH.ADMIN_SCHEDULES)) {
+      setSelectedKey(ROUTES_PATH.ADMIN_SCHEDULES);
+    }
+    else if (path.startsWith(ROUTES_PATH.ADMIN_USERS)) {
+      setSelectedKey(ROUTES_PATH.ADMIN_USERS);
+    }
+    // Mặc định không set gì hoặc giữ nguyên
   }, [location.pathname]);
 
   const items = [

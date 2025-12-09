@@ -17,7 +17,7 @@ export default function LoginPage() {
       const isAdmin = Boolean(
         user.is_admin ?? user.isAdmin ?? user.role === 'admin'
       );
-      const redirectPath = isAdmin ? "/admin/courses" : "/student";
+      const redirectPath = isAdmin ? "/admin" : "/student";
       navigate(redirectPath);
     }
   }, [user, navigate]);
@@ -56,7 +56,7 @@ export default function LoginPage() {
       const isAdmin = Boolean(
         userData.is_admin ?? userData.isAdmin ?? userData.role === 'admin'
       );
-      const redirectPath = isAdmin ? "/admin/courses" : "/student";
+      const redirectPath = isAdmin ? "/admin" : "/student";
       navigate(redirectPath);
     } catch (err) {
       console.error("Login error:", err);

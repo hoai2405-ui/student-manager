@@ -1,9 +1,11 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
+
 // --- IMPORTS CỦA ADMIN ---
 import CoursePage from "../Pages/Students/CoursePage";
 import SchedulePage from "../Pages/Schedule";
+import Dashboard from "../Pages/Dashboard";
 import RegisteredSchedules from "../Pages/Schedule/RegisteredSchedules";
 import StudentsXML from "../Pages/Students/StudentsXML";
 import StatsPage from "../Pages/Students/state";
@@ -23,6 +25,8 @@ import Learning from "../Pages/Student/Learning";
 import StudentMyCourses from "../Pages/Student/StudentMyCourse";
 // 👇 Bổ sung Import trang chi tiết môn học
 import StudentCourseDetail from "../Pages/Student/StudentCourseDetail";
+import SimulationPage from "../Pages/Student/SimulationPage";
+
 
 // 3. ROUTER CHÍNH
 export default function Router() {
@@ -46,12 +50,12 @@ export default function Router() {
 
           {/* 3. Trang danh sách bài học của 1 môn */}
           {/* Khi vào đây, Sidebar vẫn hiển thị */}
-          <Route path="subjects/:subjectId" element={<StudentCourseDetail />} />
+          <Route path="subjects/:subjectcode" element={<StudentCourseDetail />} />
 
           {/* 4. Trang học bài (PDF/Video) */}
           <Route path="learning/:lessonId" element={<Learning />} />
 
-          {/* Các trang phụ khác */}
+          <Route path="simulation" element={<SimulationPage />} />
           <Route
             path="history"
             element={
@@ -82,16 +86,16 @@ export default function Router() {
             </PrivateRoute>
           }
         >
-          {/* Mặc định vào admin thì chuyển tới courses */}
-          <Route index element={<Navigate to="courses" replace />} />
+          <Route key="admin-index" index element={<Dashboard />} />
 
-          <Route path="courses" element={<CoursePage />} />
-          <Route path="lessons" element={<ManageLessons />} />
-          <Route path="students" element={<Students />} />
-          <Route path="students-xml" element={<StudentsXML />} />
-          <Route path="stats" element={<StatsPage />} />
-          <Route path="schedules" element={<SchedulePage />} />
+          <Route key="admin-courses" path="courses" element={<CoursePage />} />
+          <Route key="admin-lessons" path="lessons" element={<ManageLessons />} />
+          <Route key="admin-students" path="students" element={<Students />} />
+          <Route key="admin-students-xml" path="students-xml" element={<StudentsXML />} />
+          <Route key="admin-stats" path="stats" element={<StatsPage />} />
+          <Route key="admin-schedules" path="schedules" element={<SchedulePage />} />
           <Route
+            key="admin-registered-schedules"
             path="registered-schedules"
             element={<RegisteredSchedules />}
           />

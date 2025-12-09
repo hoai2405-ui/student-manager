@@ -1,15 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Card, Typography, Row, Col, Button, Statistic, Space } from "antd";
 import {
+  SmileOutlined,
   BarChartOutlined,
   UserAddOutlined,
   TeamOutlined,
   BookOutlined,
-  TrophyOutlined,
-  RocketOutlined,
-  HeartOutlined,
 } from "@ant-design/icons";
-import { motion } from "framer-motion";
 import axios from "../../Common/axios";
 
 const { Title, Paragraph, Text } = Typography;
@@ -18,12 +15,10 @@ export default function DashboardBanner() {
   const [quickStats, setQuickStats] = useState({ students: 0, courses: 0 });
   const [weather, setWeather] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [stats, setStats] = useState([]);
 
-  // Fetch quick statistics (BE: /api/quick-stats)
+  // Fetch quick statistics
   useEffect(() => {
     axios.get("/api/quick-stats").then((res) => setQuickStats(res.data));
-    axios.get("/api/stats").then((res) => setStats(res.data));
   }, []);
 
   // Auto update clock
@@ -53,301 +48,169 @@ export default function DashboardBanner() {
     }
   }, []);
 
-  const passRate = stats.length > 0 && quickStats.students > 0
-    ? Math.round((stats.find(s => s.status === 'dat')?.count || 0) / quickStats.students * 100)
-    : 0;
+  // Responsive card style
+  const cardStyle = {
+    borderRadius: 16,
+    background: "linear-gradient(100deg,#3f7afc 0%,#49e2fc 100%)",
+    color: "#fff",
+    marginBottom: 32,
+    boxShadow: "0 8px 32px #0001",
+  };
+
+  const bannerColStyle = {
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    height: "100%",
+    minHeight: 220,
+  };
 
   return (
-    <div className="dashboard-header">
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr auto',
-        gap: 'var(--space-2xl)',
-        alignItems: 'center',
-        position: 'relative',
-        zIndex: 1,
-        maxWidth: '1400px',
-        margin: '0 auto',
-        padding: 'var(--space-2xl) var(--space-xl)',
-
-      }}>
-        {/* Welcome Content */}
-        <div>
-          <h1 style={{
-            fontSize: 'clamp(2.2rem, 2.5vw, 2.8rem)',
-            fontWeight: 700,
-            marginBottom: 'var(--space-lg)',
-            color: 'var(--text-primary)',
-            lineHeight: 1.2,
-            fontFamily: 'Tahoma, sans-serif'
-          }}>
-            Chào mừng đến với<br />
-            <span style={{ color: 'var(--accent-color)' }}>Hệ Thống Quản Lý Học Viên</span>
-          </h1>
-
-          <p style={{
-            fontSize: '1.1rem',
-            color: 'var(--text-secondary)',
-            marginBottom: 'var(--space-2xl)',
-            lineHeight: 1.6,
-            maxWidth: '600px',
-            fontFamily: 'Inter, sans-serif'
-          }}>
-            Quản lý và theo dõi học viên một cách chuyên nghiệp và hiệu quả với bảng điều khiển toàn diện, cập nhật thời gian thực và giao diện thân thiện với người dùng.
-          </p>
-
-          <div style={{
-            display: 'flex',
-            gap: 'var(--space-lg)',
-            flexWrap: 'wrap',
-            marginBottom: 'var(--space-2xl)'
-          }}>
-            <div className="card-admin" style={{
-              background: 'var(--surface-bg)',
-              border: '2px solid var(--accent-color)',
-              color: 'var(--accent-color)',
-              minWidth: '140px',
-              textAlign: 'center',
-              borderRadius: 'var(--radius-lg'
-            }}>
-              <div style={{
-                fontSize: '2.2rem',
-                fontWeight: 700,
-                marginBottom: 'var(--space-sm)',
-                color: 'var(--accent-color)'
-              }}>
-                {quickStats.students}
-              </div>
-              <div style={{
-                fontSize: '0.85rem',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                <TeamOutlined style={{ marginRight: 'var(--space-xs)' }} />
-                Học viên
-              </div>
-            </div>
-
-            <div className="card-admin" style={{
-              background: 'var(--surface-bg)',
-              border: '2px solid var(--success-color)',
-              color: 'var(--success-color)',
-              minWidth: '140px',
-              textAlign: 'center',
-              borderRadius: 'var(--radius-lg)'
-            }}>
-              <div style={{
-                fontSize: '2.2rem',
-                fontWeight: 700,
-                marginBottom: 'var(--space-sm)',
-                color: 'var(--success-color)'
-              }}>
-                {passRate}%
-              </div>
-              <div style={{
-                fontSize: '0.85rem',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                <TrophyOutlined style={{ marginRight: 'var(--space-xs)' }} />
-                Tỷ lệ đạt
-              </div>
-            </div>
-
-            <div className="card-admin" style={{
-              background: 'var(--surface-bg)',
-              border: '2px solid var(--warning-color)',
-              color: 'var(--warning-color)',
-              minWidth: '140px',
-              textAlign: 'center',
-              borderRadius: 'var(--radius-lg)'
-            }}>
-              <div style={{
-                fontSize: '2.2rem',
-                fontWeight: 700,
-                marginBottom: 'var(--space-sm)',
-                color: 'var(--warning-color)'
-              }}>
-                {quickStats.courses}
-              </div>
-              <div style={{
-                fontSize: '0.85rem',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                <BookOutlined style={{ marginRight: 'var(--space-xs)' }} />
-                Khóa học
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 'var(--space-lg)', flexWrap: 'wrap' }}>
-            <button
-              className="btn-modern"
-              onClick={() => window.location.href = '/students'}
-              style={{ background: 'var(--accent-color)', border: 'none' }}
+    <Card style={cardStyle} bodyStyle={{ padding: 20, minHeight: 200 }}>
+      <Row
+        gutter={[24, 24]}
+        align="middle"
+        justify="space-between"
+        style={{ flexWrap: "wrap-reverse" }}
+      >
+        <Col xs={24} md={16} style={bannerColStyle}>
+          <Title
+            level={3}
+            style={{
+              color: "#fff",
+              marginBottom: 8,
+              fontWeight: 700,
+              textShadow: "0 4px 16px #0002",
+              fontSize: "1.5rem",
+            }}
+          >
+            🎉 Chào mừng bạn đến với Hệ Thống Quản Trị Học Viên Hoàng Thịnh!
+          </Title>
+          <Paragraph
+            style={{ fontSize: 16, color: "#f5f6fa", marginBottom: 12 }}
+          >
+            <BarChartOutlined style={{ color: "#ffdf00" }} />{" "}
+            <b>Xem thống kê chi tiết</b>,
+            <UserAddOutlined style={{ color: "#ffdf00", marginLeft: 8 }} />{" "}
+            <b>Quản lý học viên dễ dàng</b>.
+            <br />
+            <SmileOutlined style={{ color: "#ffdf00" }} /> Dashboard hiện đại,
+            chuyên nghiệp.
+          </Paragraph>
+          <Space size={16} style={{ margin: "8px 0 16px 0", flexWrap: "wrap" }}>
+            <Statistic
+              title={<Text style={{ color: "#fff" }}>Tổng học viên</Text>}
+              value={quickStats.students}
+              prefix={<TeamOutlined />}
+              valueStyle={{ color: "#fff", fontWeight: 600 }}
+              style={{
+                minWidth: 120,
+                background: "rgba(0,0,0,0.12)",
+                borderRadius: 8,
+                padding: "10px 14px",
+              }}
+            />
+            <Statistic
+              title={<Text style={{ color: "#fff" }}>Tổng khoá học</Text>}
+              value={quickStats.courses}
+              prefix={<BookOutlined />}
+              valueStyle={{ color: "#fff", fontWeight: 600 }}
+              style={{
+                minWidth: 120,
+                background: "rgba(0,0,0,0.12)",
+                borderRadius: 8,
+                padding: "10px 14px",
+              }}
+            />
+          </Space>
+          <Button
+            type="primary"
+            size="large"
+            style={{
+              background: "#062bf3",
+              borderRadius: 8,
+              marginTop: 4,
+              boxShadow: "0 4px 24px #0002",
+              fontWeight: 600,
+              fontSize: 16,
+              width: 220,
+              maxWidth: "100%",
+            }}
+            href="/admin/students"
+          >
+            Quản lý học viên ngay
+          </Button>
+        </Col>
+        <Col xs={24} md={8} style={{ textAlign: "center", marginTop: 8 }}>
+          {/* Thời tiết + đồng hồ */}
+          <div
+            style={{
+              background: "rgba(0,0,0,0.15)",
+              borderRadius: 16,
+              padding: 18,
+              minWidth: 180,
+              margin: "auto",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 15,
+                color: "#fff",
+                marginBottom: 8,
+                fontWeight: 500,
+              }}
             >
-              <UserAddOutlined />
-              Quản lý học viên
-            </button>
-
-            <button
-              className="btn-outline"
-              onClick={() => window.location.href = '/schedule'}
-            >
-              📅 Xem lịch học
-            </button>
-          </div>
-        </div>
-
-        {/* Weather Widget */}
-        <motion.div
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.3, duration: 0.6 }}
-        >
-          <div className="card-glass" style={{
-            padding: 'var(--space-xl)',
-            minWidth: '280px',
-            textAlign: 'center',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            {/* Animated background elements */}
-            <div className="animate-float" style={{
-              position: 'absolute',
-              top: 10,
-              right: 10,
-              fontSize: 24,
-              opacity: 0.6
-            }}>
-              {weather?.weathercode === 0 ? "☀️" : "⛅"}
-            </div>
-
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.5, duration: 0.5 }}
-            >
-              <div style={{
-                fontSize: '1rem',
-                color: 'var(--text-secondary)',
-                marginBottom: 'var(--space-sm)',
-                fontWeight: 600
-              }}>
+              <b>
                 {currentTime.toLocaleDateString("vi-VN", {
                   weekday: "long",
                   year: "numeric",
                   month: "2-digit",
                   day: "2-digit",
                 })}
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.7, duration: 0.5 }}
-            >
-              <div style={{
-                fontSize: '2.5rem',
-                fontWeight: 800,
-                color: 'var(--text-primary)',
-                marginBottom: 'var(--space-lg)',
-                fontFamily: 'monospace',
-                letterSpacing: 2
-              }}>
-                {currentTime.toLocaleTimeString("vi-VN")}
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.9, duration: 0.5 }}
-            >
-              <div style={{ marginBottom: 'var(--space-lg)' }}>
-                {weather ? (
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 'var(--space-md)',
-                    marginBottom: 'var(--space-sm)'
-                  }}>
-                    <span style={{
-                      fontSize: '2rem',
-                      fontWeight: "bold",
-                      color: 'var(--warning-color)'
-                    }}>
-                      {Math.round(weather.temperature)}°C
-                    </span>
-                    <div style={{ textAlign: "left" }}>
-                      <div style={{
-                        fontSize: '0.9rem',
-                        color: 'var(--text-primary)',
-                        fontWeight: 500
-                      }}>
-                        {weather.weathercode === 0 ? "Nắng đẹp" : "Mây/Âm u"}
-                      </div>
-                      <div style={{
-                        fontSize: '0.8rem',
-                        color: 'var(--text-secondary)'
-                      }}>
-                        Gió {weather.windspeed} km/h
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{
-                    color: 'var(--text-secondary)',
-                    fontSize: '0.9rem'
-                  }}>
-                    🌤️ Đang tải thời tiết...
-                  </div>
-                )}
-              </div>
-            </motion.div>
-
-            {/* Progress bar for day completion */}
-            <motion.div
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ delay: 1.1, duration: 0.8 }}
+              </b>
+            </div>
+            <div
               style={{
-                padding: 'var(--space-sm) 0',
-                background: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: 'var(--radius-md)',
-                overflow: "hidden",
+                fontSize: 28,
+                fontWeight: 600,
+                color: "#fff",
+                marginBottom: 12,
+                fontFamily: "monospace",
+                letterSpacing: 1,
               }}
             >
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${((currentTime.getHours() * 60 + currentTime.getMinutes()) / 1440) * 100}%` }}
-                transition={{ delay: 1.3, duration: 1 }}
-                style={{
-                  height: 6,
-                  background: 'var(--gradient-primary)',
-                  borderRadius: 'var(--radius-sm)',
-                }}
-              />
-            </motion.div>
-            <div style={{
-              fontSize: '0.75rem',
-              color: 'var(--text-muted)',
-              marginTop: 'var(--space-xs)'
-            }}>
-              Tiến độ ngày: {Math.round(((currentTime.getHours() * 60 + currentTime.getMinutes()) / 1440) * 100)}%
+              {currentTime.toLocaleTimeString("vi-VN")}
+            </div>
+            <div>
+              {weather ? (
+                <>
+                  <span
+                    style={{
+                      fontSize: 26,
+                      fontWeight: "bold",
+                      color: "#ffdf00",
+                    }}
+                  >
+                    {Math.round(weather.temperature)}°C
+                  </span>
+                  <span style={{ fontSize: 15, color: "#fff" }}>
+                    {" "}
+                    · {weather.weathercode === 0 ? "Nắng đẹp" : "Mây/Âm u"}{" "}
+                  </span>
+                  <br />
+                  <span style={{ fontSize: 13, color: "#8892a0" }}>
+                    Gió {weather.windspeed} km/h
+                  </span>
+                </>
+              ) : (
+                <span style={{ fontSize: 16, color: "#fff" }}>
+                  Không thể lấy thời tiết...
+                </span>
+              )}
             </div>
           </div>
-        </motion.div>
-      </div>
-    </div>
+        </Col>
+      </Row>
+    </Card>
   );
 }
