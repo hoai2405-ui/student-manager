@@ -59,7 +59,12 @@ async function extractPdfText(fileUrl) {
 const app = express();
 const upload = multer({ dest: "uploads/" });
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+  })
+);
 app.use(express.json());
 
 // Serve static files từ thư mục uploads (ĐỂ TRẮNG VÀO TRƯỚC ĐỂ SERVE FILE PDF VÀ VIDEO)
@@ -104,19 +109,7 @@ async function createDefaultAdmin() {
       console.log("✅ Đã tạo tài khoản admin mặc định:");
       console.log("   Username: admin");
       console.log("   Password: admin123");
-      await pool.query(
-        "INSERT INTO users (username, password, email, phone, is_admin) VALUES (?, ?, ?, ?, 1)",
-        [
-          defaultAdmin.username,
-          defaultAdmin.password,
-          defaultAdmin.email,
-          defaultAdmin.phone,
-        ]
-      );
-      console.log("✅ Đã tạo tài khoản admin mặc định:");
-      console.log("   Username: admin");
-      console.log("   Password: admin123");
-      console.log("   Email: admin@hoangthinh.vn");
+      
     }
   } catch (err) {
     console.error("❌ Lỗi tạo admin mặc định:", err.message);
@@ -154,6 +147,71 @@ async function createTables() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
     console.log("✅ Đảm bảo table lessons tồn tại");
+
+    // Tạo table schedules cho lịch học
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS schedules (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        course_id INT,
+        start_time DATETIME NOT NULL,
+        end_time DATETIME NOT NULL,
+        capacity INT DEFAULT 0,
+        location VARCHAR(255),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    // Tạo table registrations
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS registrations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        schedule_id INT NOT NULL,
+        student_id INT NOT NULL,
+        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        status ENUM('active', 'cancelled') DEFAULT 'active',
+        FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    // Tạo table courses nếu chưa có
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS courses (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ma_khoa_hoc VARCHAR(50) NOT NULL UNIQUE,
+        ten_khoa_hoc VARCHAR(255) NOT NULL,
+        hang_gplx VARCHAR(50),
+        ngay_khai_giang DATE,
+        ngay_be_giang DATE,
+        so_hoc_sinh INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log("✅ Đảm bảo table courses tồn tại");
+
+    // Tạo table students nếu chưa có
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS students (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ho_va_ten VARCHAR(255) NOT NULL,
+        ngay_sinh DATE,
+        hang_gplx VARCHAR(50),
+        so_cmt VARCHAR(50),
+        ma_khoa_hoc VARCHAR(50),
+        anh_chan_dung LONGTEXT,
+        status ENUM('dat', 'rot', 'chua thi') DEFAULT 'chua thi',
+        status_ly_thuyet ENUM('dat', 'rot', 'chua thi') DEFAULT 'chua thi',
+        status_mo_phong ENUM('dat', 'rot', 'chua thi') DEFAULT 'chua thi',
+        status_duong ENUM('dat', 'rot', 'chua thi') DEFAULT 'chua thi',
+        status_truong ENUM('dat', 'rot', 'chua thi') DEFAULT 'chua thi',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log("✅ Đảm bảo table students tồn tại");
 
     // Đảm bảo cột duration_minutes và content tồn tại
     try {
@@ -1639,6 +1697,17 @@ app.get("/api/lessons", async (req, res) => {
       params.push(subject_id);
     }
     const [rows] = await pool.query(sql, params);
+    console.log(`👉 API /api/lessons query: subject_id=${subject_id}, trả về ${rows.length} lessons`);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Debug: Xem tất cả lessons với subject_id
+app.get("/api/debug/lessons-all", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, title, subject_id FROM lessons ORDER BY subject_id, lesson_order");
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1837,4 +1906,17 @@ app.get("/api/init-subjects", async (req, res) => {
   }
 });
 
+
+
+// --- API MÔ PHỎNG 120 TÌNH HUỐNG ---
+app.get("/api/simulations", async (req, res) => {
+  try {
+    // Lấy toàn bộ 120 câu, sắp xếp theo số thứ tự
+    const [rows] = await pool.query("SELECT * FROM simulations ORDER BY stt ASC");
+    res.json(rows);
+  } catch (err) {
+    console.error("Lỗi lấy simulation:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 app.listen(3001, () => console.log("API running on http://localhost:3001"));
