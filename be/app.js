@@ -12,6 +12,10 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const pool = require("./db"); // file db.js dùng mysql2
 
+
+
+require("dotenv").config();
+
 // Helper function to extract text from PDF
 // --- 2. HÀM PHỤ TRỢ ĐỌC PDF (ĐÃ SỬA LỖI TYPE OBJECT) ---
 // --- 2. HÀM PHỤ TRỢ ĐỌC PDF (PHIÊN BẢN KHÔNG CRASH) ---
@@ -22,7 +26,7 @@ async function extractPdfText(fileUrl) {
     const normalizedPath = relativePath.split('/').join(path.sep);
     const absolutePath = path.resolve(__dirname, normalizedPath);
 
-    console.log(`👉 Đang xử lý file: ${absolutePath}`);
+    // console.log(`👉 Đang xử lý file: ${absolutePath}`);
 
     if (fs.existsSync(absolutePath)) {
       const dataBuffer = fs.readFileSync(absolutePath);
@@ -59,12 +63,18 @@ async function extractPdfText(fileUrl) {
 const app = express();
 const upload = multer({ dest: "uploads/" });
 
+// Enable CORS so the frontend (Vite dev server) can call this API.
+// Allow origins used in development; adjust or restrict for production.
 app.use(
   cors({
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    preflightContinue: false,
   })
 );
+
 app.use(express.json());
 
 // Serve static files từ thư mục uploads (ĐỂ TRẮNG VÀO TRƯỚC ĐỂ SERVE FILE PDF VÀ VIDEO)
@@ -123,6 +133,7 @@ async function createTables() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS subjects (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        code VARCHAR(100) DEFAULT NULL,
         name VARCHAR(255) NOT NULL,
         description TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -225,6 +236,32 @@ async function createTables() {
       // Bỏ qua nếu cột đã tồn tại
     }
 
+    // Tạo bảng subject_requirements (số giờ yêu cầu cho mỗi môn theo loại bằng)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS subject_requirements (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        subject_id INT NOT NULL,
+        required_hours INT DEFAULT 0,
+        license_class VARCHAR(50) DEFAULT '',
+        FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log("✅ Đảm bảo table subject_requirements tồn tại");
+
+    // Tạo bảng learning_history để lưu tiến độ học của học viên
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS learning_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        student_id INT NOT NULL,
+        subject_id INT NOT NULL,
+        minutes INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+        FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log("✅ Đảm bảo table learning_history tồn tại");
+
     // Insert một số môn học mẫu nếu chưa có
     const [[{ count: subjectsCount }]] = await pool.query(
       "SELECT COUNT(*) as count FROM subjects"
@@ -276,7 +313,7 @@ const storage = multer.diskStorage({
     const originalName = Buffer.from(file.originalname, "latin1").toString(
       "utf8"
     );
-    cb(null, Date.now() + "-" + originalName);
+    cb(null, Date.now() + "-" + originalName.replace(/\s+/g, "_") );
   },
 });
 
@@ -355,36 +392,83 @@ app.post("/api/register", async (req, res) => {
 });
 
 //api đăng nhập
-const JWT_SECRET = "supersecret"; // đổi thành secret của bạn
+// Ensure we have a JWT secret. In development, fall back to a warning default
+// so the server doesn't crash when env var is missing. In production you
+// should always set `JWT_SECRET` in your environment.
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  const fallback = "dev-secret-change-me";
+  console.warn("⚠️ JWT_SECRET is not set. Using development fallback secret. Set JWT_SECRET in environment for production.");
+  return fallback;
+})();
 
 app.post("/api/login", async (req, res) => {
-  const { username, password } = req.body;
-  try {
-    const [rows] = await pool.query("SELECT * FROM users WHERE username = ?", [
-      username,
-    ]);
-    if (rows.length === 0)
-      return res.status(400).json({ message: "Sai tài khoản hoặc mật khẩu" });
+  console.log("👉 ADMIN LOGIN BODY:", req.body);
 
-    const user = rows[0];
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok)
-      return res.status(400).json({ message: "Sai tài khoản hoặc mật khẩu" });
+  try {
+    const { username, password } = req.body;
+
+    console.log("[LOGIN] Received username:", username ? username : "<empty>");
+
+    if (!username || !password) {
+      return res.status(400).json({
+        message: "Thiếu username hoặc password",
+      });
+    }
+
+    // Fetch user rows and log for debugging
+    const [rows] = await pool.query(
+      "SELECT * FROM users WHERE username = ? LIMIT 1",
+      [username]
+    );
+    console.log("[LOGIN] DB returned rows:", rows);
+    const user = rows && rows.length > 0 ? rows[0] : null;
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Sai tài khoản hoặc mật khẩu",
+      });
+    }
+
+    // So sánh password với bcrypt
+    const isValidPassword = user ? await bcrypt.compare(password, user.password) : false;
+    console.log("[LOGIN] password match:", isValidPassword);
+    if (!isValidPassword) {
+      return res.status(401).json({
+        message: "Sai tài khoản hoặc mật khẩu",
+      });
+    }
+
+    const isAdminValue = user.is_admin === 1 || username === 'admin';
 
     const token = jwt.sign(
-      { id: user.id, username: user.username, is_admin: user.is_admin },
+      {
+        id: user.id,
+        username: user.username,
+        is_admin: isAdminValue ? 1 : 0,
+      },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
-    return res.json({
+
+    res.json({
       token,
-      user: { id: user.id, username: user.username, is_admin: user.is_admin },
+      user: {
+        id: user.id,
+        username: user.username,
+        is_admin: isAdminValue,
+      },
     });
   } catch (err) {
+    console.error("🔥 ADMIN LOGIN ERROR 🔥");
     console.error(err);
-    return res.status(500).json({ message: "Lỗi hệ thống" });
+    res.status(500).json({
+      message: "Lỗi server khi đăng nhập admin",
+      error: err.message,
+    });
   }
 });
+
+
 
 // API: Lấy danh sách khoá học
 app.get("/api/courses", async (req, res) => {
@@ -751,11 +835,11 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
 
                   try {
                     // Kiểm tra file exe có tồn tại không trước khi chạy
-                    if (!fs.existsSync(magickPath)) {
-                      throw new Error(
-                        `Không tìm thấy file magick.exe tại: ${magickPath}`
-                      );
-                    }
+                    // if (!fs.existsSync(magickPath)) {
+                    //   throw new Error(
+                    //     `Không tìm thấy file magick.exe tại: ${magickPath}`
+                    //   );
+                    // }
 
                     // Gọi lệnh trực tiếp vào file exe
                     execSync(
@@ -1637,42 +1721,128 @@ app.get(
 // be/app.js
 
 app.post("/api/student/login", async (req, res) => {
-  const { so_cmt } = req.body;
   try {
-    // 👇 CÂU LỆNH SQL CHUẨN:
-    // s.* : Lấy hết thông tin học viên (bao gồm ma_khoa_hoc là dãy số)
-    // c.ten_khoa_hoc : Lấy thêm Tên hiển thị (K17) từ bảng courses
-    const sql = `
-      SELECT 
-        s.*, 
-        c.ten_khoa_hoc 
-      FROM students s
-      LEFT JOIN courses c ON s.ma_khoa_hoc = c.ma_khoa_hoc
-      WHERE s.so_cmt = ?
-    `;
+    const { so_cmt } = req.body;
 
-    const [rows] = await pool.query(sql, [so_cmt]);
+    console.log("👉 so_cmt nhận được:", so_cmt);
 
-    if (rows.length === 0) {
-      return res.status(404).json({ message: "Không tìm thấy học viên" });
+    if (!so_cmt || so_cmt.trim() === "") {
+      return res.status(400).json({
+        message: "CCCD rỗng hoặc không hợp lệ",
+        body: req.body,
+      });
     }
 
-    const student = rows[0];
+    // Join with courses to fetch course name if available
+    const [[student]] = await pool.query(
+      `SELECT s.*, c.ten_khoa_hoc AS course_name, c.ma_khoa_hoc AS course_code
+       FROM students s
+       LEFT JOIN courses c ON s.ma_khoa_hoc = c.ma_khoa_hoc
+       WHERE s.so_cmt = ?
+       LIMIT 1`,
+      [so_cmt]
+    );
 
-    // Debug: In ra xem server đã lấy được chữ "K17" chưa
-    console.log("--> Học viên:", student.ho_va_ten);
-    console.log("--> Mã liên kết (Số):", student.ma_khoa_hoc);
-    console.log("--> Tên khóa (K17):", student.ten_khoa_hoc);
+    if (!student) {
+      return res.status(401).json({ message: "Không tìm thấy học viên" });
+    }
+
+    // Debug log: show DB row returned for student
+    console.log("[STUDENT LOGIN] student row:", student);
+
+    // Normalize course fields: prefer explicit course_name, fallback to existing student.ten_khoa_hoc
+    const ten_khoa_hoc = student.course_name || student.ten_khoa_hoc || null;
+    const ma_khoa_hoc = student.ma_khoa_hoc || student.course_code || null;
 
     res.json({
-      token: "sample-token",
-      student: student,
+      user: {
+        id: student.id,
+        ho_va_ten: student.ho_va_ten,
+        ngay_sinh: student.ngay_sinh,
+        so_cmt: student.so_cmt,
+        hang_gplx: student.hang_gplx,
+        ten_khoa_hoc,
+        ma_khoa_hoc,
+        role: "student",
+      },
+      token: "dev-token",
     });
   } catch (err) {
-    console.error(err);
+    console.error("🔥 LOGIN ERROR:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
+// GET student full info (including course name) by id
+app.get("/api/student/:id", async (req, res) => {
+  try {
+    const studentId = req.params.id;
+    const [[student]] = await pool.query(
+      `SELECT s.*, c.ten_khoa_hoc AS course_name, c.ma_khoa_hoc AS course_code
+       FROM students s
+       LEFT JOIN courses c ON s.ma_khoa_hoc = c.ma_khoa_hoc
+       WHERE s.id = ? LIMIT 1`,
+      [studentId]
+    );
+
+    // Debug: also fetch course row independently if ma_khoa_hoc present
+    if (student && student.ma_khoa_hoc) {
+      try {
+        const [courseRows] = await pool.query("SELECT * FROM courses WHERE ma_khoa_hoc = ? LIMIT 1", [student.ma_khoa_hoc]);
+        console.log('[DEBUG] matched course row:', courseRows[0] || null);
+      } catch (e) {
+        console.warn('[DEBUG] error fetching course row:', e.message);
+      }
+    }
+
+    console.log('[DEBUG] /api/student/:id returning student (joined):', student);
+
+    if (!student) return res.status(404).json({ message: "Student not found" });
+
+    // If no course info via ma_khoa_hoc, try to find course via registrations -> schedules -> courses
+    let finalCourseName = student.course_name || student.ten_khoa_hoc || null;
+    let finalMaKhoaHoc = student.ma_khoa_hoc || student.course_code || null;
+
+    if (!finalCourseName) {
+      try {
+        const [rows] = await pool.query(
+          `SELECT c.ten_khoa_hoc, c.ma_khoa_hoc
+           FROM registrations r
+           JOIN schedules s ON r.schedule_id = s.id
+           JOIN courses c ON s.course_id = c.id
+           WHERE r.student_id = ?
+           LIMIT 1`,
+          [student.id]
+        );
+        if (rows && rows.length > 0) {
+          finalCourseName = rows[0].ten_khoa_hoc || finalCourseName;
+          finalMaKhoaHoc = rows[0].ma_khoa_hoc || finalMaKhoaHoc;
+          console.log('[DEBUG] found course via registrations:', rows[0]);
+        }
+      } catch (e) {
+        console.warn('[DEBUG] error finding course via registrations:', e.message);
+      }
+    }
+
+    res.json({
+      id: student.id,
+      ho_va_ten: student.ho_va_ten,
+      ngay_sinh: student.ngay_sinh,
+      so_cmt: student.so_cmt,
+      hang_gplx: student.hang_gplx,
+      ten_khoa_hoc: finalCourseName,
+      ma_khoa_hoc: finalMaKhoaHoc,
+      anh_chan_dung: student.anh_chan_dung || null,
+      created_at: student.created_at,
+      updated_at: student.updated_at,
+    });
+  } catch (err) {
+    console.error("/api/student/:id error", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 // --- API QUẢN LÝ BÀI GIẢNG ---
 
@@ -1693,8 +1863,21 @@ app.get("/api/lessons", async (req, res) => {
     let sql = "SELECT * FROM lessons";
     const params = [];
     if (subject_id) {
+      // normalize subject_id to integer to avoid accidental mismatches
+      const sid = Number(subject_id);
+      if (Number.isNaN(sid)) {
+        return res.status(400).json({ error: "subject_id must be a number" });
+      }
       sql += " WHERE subject_id = ? ORDER BY lesson_order ASC";
-      params.push(subject_id);
+      params.push(sid);
+
+      // debug: count rows for this subject_id
+      try {
+        const [[countRow]] = await pool.query("SELECT COUNT(*) as c FROM lessons WHERE subject_id = ?", [sid]);
+        console.log(`👉 API /api/lessons debug: subject_id=${sid} count=${countRow.c}`);
+      } catch (e) {
+        console.warn("Could not run lessons count debug", e.message);
+      }
     }
     const [rows] = await pool.query(sql, params);
     console.log(`👉 API /api/lessons query: subject_id=${subject_id}, trả về ${rows.length} lessons`);
@@ -1788,13 +1971,14 @@ app.post("/api/lessons", async (req, res) => {
 });
 
 // 3.1. Lấy chi tiết bài giảng theo ID (Dành cho Học viên)
+// 👇 THÊM API NÀY: Lấy chi tiết 1 bài giảng theo ID
 app.get("/api/lessons/:id", async (req, res) => {
+  // const { id } = req.params;
   try {
-    const [rows] = await pool.query("SELECT * FROM lessons WHERE id = ?", [
-      req.params.id,
-    ]);
-    if (rows.length === 0)
-      return res.status(404).json({ message: "Bài giảng không tồn tại" });
+  const [rows] = await pool.query("SELECT * FROM lessons WHERE id = ?", [req.params.id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Không tìm thấy bài giảng" });
+    }
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1856,19 +2040,7 @@ app.put("/api/lessons/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-// 👇 THÊM API NÀY: Lấy chi tiết 1 bài giảng theo ID
-app.get("/api/lessons/:id", async (req, res) => {
-  const { id } = req.params;
-  try {
-    const [rows] = await pool.query("SELECT * FROM lessons WHERE id = ?", [id]);
-    if (rows.length === 0) {
-      return res.status(404).json({ message: "Không tìm thấy bài giảng" });
-    }
-    res.json(rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+
 
 // API tạo dữ liệu mẫu môn học
 app.get("/api/init-subjects", async (req, res) => {
@@ -1905,6 +2077,124 @@ app.get("/api/init-subjects", async (req, res) => {
     res.status(500).send("Lỗi: " + err.message);
   }
 });
+
+// tiến độ môn học
+app.post("/api/student/lesson-progress", async (req, res) => {
+  const { student_id, lesson_id, watched_seconds, duration_minutes } = req.body;
+
+  if (!student_id || !lesson_id || !watched_seconds || !duration_minutes) {
+    return res.status(400).json({ message: "Thiếu dữ liệu" });
+  }
+
+  try {
+    // 👉 chỉ tính giờ nếu xem >= 80% bài
+    const percentWatched =
+      watched_seconds / (duration_minutes * 60);
+
+    if (percentWatched < 0.8) {
+      return res.json({
+        success: false,
+        message: "Chưa xem đủ 80%, không tính giờ",
+      });
+    }
+
+    const minutesLearned = Math.round(watched_seconds / 60);
+
+    await pool.query(
+      `
+      INSERT INTO student_lesson_progress (student_id, lesson_id, minutes_learned, completed)
+      VALUES (?, ?, ?, 1)
+      ON DUPLICATE KEY UPDATE
+        minutes_learned = GREATEST(minutes_learned, VALUES(minutes_learned)),
+        completed = 1
+      `,
+      [student_id, lesson_id, minutesLearned]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("lesson-progress error:", err);
+    res.status(500).json({ message: "Lỗi lưu tiến độ học" });
+  }
+});
+
+
+app.get("/api/student/dashboard/:id", async (req, res) => {
+  try {
+    const studentId = req.params.id;
+
+    // Lấy hạng GPLX của học viên để chỉ lấy requirement phù hợp.
+    const [[studentRow]] = await pool.query(
+      `SELECT hang_gplx FROM students WHERE id = ? LIMIT 1`,
+      [studentId]
+    );
+    const hangGplx = (studentRow && studentRow.hang_gplx) || "";
+    console.log(`[DASHBOARD] studentId=${studentId} hang_gplx=${hangGplx}`);
+
+    const [rows] = await pool.query(`
+      SELECT
+        sub.id AS subject_id,
+        sub.code,
+        sub.name AS subject_name,
+        sr.required_hours,
+        COALESCE(SUM(lh.minutes), 0) / 60 AS learned_hours
+      FROM subjects sub
+      LEFT JOIN subject_requirements sr
+        ON sr.subject_id = sub.id
+        AND (sr.license_class = ? OR sr.license_class = '')
+      LEFT JOIN learning_history lh 
+        ON lh.subject_id = sub.id
+        AND lh.student_id = ?
+      GROUP BY sub.id, sub.code, sub.name, sr.required_hours
+    `, [hangGplx, studentId]);
+
+    res.json(rows || []);
+  } catch (err) {
+    console.error("🔥 DASHBOARD ERROR", err);
+    console.error("SQL Message:", err.sqlMessage || err.message);
+    res.status(500).json({ error: err.sqlMessage || err.message });
+  }
+});
+
+
+
+// =======================================
+// API: Lấy tổng giờ học + tổng giờ quy định
+// =======================================
+app.get("/api/student/summary/:id", async (req, res) => {
+  try {
+    const studentId = req.params.id;
+
+    const [[row]] = await pool.query(`
+      SELECT
+        COALESCE(SUM(lh.minutes), 0) / 60 AS learned_hours,
+        COALESCE(SUM(sr.required_hours), 0) AS required_hours,
+        s.hang_gplx
+      FROM students s
+      LEFT JOIN learning_history lh ON lh.student_id = s.id
+      LEFT JOIN subject_requirements sr 
+        ON sr.license_class = s.hang_gplx
+      WHERE s.id = ?
+    `, [studentId]);
+
+    // Normalize response to match frontend expectations
+    const total_learned = Number(row?.learned_hours || 0);
+    const total_required = Number(row?.required_hours || 0);
+    const progress = total_required > 0 ? Math.round((total_learned / total_required) * 100) : 0;
+
+    res.json({
+      total_learned,
+      total_required,
+      progress,
+      hang_gplx: row?.hang_gplx || null,
+    });
+  } catch (err) {
+    console.error("🔥 SUMMARY ERROR", err);
+    console.error("SQL Message:", err.sqlMessage || err.message);
+    res.status(500).json({ error: err.sqlMessage || err.message });
+  }
+});
+
 
 
 
