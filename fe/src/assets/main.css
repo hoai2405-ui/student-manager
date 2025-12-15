@@ -113,6 +113,47 @@ p {
   overflow: hidden;
 }
 
+/* Subject card tweaks to avoid text loss and improve responsive layout */
+.subject-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 140px;
+  color: var(--text-inverse);
+}
+
+.subject-card .subject-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subject-card .subject-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.subject-card .subject-learned {
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.subject-card .subject-required {
+  font-size: 0.95rem;
+  opacity: 0.95;
+}
+
+/* Reduce huge decorative icons on small screens */
+.subject-card .decor-icon {
+  font-size: 5.5rem;
+  opacity: 0.16;
+}
+
+
 .card-modern::before {
   content: '';
   position: absolute;
@@ -501,6 +542,15 @@ p {
   h1 { font-size: 2rem; }
   h2 { font-size: 1.75rem; }
   h3 { font-size: 1.25rem; }
+}
+
+@media (max-width: 480px) {
+  /* Ensure cards fit and text doesn't overflow */
+  .subject-card .decor-icon { font-size: 4rem; }
+  .subject-card .subject-learned { font-size: 1.4rem; }
+  .card-modern, .card-admin, .card-glass { padding: var(--space-md); }
+  .stat-card { padding: var(--space-lg); }
+  body { font-size: 14px; }
 }
 
 @media (max-width: 480px) {

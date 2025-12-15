@@ -22,21 +22,21 @@ const LoginStudent = () => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
-
+console.log("👉 CCCD nhập:", soCmt);
     try {
       const res = await fetch("http://localhost:3001/api/student/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ so_cmt: soCmt }),
+        body: JSON.stringify({ so_cmt: soCmt.trim() }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Lỗi đăng nhập");
 
       localStorage.setItem("studentToken", data.token);
-      localStorage.setItem("studentInfo", JSON.stringify(data.student));
+      localStorage.setItem("studentInfo", JSON.stringify(data.user));
 
-      login(data.student, data.token);
+      login(data.user, data.token);
 
       navigate("/student");
     } catch (err) {

@@ -13,6 +13,7 @@ import Students from "../Pages/Students/index";
 import UsersPage from "../Pages/Users/Users";
 import ManageLessons from "../Pages/Lessons/ManageLessons"; // Kiểm tra lại đường dẫn này xem đúng file chưa nhé
 import PrivateRoute from "../Components/PrivateRoute";
+import { AuthProvider } from "../contexts/AuthContext";
 import LoginPage from "../Pages/Auth/Login";
 import AdminLayout from "../Layout/AdminLayout"; // Import Layout Admin
 

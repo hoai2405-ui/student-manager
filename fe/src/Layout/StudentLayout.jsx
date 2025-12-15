@@ -24,6 +24,7 @@ const StudentLayout = () => {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [selectedKey, setSelectedKey] = useState(location.pathname);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
 
   const {
     token: { borderRadiusLG },
@@ -48,6 +49,13 @@ const StudentLayout = () => {
       setSelectedKey(path);
     }
   }, [location.pathname]);
+
+  // Auto-update window width for responsive layout
+  useEffect(() => {
+    const onResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   // --- MENU ITEMS ---
   const items = [
@@ -110,6 +118,7 @@ const StudentLayout = () => {
         collapsed={collapsed}
         onCollapse={(value) => setCollapsed(value)}
         width={240}
+        collapsedWidth={0}
         breakpoint="lg"
         style={{
           boxShadow: "2px 0 8px rgba(0, 0, 0, 0.1)",
@@ -155,7 +164,7 @@ const StudentLayout = () => {
 
       <Layout
         style={{
-          marginLeft: collapsed ? 80 : 240,
+          marginLeft: windowWidth < 992 ? 0 : collapsed ? 80 : 240,
           transition: "margin-left 0.2s",
           minHeight: "100vh",
           background: "#f0f2f5",

@@ -6,7 +6,6 @@ import {
   Result,
   Typography,
   Tag,
-  Empty,
   Tooltip,
   Modal,
   message,
@@ -18,12 +17,11 @@ import {
   PlayCircleOutlined,
   ReloadOutlined,
   LogoutOutlined,
-  VideoCameraOutlined,
   FilePdfOutlined,
 } from "@ant-design/icons";
 import axios from "../../Common/axios";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const SERVER_URL = "http://localhost:3001";
 
 const Learning = () => {
@@ -32,81 +30,102 @@ const Learning = () => {
 
   const [lesson, setLesson] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [subjectLessons, setSubjectLessons] = useState([]);
+  const [lessonIndex, setLessonIndex] = useState(null);
+  const [subjectTotalDuration, setSubjectTotalDuration] = useState(0);
 
-  // State thời gian
-  const [timer, setTimer] = useState(0); 
-  const [timeLeft, setTimeLeft] = useState(0); 
+  // ⏳ CHỈ DÙNG ĐẾM NGƯỢC
+  const [timeLeft, setTimeLeft] = useState(0);
 
-  // State Audio
+  // Audio
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [voices, setVoices] = useState([]); 
+  const [voices, setVoices] = useState([]);
 
   const synthRef = useRef(window.speechSynthesis);
   const utteranceRef = useRef(null);
 
-  // 1. Tải danh sách giọng đọc an toàn
+  /* =============================
+     LOAD VOICES
+  ============================== */
   useEffect(() => {
     const loadVoices = () => {
-      const availableVoices = window.speechSynthesis.getVoices();
-      setVoices(availableVoices);
-      console.log("Giọng khả dụng:", availableVoices.length);
+      setVoices(window.speechSynthesis.getVoices());
     };
-    
     loadVoices();
-    // Một số trình duyệt cần sự kiện này mới load được giọng
-    if (window.speechSynthesis.onvoiceschanged !== undefined) {
-       window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
+    window.speechSynthesis.onvoiceschanged = loadVoices;
 
-    // Cleanup khi thoát trang: Dừng đọc ngay lập tức
-    return () => {
-       if (synthRef.current) {
-         synthRef.current.cancel();
-       }
-    };
+    return () => synthRef.current?.cancel();
   }, []);
 
-  // 2. Load bài học
+  /* =============================
+     LOAD LESSON
+  ============================== */
   useEffect(() => {
     setLoading(true);
-    // Dừng đọc bài cũ
-    if (synthRef.current) synthRef.current.cancel();
+    synthRef.current?.cancel();
     setSpeaking(false);
     setPaused(false);
 
-    axios.get(`/api/lessons/${lessonId}`)
-      .then((res) => {
-        const data = res.data;
-        setLesson(data);
-        const duration = (data.duration_minutes || 45) * 60;
-        setTimeLeft(duration);
+    axios.get(`/api/lessons/${lessonId}`).then((res) => {
+      const data = res.data;
+      setLesson(data);
+
+      // ⏱ Khởi tạo thời gian đếm ngược (phút → giây)
+      const durationSeconds = (data.duration_minutes || 45) * 60;
+      setTimeLeft(durationSeconds);
+
+      // Fetch all lessons for the same subject to compute counts/durations
+      if (data.subject_id) {
+        axios
+          .get(`/api/lessons?subject_id=${data.subject_id}`)
+          .then((r) => {
+            const lessons = r.data || [];
+            setSubjectLessons(lessons);
+            // find index of current lesson
+            const idx = lessons.findIndex((l) => Number(l.id) === Number(data.id));
+            setLessonIndex(idx >= 0 ? idx : null);
+            // sum durations (minutes)
+            const total = lessons.reduce((acc, l) => acc + (Number(l.duration_minutes) || 0), 0);
+            setSubjectTotalDuration(total);
+          })
+          .catch((e) => {
+            console.warn("Could not load subject lessons", e.message || e);
+            setSubjectLessons([]);
+            setLessonIndex(null);
+            setSubjectTotalDuration(0);
+          })
+          .finally(() => setLoading(false));
+      } else {
         setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Lỗi tải bài:", err);
-        setLoading(false);
-      });
+      }
+    });
   }, [lessonId]);
 
-  // 3. Đồng hồ
+  /* =============================
+     COUNTDOWN TIMER
+  ============================== */
   useEffect(() => {
     if (!lesson || timeLeft <= 0) return;
+
     const interval = setInterval(() => {
-      setTimer((t) => t + 1);
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          message.success("Hết thời gian làm bài!");
+          message.success("✅ Đã hoàn thành thời gian bài học!");
+          handleEndSession(true);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
+
     return () => clearInterval(interval);
   }, [lesson, timeLeft]);
 
-  // --- HÀM XỬ LÝ ĐỌC ---
+  /* =============================
+     TEXT TO SPEECH
+  ============================== */
   const handleSpeak = () => {
     if (!synthRef.current) return;
 
@@ -122,28 +141,21 @@ const Learning = () => {
       return;
     }
 
-    // Nội dung cần đọc
-    const textContent = lesson.content && lesson.content.trim() !== ""
-        ? lesson.content
-        : `Bài học: ${lesson.title}. Chưa có nội dung chi tiết.`;
+    const content =
+      lesson.content?.trim() ||
+      `Bài học ${lesson.title}. Chưa có nội dung chi tiết.`;
 
-    // Ngắt các đoạn đọc cũ đang chờ (nếu có)
     synthRef.current.cancel();
+    const utterance = new SpeechSynthesisUtterance(content);
 
-    const utterance = new SpeechSynthesisUtterance(textContent);
-    
-    // Tìm giọng Việt (Ưu tiên giọng Google hoặc Microsoft)
-    const vnVoice = voices.find(v => v.lang.includes("vi") || v.name.includes("Vietnamese"));
+    const vnVoice = voices.find(
+      (v) => v.lang.includes("vi") || v.name.includes("Vietnamese")
+    );
     if (vnVoice) utterance.voice = vnVoice;
 
-    utterance.rate = 1.0;
     utterance.onend = () => {
       setSpeaking(false);
       setPaused(false);
-    };
-    utterance.onerror = (e) => {
-      console.error("Lỗi giọng đọc:", e);
-      setSpeaking(false);
     };
 
     utteranceRef.current = utterance;
@@ -152,16 +164,20 @@ const Learning = () => {
   };
 
   const handleReplay = () => {
-    if (synthRef.current) synthRef.current.cancel();
+    synthRef.current?.cancel();
     setSpeaking(false);
     setPaused(false);
     setTimeout(handleSpeak, 300);
   };
 
-  const handleEndSession = () => {
-    // Dừng đọc khi kết thúc
-    if (synthRef.current) synthRef.current.cancel();
-    
+  const handleEndSession = (auto = false) => {
+    synthRef.current?.cancel();
+
+    if (auto) {
+      navigate(-1);
+      return;
+    }
+
     Modal.confirm({
       title: "Kết thúc phiên học?",
       content: "Thời gian học sẽ được lưu lại.",
@@ -172,89 +188,111 @@ const Learning = () => {
   };
 
   const formatTime = (seconds) => {
-    const h = Math.floor(seconds / 3600).toString().padStart(2, "0");
-    const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, "0");
+    const m = Math.floor(seconds / 60)
+      .toString()
+      .padStart(2, "0");
     const s = (seconds % 60).toString().padStart(2, "0");
-    return `${h}:${m}:${s}`;
+    return `${m}:${s}`;
   };
 
-  if (loading) return <div className="h-screen flex justify-center items-center"><Spin size="large" /></div>;
-  if (!lesson) return <Result status="404" title="Không tìm thấy bài học" extra={<Button onClick={() => navigate(-1)}>Quay lại</Button>} />;
+  if (loading)
+    return (
+      <div className="h-screen flex justify-center items-center">
+        <Spin size="large" />
+      </div>
+    );
+
+  if (!lesson)
+    return (
+      <Result
+        status="404"
+        title="Không tìm thấy bài học"
+        extra={<Button onClick={() => navigate(-1)}>Quay lại</Button>}
+      />
+    );
 
   return (
     <div className="flex flex-col h-screen bg-[#f0f2f5]">
       {/* HEADER */}
-      <div className="bg-white px-6 py-3 border-b shadow-sm flex justify-between items-center z-10 h-16">
-        <div className="flex items-center gap-4 overflow-hidden">
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>Quay lại</Button>
-          <div className="flex flex-col justify-center">
-            <div className="flex items-center gap-2">
-              <Text strong className="text-lg truncate max-w-md text-[#003a8c]">{lesson.title}</Text>
-              {lesson.pdf_url && <Tag color="red">PDF</Tag>}
-              {lesson.video_url && <Tag color="blue">VIDEO</Tag>}
+      <div className="bg-white px-6 py-3 border-b flex justify-between items-center h-16">
+        <div className="flex items-center gap-4">
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>
+            Quay lại
+          </Button>
+          <div>
+            <Text strong className="text-lg text-[#003a8c]">
+              {lesson.title}
+            </Text>
+            <div className="text-xs text-gray-500">
+              {lessonIndex !== null && subjectLessons.length > 0 && (
+                <span>
+                  Bài {lessonIndex + 1} / {subjectLessons.length}
+                </span>
+              )}
+              {subjectTotalDuration > 0 && (
+                <span className="ml-3">• Tổng thời lượng môn: {subjectTotalDuration} phút</span>
+              )}
             </div>
           </div>
+          {lesson.pdf_url && <Tag color="red">PDF</Tag>}
+          {lesson.video_url && <Tag color="blue">VIDEO</Tag>}
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="bg-blue-50 text-blue-700 px-4 py-1.5 rounded-full font-mono font-bold border border-blue-200 flex items-center gap-2">
-            <ClockCircleOutlined /> {formatTime(timer)}
+          <div className="bg-red-50 text-red-600 px-4 py-1.5 rounded-full font-mono font-bold border flex items-center gap-2">
+            <ClockCircleOutlined />
+            {formatTime(timeLeft)}
           </div>
-          <Button type="primary" danger icon={<LogoutOutlined />} onClick={handleEndSession}>Kết thúc</Button>
+          <Button
+            type="primary"
+            danger
+            icon={<LogoutOutlined />}
+            onClick={() => handleEndSession()}
+          >
+            Kết thúc
+          </Button>
         </div>
       </div>
 
-      {/* THANH AUDIO */}
-      <div className="bg-white px-6 py-2 border-b flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-4 w-full max-w-3xl mx-auto">
-          <Tooltip title={speaking && !paused ? "Tạm dừng" : "Đọc bài giảng"}>
-            <Button
-              type="primary"
-              shape="circle"
-              size="large"
-              icon={speaking && !paused ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-              onClick={handleSpeak}
-              className={speaking && !paused ? "animate-pulse" : ""}
-            />
-          </Tooltip>
-
-          <div className="flex-1">
-            <Text strong style={{ fontSize: 13, color: "#555" }}>
-              {speaking && !paused ? "Đang đọc nội dung..." : (paused ? "Đã tạm dừng" : "Bấm nút Play để nghe nội dung bài học")}
-            </Text>
-            <div className="h-1.5 w-full bg-gray-200 rounded-full mt-1 overflow-hidden">
-              <div className={`h-full bg-blue-500 transition-all duration-500 ${speaking && !paused ? "w-full" : "w-0"}`}></div>
-            </div>
-          </div>
-
-          <Tooltip title="Đọc lại từ đầu">
-            <Button icon={<ReloadOutlined />} onClick={handleReplay} />
-          </Tooltip>
-        </div>
+      {/* AUDIO BAR */}
+      <div className="bg-white px-6 py-2 border-b flex items-center justify-between">
+        <Tooltip title={speaking && !paused ? "Tạm dừng" : "Nghe bài giảng"}>
+          <Button
+            type="primary"
+            shape="circle"
+            size="large"
+            icon={
+              speaking && !paused ? (
+                <PauseCircleOutlined />
+              ) : (
+                <PlayCircleOutlined />
+              )
+            }
+            onClick={handleSpeak}
+          />
+        </Tooltip>
+        <Button icon={<ReloadOutlined />} onClick={handleReplay} />
       </div>
 
-      {/* KHUNG HIỂN THỊ */}
-      <div className="flex-1 p-4 overflow-hidden relative">
-        <div className="w-full h-full bg-white shadow-lg rounded-xl overflow-hidden border relative">
+      {/* CONTENT */}
+      <div className="flex-1 p-4">
+        <div className="w-full h-full bg-white rounded-xl overflow-hidden border">
           {lesson.pdf_url ? (
             <iframe
               src={`${SERVER_URL}${lesson.pdf_url}#toolbar=0`}
-              className="w-full h-full border-none"
+              className="w-full h-full"
               title="PDF"
             />
           ) : lesson.video_url ? (
-            <div className="w-full h-full bg-black flex items-center justify-center">
-              <iframe
-                src={lesson.video_url}
-                className="w-full h-full border-none"
-                allowFullScreen
-                title="Video"
-              />
-            </div>
+            <iframe
+              src={lesson.video_url}
+              className="w-full h-full"
+              allowFullScreen
+              title="Video"
+            />
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400">
-              <FilePdfOutlined style={{ fontSize: 60, marginBottom: 16, opacity: 0.5 }} />
-              <p>Chưa có tài liệu hiển thị.</p>
+            <div className="h-full flex items-center justify-center text-gray-400">
+              <FilePdfOutlined style={{ fontSize: 60 }} />
             </div>
           )}
         </div>

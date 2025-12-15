@@ -37,9 +37,16 @@ instance.interceptors.response.use(
       // Token hết hạn hoặc không hợp lệ
       localStorage.removeItem("auth");
       localStorage.removeItem("token");
-      // Redirect to login nếu không phải đang ở trang login
-      if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
+      // Redirect to the correct login page depending on current route
+      try {
+        const currentPath = window.location.pathname || "";
+        const loginPath = currentPath.startsWith("/admin") ? "/admin/login" : "/student/login";
+        if (currentPath !== loginPath) {
+          window.location.href = loginPath;
+        }
+      } catch (e) {
+        // Fallback
+        window.location.href = "/student/login";
       }
     }
     return Promise.reject(error);

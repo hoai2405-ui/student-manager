@@ -119,7 +119,10 @@ const AdminLayout = () => {
       key: "logout",
       label: "Đăng xuất",
       icon: <LogoutOutlined />,
-      onClick: logout,
+      onClick: () => {
+        const path = logout();
+        navigate(path);
+      },
     },
   ];
 

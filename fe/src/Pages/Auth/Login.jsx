@@ -22,48 +22,37 @@ export default function LoginPage() {
     }
   }, [user, navigate]);
 
-  const onLogin = async (values) => {
-    setLoading(true);
-    try {
-      const res = await axios.post("/api/login", values);
+ const onLogin = async (values) => {
+  setLoading(true);
+  try {
+    const res = await axios.post("/api/login", values);
 
-      // Handle different response formats from backend
-      let userData, tokenData;
-      console.log("Login response:", res.data);
+    const { user: userData, token } = res.data;
 
-      if (res.data.user && res.data.token) {
-        // Format: {user: {...}, token: "..."}
-        userData = res.data.user;
-        tokenData = res.data.token;
-        console.log("Using nested format - user:", userData, "token:", tokenData);
-      } else if (res.data.token && (res.data.is_admin !== undefined || res.data.username)) {
-        // Format: user data directly with token
-        userData = { ...res.data };
-        tokenData = res.data.token;
-        delete userData.token; // Remove token from user data
-        console.log("Using direct format - user:", userData, "token:", tokenData);
-      } else {
-        console.error("Invalid response format:", res.data);
-        throw new Error("Invalid response format");
-      }
-
-      console.log("Final user data:", userData, "is_admin:", userData.is_admin, "role:", userData.role);
-      login(userData, tokenData);
-      localStorage.setItem("token", tokenData);
-      message.success("Đăng nhập thành công!");
-
-      // Redirect based on user type
-      const isAdmin = Boolean(
-        userData.is_admin ?? userData.isAdmin ?? userData.role === 'admin'
-      );
-      const redirectPath = isAdmin ? "/admin" : "/student";
-      navigate(redirectPath);
-    } catch (err) {
-      console.error("Login error:", err);
-      message.error("Sai tài khoản hoặc mật khẩu");
+    if (!userData || !token) {
+      throw new Error("Response login không hợp lệ");
     }
+
+    login(userData, token);
+
+    message.success("Đăng nhập thành công!");
+
+    // ✅ QUYẾT ĐỊNH REDIRECT DỰA TRÊN DATA TỪ BACKEND
+    const isAdmin = Boolean(
+      userData.is_admin ?? userData.isAdmin ?? userData.role === "admin"
+    );
+
+    navigate(isAdmin ? "/admin" : "/student");
+  } catch (err) {
+    console.error("Login error:", err);
+    message.error(
+      err.response?.data?.message || "Sai tài khoản hoặc mật khẩu"
+    );
+  } finally {
     setLoading(false);
-  };
+  }
+};
+
 
   const onRegister = async (values) => {
     setLoading(true);

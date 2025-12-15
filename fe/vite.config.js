@@ -3,12 +3,11 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: '/',
   build: {
     outDir: "dist",
   },
-  // server: {
-  //   historyApiFallback: true,
-  // },
-  // sai chỗ nào ta :D
+  server: {
+    // No longer needed since using client-side navigation
+  },
 });

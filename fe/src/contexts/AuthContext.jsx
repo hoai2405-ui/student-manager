@@ -46,9 +46,9 @@ export function AuthProvider({ children }) {
     setUser(null);
     setToken(null);
     localStorage.removeItem("auth");
-    // Redirect to appropriate login page based on user type
+    // Return the appropriate login path for client-side navigation
     const loginPath = isAdmin ? "/admin/login" : "/student/login";
-    window.location.href = loginPath;
+    return loginPath;
   }, [user]);
 
   const value = useMemo(() => ({
