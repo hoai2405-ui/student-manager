@@ -3,13 +3,13 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 
 // --- IMPORTS CỦA ADMIN ---
-import CoursePage from "../Pages/Students/CoursePage";
+import CoursePage from "../Pages/Admin/CoursePage";
 import SchedulePage from "../Pages/Schedule";
 import Dashboard from "../Pages/Dashboard";
 import RegisteredSchedules from "../Pages/Schedule/RegisteredSchedules";
-import StudentsXML from "../Pages/Students/StudentsXML";
-import StatsPage from "../Pages/Students/state";
-import Students from "../Pages/Students/index";
+import StudentsXML from "../Pages/Admin/StudentsXML";
+import StatsPage from "../Pages/Admin/state";
+import Students from "../Pages/Admin/index";
 import UsersPage from "../Pages/Users/Users";
 import ManageLessons from "../Pages/Lessons/ManageLessons"; // Kiểm tra lại đường dẫn này xem đúng file chưa nhé
 import PrivateRoute from "../Components/PrivateRoute";

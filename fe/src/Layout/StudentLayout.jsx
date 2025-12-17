@@ -7,6 +7,7 @@ import {
   UserOutlined,
   LogoutOutlined,
   RobotOutlined,
+  BarChartOutlined,
 } from "@ant-design/icons";
 
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -68,6 +69,11 @@ const StudentLayout = () => {
       key: "/student/learning", // 👇 Dùng key này chuẩn theo ý bạn
       icon: <PlayCircleOutlined />,
       label: "Môn học của tôi",
+    },
+    {
+      key: "/student/progress",
+      icon: <BarChartOutlined />,
+      label: "Tiến độ học tập",
     },
     {
       key: "/student/history",
