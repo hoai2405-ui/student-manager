@@ -25,6 +25,7 @@ import StudentMyCourses from "../Pages/Student/StudentMyCourse";
 // 👇 Bổ sung Import trang chi tiết môn học
 import StudentCourseDetail from "../Pages/Student/StudentCourseDetail";
 import SimulationPage from "../Pages/Student/SimulationPage";
+import StudentProgress from "../Pages/Student/Progress";
 
 
 // 3. ROUTER CHÍNH
@@ -53,6 +54,9 @@ export default function Router() {
 
           {/* 4. Trang học bài (PDF/Video) */}
           <Route path="learning/:lessonId" element={<Learning />} />
+
+          {/* 5. Trang tiến độ học tập */}
+          <Route path="progress" element={<StudentProgress />} />
 
           <Route path="simulation" element={<SimulationPage />} />
           <Route

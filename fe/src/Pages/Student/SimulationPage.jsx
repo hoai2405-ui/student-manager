@@ -28,6 +28,12 @@ const SimulationPage = () => {
   const handleSelectSim = (sim) => setCurrentSim(sim);
 
   const handleNext = () => {
+      // Lưu learning time trước khi chuyển simulation
+      if (currentSim) {
+          // Trigger save in SimulationPlayer by calling onNext with save flag
+          // The SimulationPlayer will handle saving when component unmounts
+      }
+
       const currentIndex = data.findIndex(d => d.id === currentSim.id);
       if (currentIndex < data.length - 1) {
           setCurrentSim(data[currentIndex + 1]);

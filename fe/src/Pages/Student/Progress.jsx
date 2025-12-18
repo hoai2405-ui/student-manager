@@ -3,7 +3,6 @@ import { Card, Progress, Table, Tag, Spin, Row, Col, Statistic, Calendar, Badge 
 import { ClockCircleOutlined, BookOutlined, TrophyOutlined, CalendarOutlined } from "@ant-design/icons";
 import axios from "../../Common/axios";
 import { useAuth } from "../../contexts/AuthContext";
-import moment from "moment";
 
 const API = "http://localhost:3001";
 
@@ -83,7 +82,7 @@ export default function StudentProgress() {
             strokeColor="#10b981"
           />
           <div className="text-xs text-gray-600 mt-1">
-            {record.learned_hours.toFixed(1)} / {record.required_hours}h
+            {Number(record.learned_hours || 0).toFixed(1)} / {record.required_hours}h
           </div>
         </div>
       )
@@ -189,25 +188,7 @@ export default function StudentProgress() {
 
         {/* Lịch học và thống kê */}
         <Row gutter={[16, 16]}>
-          <Col xs={24} lg={12}>
-            <Card title="Lịch học tuần này" className="h-full">
-              <Calendar
-                fullscreen={false}
-                dateCellRender={(date) => {
-                  // Mock data - có thể thay bằng API thật
-                  const dayOfWeek = date.day();
-                  if (dayOfWeek === 1 || dayOfWeek === 3 || dayOfWeek === 5) {
-                    return (
-                      <div className="text-xs">
-                        <Badge status="processing" text="Lý thuyết" />
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-            </Card>
-          </Col>
+         
           <Col xs={24} lg={12}>
             <Card title="Thống kê học tập" className="h-full">
               <div className="space-y-4">

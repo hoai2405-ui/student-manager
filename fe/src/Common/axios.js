@@ -26,7 +26,7 @@ instance.interceptors.request.use(
             // Nếu lưu dạng JSON { user:..., token:... }
             const parsed = JSON.parse(adminAuth);
             adminToken = parsed.token;
-        } catch (e) {
+        } catch {
             // Nếu lưu dạng string
             adminToken = adminAuth;
         }
@@ -59,7 +59,7 @@ instance.interceptors.response.use(
         const url = error.config?.url || '';
         console.log("🔍 API error for URL:", url, "Status:", error.response.status);
 
-        if (url.includes('/api/student/dashboard/') || url.includes('/api/student/summary/')) {
+        if (url.includes('/api/student/dashboard/') || url.includes('/api/student/summary/') || url.includes('/api/progress/')) {
             console.warn("⚠️ Student API failed, but not redirecting:", url);
             return Promise.reject(error); // Let component handle it
         }

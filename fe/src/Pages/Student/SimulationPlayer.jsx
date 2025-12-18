@@ -1,26 +1,109 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button, Modal } from "antd";
-import { 
-  FlagFilled, 
-  ReloadOutlined, 
-  StepForwardOutlined, 
+import { useNavigate } from "react-router-dom";
+import {
+  FlagFilled,
+  ReloadOutlined,
+  StepForwardOutlined,
   PauseCircleOutlined,
   PlayCircleFilled,
   PlayCircleOutlined,
-  FullscreenOutlined
+  FullscreenOutlined,
+  SaveOutlined
 } from "@ant-design/icons";
+import axios from "../../Common/axios";
+import { useAuth } from "../../contexts/AuthContext";
 
 const SimulationPlayer = ({ data, onNext }) => {
   const videoRef = useRef(null);
+  const timerRef = useRef(null);
+  const learningTimeRef = useRef(0);
+
   const [isPlaying, setIsPlaying] = useState(false);
-  const [flagTime, setFlagTime] = useState(null); 
+  const [flagTime, setFlagTime] = useState(null);
   const [score, setScore] = useState(null);
   const [showResult, setShowResult] = useState(false);
-  
-  const [currentTime, setCurrentTime] = useState(0); 
-  const [duration, setDuration] = useState(0);
 
-  const SCORE_ZONE = 0.5; 
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [learningTime, setLearningTime] = useState(0);
+
+  const SCORE_ZONE = 0.5;
+  const navigate = useNavigate();
+
+  const { user } = useAuth();
+
+  // Hàm lưu và thoát
+  const handleSaveAndExit = async () => {
+    await saveLearningTime();
+    navigate(-1); // Quay lại trang danh sách simulation
+  };
+
+  // Hàm lưu learning time
+  const saveLearningTime = async () => {
+    console.log(`🔍 saveLearningTime called: time=${learningTimeRef.current}, user=${user?.id}`);
+    if (learningTimeRef.current >= 30 && user?.id) { // Yêu cầu tối thiểu 30 giây
+      try {
+        console.log("📡 Fetching subjects...");
+        // Tìm subject_id cho simulations (code "MP")
+        const subjectResponse = await axios.get("/api/subjects");
+        console.log("📋 Subjects received:", subjectResponse.data);
+        const simulationSubject = subjectResponse.data.find(s => s.code === "MP");
+        console.log("🎯 Simulation subject found:", simulationSubject);
+
+        if (simulationSubject) {
+          // Tạo một lesson_id giả cho simulation (dùng negative ID để phân biệt)
+          const fakeLessonId = -data.id; // Dùng negative simulation ID
+
+          console.log("💾 Saving progress...");
+          await axios.post("/api/student/lesson-progress", {
+            student_id: user.id,
+            lesson_id: fakeLessonId, // Dùng fake lesson ID
+            watched_seconds: learningTimeRef.current,
+            duration_minutes: Math.ceil(learningTimeRef.current / 60),
+            subject_id: simulationSubject.id, // Truyền trực tiếp subject_id
+          });
+          console.log(`✅ Đã lưu ${Math.round(learningTimeRef.current / 60)} phút học simulation`);
+        } else {
+          console.error("❌ Không tìm thấy subject MP");
+        }
+      } catch (err) {
+        console.error("❌ Lỗi lưu learning time:", err);
+      }
+    } else {
+      console.log(`⚠️ Không đủ điều kiện lưu: time=${learningTimeRef.current}, user=${user?.id}`);
+    }
+  };
+
+  // Timer cho learning time
+  useEffect(() => {
+    console.log(`🎬 Video playing state changed: ${isPlaying}, current time: ${learningTimeRef.current}`);
+    if (isPlaying) {
+      timerRef.current = setInterval(() => {
+        learningTimeRef.current += 1;
+        setLearningTime(learningTimeRef.current);
+        console.log(`⏰ Timer tick: ${learningTimeRef.current} seconds`);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isPlaying]);
+
+  // Cleanup khi component unmount
+  useEffect(() => {
+    return () => {
+      // Lưu learning time khi thoát
+      saveLearningTime();
+    };
+  }, []);
 
   useEffect(() => {
     handleReplay();
@@ -110,8 +193,8 @@ const SimulationPlayer = ({ data, onNext }) => {
   const getWidthPct = (seconds) => ((seconds / duration) * 100) + "%";
   const formatTime = (time) => {
       if (!time && time !== 0) return "00:00";
-      try { return new Date(time * 1000).toISOString().substr(14, 5); } 
-      catch (error) { return "00:00"; }
+      try { return new Date(time * 1000).toISOString().substr(14, 5); }
+      catch { return "00:00"; }
   };
 
   return (
@@ -195,6 +278,7 @@ sm:min-h-[400px]
          </div>
 
          <div className="flex gap-2">
+             <Button onClick={handleSaveAndExit} danger icon={<SaveOutlined />}>Lưu & Thoát</Button>
              <Button onClick={handleReplay} icon={<ReloadOutlined />}>Làm lại</Button>
              <Button type="primary" onClick={onNext} icon={<StepForwardOutlined />}>Tiếp</Button>
          </div>
