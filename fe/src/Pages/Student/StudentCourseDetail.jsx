@@ -7,35 +7,28 @@ import axios from "axios";
 const { Title } = Typography;
 
 const StudentCourseDetail = () => {
-  // 👇 Lấy code từ URL - tên param phải khớp với route
   const { subjectcode } = useParams();
   const navigate = useNavigate();
   
   const [lessons, setLessons] = useState([]);
   const [subjectName, setSubjectName] = useState("Đang tải...");
   const [loading, setLoading] = useState(true);
+  
+  // 👇 QUAN TRỌNG: Đã thêm state này để lưu tiến độ
+  const [progressData, setProgressData] = useState({}); 
 
   useEffect(() => {
     setLoading(true);
 
-    // 1. Lấy danh sách tất cả môn học trước
     axios.get("http://localhost:3001/api/subjects")
       .then((res) => {
         const subjects = res.data;
-        console.log("Danh sách subjects:", subjects);
-        console.log("Tìm subject với code:", subjectcode);
-
-        // 2. Tìm môn học có CODE trùng với URL (kiểm tra nhiều tên field có thể)
         const currentSubject = subjects.find(s =>
           s.code === subjectcode || s.subject_code === subjectcode || s.ma_mon === subjectcode
         );
 
-        console.log("Subject tìm được:", currentSubject);
-
         if (currentSubject) {
             setSubjectName(currentSubject.name || currentSubject.subject_name || "Môn học");
-
-            // 3. Có ID rồi thì mới gọi API lấy bài giảng (dùng subject_id)
             fetchLessons(currentSubject.id);
         } else {
             message.error("Không tìm thấy môn học này!");
@@ -50,21 +43,53 @@ const StudentCourseDetail = () => {
 
   }, [subjectcode]);
 
-  const fetchLessons = (subjectId) => {
-    axios.get(`http://localhost:3001/api/lessons?subject_id=${subjectId}`)
-      .then((res) => {
-        setLessons(res.data);
+  const fetchLessons = async (subjectId) => {
+    try {
+      // 1. Load lessons
+      const lessonsRes = await axios.get(`http://localhost:3001/api/lessons?subject_id=${subjectId}`);
+      const lessonsData = lessonsRes.data || [];
+      setLessons(lessonsData);
+
+      // 2. Load progress (nếu có token)
+      const token = localStorage.getItem("studentToken"); // Lấy token
+      
+      if (token && lessonsData.length > 0) {
+        const progressPromises = lessonsData.map(lesson =>
+          axios.get(`http://localhost:3001/api/progress/${lesson.id}`, {
+             headers: { Authorization: `Bearer ${token}` } // Gửi token lên
+          })
+            .then(res => ({ lessonId: lesson.id, progress: res.data.learned_seconds || 0 }))
+            .catch(() => ({ lessonId: lesson.id, progress: 0 }))
+        );
+
+        const progressResults = await Promise.all(progressPromises);
+        const progressMap = {};
+        progressResults.forEach(item => {
+          progressMap[item.lessonId] = item.progress;
+        });
+        setProgressData(progressMap); // Lưu vào state
+      }
+
+    } catch (err) {
+      console.error("Load lessons error:", err);
+    } finally {
         setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setLoading(false);
-      });
+    }
   };
 
-  // ... (Phần columns và render bên dưới GIỮ NGUYÊN KHÔNG ĐỔI) ...
+  // Helper functions
+  const getProgressPercent = (lesson) => {
+    const learned = progressData[lesson.id] || 0;
+    const total = (lesson.duration_minutes || 45) * 60;
+    return Math.min((learned / total) * 100, 100);
+  };
+
+  const isCompleted = (lesson) => {
+    return getProgressPercent(lesson) >= 80;
+  };
+
   const columns = [
-    { 
+    {
       title: 'STT', dataIndex: 'lesson_order', width: 70, align: 'center',
       render: (text) => <b>{text}</b>
     },
@@ -79,20 +104,44 @@ const StudentCourseDetail = () => {
     {
       title: 'Tên bài giảng', dataIndex: 'title',
       render: (text, record) => (
-        <div>
-            <div className="font-bold text-base text-gray-800">{text}</div>
+        <div className="flex items-center gap-2">
+          <div>
+            <div className={`font-bold text-base ${isCompleted(record) ? 'text-green-600' : 'text-gray-800'}`}>
+              {text}
+            </div>
             {record.lesson_code && <div className="text-xs text-gray-500">Mã: {record.lesson_code}</div>}
+          </div>
+          {isCompleted(record) && (
+            <CheckCircleOutlined style={{ color: '#10b981', fontSize: '20px' }} />
+          )}
+        </div>
+      )
+    },
+    {
+      title: 'Tiến độ', width: 120, align: 'center',
+      render: (_, record) => (
+        <div className="text-center">
+          <div className={`text-sm font-semibold ${isCompleted(record) ? 'text-green-600' : 'text-blue-600'}`}>
+            {Math.round(getProgressPercent(record))}%
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+            <div
+              className={`h-2 rounded-full ${isCompleted(record) ? 'bg-green-500' : 'bg-blue-500'}`}
+              style={{ width: `${getProgressPercent(record)}%` }}
+            ></div>
+          </div>
         </div>
       )
     },
     {
       title: 'Thao tác', key: 'action', width: 150, align: 'center',
       render: (_, record) => (
-        <Button 
-            type="primary" shape="round" icon={<PlayCircleOutlined />} className="bg-blue-600 hover:bg-blue-500"
+        <Button
+            type="primary" shape="round" icon={<PlayCircleOutlined />}
+            className={`${isCompleted(record) ? 'bg-green-600 hover:bg-green-500' : 'bg-blue-600 hover:bg-blue-500'}`}
             onClick={() => navigate(`/student/learning/${record.id}`)}
         >
-            Vào học
+            {isCompleted(record) ? 'Học lại' : 'Vào học'}
         </Button>
       )
     }
@@ -116,7 +165,21 @@ const StudentCourseDetail = () => {
                 </div>
                 <div>
                     <Title level={4} style={{ margin: 0 }}>{subjectName}</Title>
-                    <span className="text-gray-500">Tổng số: <b>{lessons.length}</b> bài giảng</span>
+                    <span className="text-gray-500">
+                      Tổng số: <b>{lessons.length}</b> bài giảng
+                      {/* Đã thêm kiểm tra progressData tồn tại */}
+                      {progressData && Object.keys(progressData).length > 0 && (
+                        <span className="ml-2">
+                          • Đã hoàn thành: <b className="text-green-600">
+                            {lessons.filter(lesson => {
+                                const learned = progressData[lesson.id] || 0;
+                                const total = (lesson.duration_minutes || 45) * 60;
+                                return (learned / total) * 100 >= 80;
+                            }).length}
+                          </b>
+                        </span>
+                      )}
+                    </span>
                 </div>
             </div>
             <Button onClick={() => navigate('/student/learning')}>Quay lại</Button>

@@ -1,5 +1,5 @@
 import { Layout, Menu, Dropdown, theme, Avatar } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   HomeOutlined,
   PlayCircleOutlined,
@@ -18,8 +18,15 @@ const { Content, Sider, Header } = Layout;
 
 const StudentLayout = () => {
   const { user, logout } = useAuth();
-  const localStudent = JSON.parse(localStorage.getItem("studentInfo"));
-  const userInfo = user?.student || user || localStudent;
+
+  const userInfo = useMemo(() => {
+    try {
+      const localStudent = JSON.parse(localStorage.getItem("studentInfo"));
+      return user?.student || user || localStudent || null;
+    } catch (error) {
+      return user?.student || user || null;
+    }
+  }, [user]);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,17 +38,11 @@ const StudentLayout = () => {
     token: { borderRadiusLG },
   } = theme.useToken();
 
-  // --- SỬA LOGIC HIGHLIGHT MENU ---
   useEffect(() => {
     const path = location.pathname;
-
     if (path === "/student") {
-      // Nếu đúng là trang chủ gốc
       setSelectedKey("/student");
-    }
-    // Nếu đường dẫn bắt đầu bằng /student/learning (Bao gồm cả learning và learning/:id)
-    // Hoặc /student/subjects (Chi tiết môn)
-    else if (
+    } else if (
       path.startsWith("/student/learning") ||
       path.startsWith("/student/subjects")
     ) {
@@ -51,14 +52,47 @@ const StudentLayout = () => {
     }
   }, [location.pathname]);
 
-  // Auto-update window width for responsive layout
   useEffect(() => {
     const onResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // --- MENU ITEMS ---
+  // --- HÀM XỬ LÝ ẢNH (QUAN TRỌNG) ---
+  const getAvatarSrc = (imgData) => {
+    if (!imgData) return null; // Nếu không có dữ liệu -> Trả về null để hiện Icon
+
+    console.log("🔍 Avatar data:", imgData.substring(0, 100) + "..."); // Debug
+
+    // 1. Nếu là đường dẫn file (http... hoặc /uploads...) -> Trả về y nguyên
+    if (imgData.includes("/") && !imgData.includes("base64")) {
+        // Nếu là path tương đối thì thêm domain vào
+        if (imgData.startsWith("/uploads")) return `http://localhost:3001${imgData}`;
+        return imgData;
+    }
+
+    // 2. Xử lý ảnh Base64 (Từ XML hoặc database)
+    // Xóa hết các ký tự xuống dòng, khoảng trắng thừa
+    const cleanData = imgData.replace(/[\r\n\s]+/g, "");
+
+    // Nếu đã có đầu tố chuẩn -> Trả về
+    if (cleanData.startsWith("data:image")) {
+      console.log("✅ Avatar: Already has data:image prefix");
+      return cleanData;
+    }
+
+    // Nếu là chuỗi base64 thuần (không có prefix) -> Thêm prefix
+    // Kiểm tra xem có phải base64 không (chỉ chứa A-Z, a-z, 0-9, +, /, =)
+    if (/^[A-Za-z0-9+/=]+$/.test(cleanData) && cleanData.length > 100) {
+      console.log("✅ Avatar: Adding base64 prefix");
+      return `data:image/jpeg;base64,${cleanData}`;
+    }
+
+    // Nếu không phải base64 và không phải URL -> Trả về null
+    console.log("❌ Avatar: Invalid format, returning null");
+    return null;
+  };
+
   const items = [
     {
       key: "/student",
@@ -66,7 +100,7 @@ const StudentLayout = () => {
       label: "Trang chủ",
     },
     {
-      key: "/student/learning", // 👇 Dùng key này chuẩn theo ý bạn
+      key: "/student/learning",
       icon: <PlayCircleOutlined />,
       label: "Môn học của tôi",
     },
@@ -206,12 +240,16 @@ const StudentLayout = () => {
                 gap: 10,
               }}
             >
+              {/* --- ĐÃ SỬA LẠI AVATAR --- */}
               <Avatar
                 size={40}
-                src={userInfo?.anh_chan_dung}
+                src={getAvatarSrc(userInfo?.anh_chan_dung)}
                 icon={<UserOutlined />}
-                style={{ border: "2px solid #1890ff" }}
-                onError={() => true}
+                style={{ 
+                    border: "2px solid #1890ff",
+                    backgroundColor: userInfo?.anh_chan_dung ? 'transparent' : '#1890ff' 
+                }}
+                // Bỏ hết các sự kiện onError, onLoad thủ công
               />
 
               <div

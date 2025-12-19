@@ -17,19 +17,59 @@ const StudentMyCourses = () => {
   const [loading, setLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState(null); // State để xử lý hover
 
-  // Lấy danh sách môn học
+  // Lấy danh sách môn học với số bài giảng thực tế và thời lượng yêu cầu
   useEffect(() => {
-    axios
-      .get("http://localhost:3001/api/subjects")
-      .then((res) => {
-        setSubjects(res.data);
+    const loadSubjectsData = async () => {
+      try {
+        // 1. Lấy danh sách subjects
+        const subjectsRes = await axios.get("http://localhost:3001/api/subjects");
+        const subjectsData = subjectsRes.data;
+
+        // 2. Lấy số bài giảng thực tế cho mỗi subject
+        const subjectsWithLessonCount = await Promise.all(
+          subjectsData.map(async (subject) => {
+            try {
+              const lessonsRes = await axios.get(`http://localhost:3001/api/lessons?subject_id=${subject.id}`);
+              const lessonCount = lessonsRes.data.length;
+
+              // 3. Lấy thời lượng yêu cầu từ subject_requirements (nếu có)
+              let requiredHours = subject.total_hours || 0; // Default từ subjects table
+              try {
+                const reqRes = await axios.get(`http://localhost:3001/api/subject-requirements?subject_id=${subject.id}`);
+                if (reqRes.data && reqRes.data.length > 0) {
+                  // Lấy thời lượng yêu cầu cao nhất (cho các hạng GPLX khác nhau)
+                  requiredHours = Math.max(...reqRes.data.map(req => req.required_hours));
+                }
+              } catch (reqErr) {
+                console.warn(`Không tìm thấy yêu cầu cho môn ${subject.code}:`, reqErr.message);
+              }
+
+              return {
+                ...subject,
+                lesson_count: lessonCount,
+                required_hours: requiredHours
+              };
+            } catch (lessonErr) {
+              console.warn(`Lỗi đếm bài giảng cho môn ${subject.code}:`, lessonErr.message);
+              return {
+                ...subject,
+                lesson_count: 0,
+                required_hours: subject.total_hours || 0
+              };
+            }
+          })
+        );
+
+        setSubjects(subjectsWithLessonCount);
         setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
+      } catch (err) {
+        console.error("Lỗi tải danh sách môn học:", err);
         message.error("Lỗi tải danh sách môn học");
         setLoading(false);
-      });
+      }
+    };
+
+    loadSubjectsData();
   }, []);
 
   // --- LOGIC CHUYỂN HƯỚNG QUAN TRỌNG ---
@@ -191,16 +231,15 @@ const StudentMyCourses = () => {
                 <div style={styles.infoSection}>
                   <div style={{ flex: 1 }}>
                     <div style={styles.number}>
-                        {/* Số bài giả định, sau này có thể count từ DB */}
-                        {sub.code === 'PL' ? 40 : (sub.code === 'MP' ? 120 : 15)}
-                    </div> 
+                        {sub.lesson_count || 0}
+                    </div>
                     <div style={styles.label}>Số bài giảng</div>
                   </div>
-                  
+
                   <div style={styles.divider}></div>
 
                   <div style={{ flex: 1 }}>
-                    <div style={styles.number}>{sub.total_hours}h</div>
+                    <div style={styles.number}>{sub.required_hours || sub.total_hours || 0}h</div>
                     <div style={styles.label}>Thời lượng</div>
                   </div>
                 </div>
