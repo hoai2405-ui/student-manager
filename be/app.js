@@ -279,31 +279,6 @@ async function createTables() {
     `);
     console.log("✅ Đảm bảo table subject_requirements tồn tại");
 
-    // Xóa requirements cũ cho license_class B1 trước khi thêm mới
-    await pool.query("DELETE FROM subject_requirements WHERE license_class = 'B1'");
-
-    // Thêm dữ liệu subject_requirements cho các môn học
-    const subjectRequirementsData = [
-      { code: 'PL', hours: 90, license_class: 'B1' },
-      { code: 'DD', hours: 15, license_class: 'B1' },
-      { code: 'CT', hours: 10, license_class: 'B1' },
-      { code: 'KT', hours: 20, license_class: 'B1' },
-      { code: 'MP', hours: 4, license_class: 'B1' }, // Tình huống mô phỏng
-    ];
-
-    for (const req of subjectRequirementsData) {
-      // Tìm subject_id theo code
-      const [subjectRows] = await pool.query("SELECT id FROM subjects WHERE code = ?", [req.code]);
-      if (subjectRows.length > 0) {
-        const subjectId = subjectRows[0].id;
-        await pool.query(
-          "INSERT INTO subject_requirements (subject_id, required_hours, license_class) VALUES (?, ?, ?)",
-          [subjectId, req.hours, req.license_class]
-        );
-        console.log(`✅ Đã thêm requirement cho ${req.code}: ${req.hours}h`);
-      }
-    }
-
     // Tạo bảng student_lesson_progress để lưu tiến độ từng bài học
     await pool.query(`
       CREATE TABLE IF NOT EXISTS student_lesson_progress (
@@ -387,6 +362,31 @@ async function createTables() {
           [sub.name, sub.code, sub.hours]
         );
         console.log(`✅ Đã thêm môn học: ${sub.name}`);
+      }
+    }
+
+    // Thêm dữ liệu subject_requirements sau khi đã có subjects
+    const subjectRequirementsData = [
+      { code: 'PL', hours: 90, license_class: 'B1' },
+      { code: 'DD', hours: 15, license_class: 'B1' },
+      { code: 'CT', hours: 10, license_class: 'B1' },
+      { code: 'KT', hours: 20, license_class: 'B1' },
+      { code: 'MP', hours: 4, license_class: 'B1' },
+    ];
+
+    // Xóa requirements cũ cho license_class B1 trước khi thêm mới
+    await pool.query("DELETE FROM subject_requirements WHERE license_class = 'B1'");
+
+    for (const req of subjectRequirementsData) {
+      // Tìm subject_id theo code
+      const [subjectRows] = await pool.query("SELECT id FROM subjects WHERE code = ?", [req.code]);
+      if (subjectRows.length > 0) {
+        const subjectId = subjectRows[0].id;
+        await pool.query(
+          "INSERT INTO subject_requirements (subject_id, required_hours, license_class) VALUES (?, ?, ?)",
+          [subjectId, req.hours, req.license_class]
+        );
+        console.log(`✅ Đã thêm requirement cho ${req.code}: ${req.hours}h`);
       }
     }
   } catch (err) {
@@ -1279,21 +1279,85 @@ app.post("/api/students/update-status", async (req, res) => {
   }
 });
 
-// API: Thống kê trạng thái học viên (cho biểu đồ)
-app.get("/api/stats", async (req, res) => {
-  const query = `
-    SELECT 'status_ly_thuyet' AS type, status_ly_thuyet as status, COUNT(*) as count FROM students GROUP BY status_ly_thuyet
-    UNION ALL
-    SELECT 'status_mo_phong' AS type, status_mo_phong as status, COUNT(*) as count FROM students GROUP BY status_mo_phong
-    UNION ALL
-    SELECT 'status_duong' AS type, status_duong as status, COUNT(*) as count FROM students GROUP BY status_duong
-    UNION ALL
-    SELECT 'status_truong' AS type, status_truong as status, COUNT(*) as count FROM students GROUP BY status_truong
-  `;
+// API: Thống kê học tập (thay thế thống kê thi cũ)
+app.get("/api/learning-stats", async (req, res) => {
   try {
-    const [results] = await pool.query(query);
-    res.json(results);
+    // 1. Thống kê tổng quan
+    const [[{ total_students }]] = await pool.query("SELECT COUNT(*) as total_students FROM students");
+    const [[{ total_courses }]] = await pool.query("SELECT COUNT(*) as total_courses FROM courses");
+    const [[{ total_subjects }]] = await pool.query("SELECT COUNT(*) as total_subjects FROM subjects");
+    const [[{ total_lessons }]] = await pool.query("SELECT COUNT(*) as total_lessons FROM lessons");
+
+    // 2. Thống kê tiến độ học viên
+    const [studentProgress] = await pool.query(`
+      SELECT
+        s.id,
+        s.ho_va_ten,
+        s.so_cmt,
+        s.hang_gplx,
+        COALESCE(SUM(lh.minutes), 0) / 60 as learned_hours,
+        COUNT(DISTINCT lh.subject_id) as subjects_started,
+        (SELECT COUNT(*) FROM subjects) as total_subjects
+      FROM students s
+      LEFT JOIN learning_history lh ON s.id = lh.student_id
+      GROUP BY s.id, s.ho_va_ten, s.so_cmt, s.hang_gplx
+      ORDER BY learned_hours DESC
+      LIMIT 20
+    `);
+
+    // 3. Thống kê tiến độ môn học
+    const [subjectProgress] = await pool.query(`
+      SELECT
+        sub.id,
+        sub.name as subject_name,
+        sub.code,
+        COUNT(DISTINCT l.id) as total_lessons,
+        COUNT(DISTINCT CASE WHEN slp.completed = 1 THEN slp.lesson_id END) as completed_lessons,
+        COALESCE(SUM(lh.minutes), 0) / 60 as total_learned_hours,
+        AVG(CASE WHEN slp.completed = 1 THEN 100 ELSE
+          CASE WHEN slp.minutes_learned > 0 THEN
+            LEAST((slp.minutes_learned / (l.duration_minutes * 60)) * 100, 99)
+          ELSE 0 END
+        END) as avg_completion_rate
+      FROM subjects sub
+      LEFT JOIN lessons l ON sub.id = l.subject_id
+      LEFT JOIN student_lesson_progress slp ON l.id = slp.lesson_id
+      LEFT JOIN learning_history lh ON sub.id = lh.subject_id
+      GROUP BY sub.id, sub.name, sub.code
+      ORDER BY total_learned_hours DESC
+    `);
+
+    // 4. Thống kê khoá học
+    const [courseStats] = await pool.query(`
+      SELECT
+        c.id,
+        c.ten_khoa_hoc,
+        c.ma_khoa_hoc,
+        c.hang_gplx,
+        COUNT(DISTINCT s.id) as total_students,
+        COUNT(DISTINCT CASE WHEN s.status = 'dat' THEN s.id END) as passed_students,
+        COUNT(DISTINCT CASE WHEN s.status = 'rot' THEN s.id END) as failed_students,
+        AVG(CASE WHEN lh.minutes > 0 THEN lh.minutes / 60 ELSE 0 END) as avg_study_hours
+      FROM courses c
+      LEFT JOIN students s ON c.ma_khoa_hoc = s.ma_khoa_hoc
+      LEFT JOIN learning_history lh ON s.id = lh.student_id
+      GROUP BY c.id, c.ten_khoa_hoc, c.ma_khoa_hoc, c.hang_gplx
+      ORDER BY total_students DESC
+    `);
+
+    res.json({
+      overview: {
+        total_students,
+        total_courses,
+        total_subjects,
+        total_lessons
+      },
+      student_progress: studentProgress,
+      subject_progress: subjectProgress,
+      course_stats: courseStats
+    });
   } catch (err) {
+    console.error("Learning stats error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1802,6 +1866,30 @@ app.get(
   }
 );
 
+// API: Lấy yêu cầu môn học theo subject_id
+app.get("/api/subject-requirements", async (req, res) => {
+  try {
+    const { subject_id } = req.query;
+
+    if (!subject_id) {
+      return res.status(400).json({ message: "Thiếu subject_id" });
+    }
+
+    const [rows] = await pool.query(
+      "SELECT * FROM subject_requirements WHERE subject_id = ?",
+      [subject_id]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching subject requirements:", err);
+    res.status(500).json({
+      message: "Lỗi lấy yêu cầu môn học",
+      error: err.message,
+    });
+  }
+});
+
 // ...existing code...
 // dành cho trang học viên
 
@@ -1860,6 +1948,7 @@ app.post("/api/student/login", async (req, res) => {
         hang_gplx: student.hang_gplx,
         ten_khoa_hoc,
         ma_khoa_hoc,
+        anh_chan_dung: student.anh_chan_dung || null,
         role: "student",
       },
       token: token,
