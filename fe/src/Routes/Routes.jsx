@@ -7,9 +7,9 @@ import CoursePage from "../Pages/Admin/CoursePage";
 import SchedulePage from "../Pages/Schedule";
 import Dashboard from "../Pages/Dashboard";
 import RegisteredSchedules from "../Pages/Schedule/RegisteredSchedules";
-import StudentsXML from "../Pages/Admin/StudentsXML";
 import StatsPage from "../Pages/Admin/state";
 import Students from "../Pages/Admin/index";
+import CreateStudent from "../Pages/Admin/createStudent";
 import UsersPage from "../Pages/Users/Users";
 import ManageLessons from "../Pages/Lessons/ManageLessons"; // Kiểm tra lại đường dẫn này xem đúng file chưa nhé
 import PrivateRoute from "../Components/PrivateRoute";
@@ -94,7 +94,7 @@ export default function Router() {
           <Route key="admin-courses" path="courses" element={<CoursePage />} />
           <Route key="admin-lessons" path="lessons" element={<ManageLessons />} />
           <Route key="admin-students" path="students" element={<Students />} />
-          <Route key="admin-students-xml" path="students-xml" element={<StudentsXML />} />
+          <Route key="admin-students-new" path="students/new" element={<CreateStudent />} />
           <Route key="admin-stats" path="stats" element={<StatsPage />} />
           <Route key="admin-schedules" path="schedules" element={<SchedulePage />} />
           <Route

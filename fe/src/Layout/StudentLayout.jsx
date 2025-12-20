@@ -34,6 +34,7 @@ const StudentLayout = () => {
   const [selectedKey, setSelectedKey] = useState(location.pathname);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
 
+
   const {
     token: { borderRadiusLG },
   } = theme.useToken();
@@ -57,6 +58,8 @@ const StudentLayout = () => {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+
 
   // --- HÀM XỬ LÝ ẢNH (QUAN TRỌNG) ---
   const getAvatarSrc = (imgData) => {

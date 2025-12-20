@@ -7,7 +7,6 @@ import CoursePage from "../Pages/Students/CoursePage";
 import SchedulePage from "../Pages/Schedule";
 import Dashboard from "../Pages/Dashboard";
 import RegisteredSchedules from "../Pages/Schedule/RegisteredSchedules";
-import StudentsXML from "../Pages/Students/StudentsXML";
 import StatsPage from "../Pages/Students/state";
 import Students from "../Pages/Students/index";
 import UsersPage from "../Pages/Users/Users";
@@ -95,7 +94,6 @@ export default function Router() {
           <Route key="admin-courses" path="courses" element={<CoursePage />} />
           <Route key="admin-lessons" path="lessons" element={<ManageLessons />} />
           <Route key="admin-students" path="students" element={<Students />} />
-          <Route key="admin-students-xml" path="students-xml" element={<StudentsXML />} />
           <Route key="admin-stats" path="stats" element={<StatsPage />} />
           <Route key="admin-schedules" path="schedules" element={<SchedulePage />} />
           <Route

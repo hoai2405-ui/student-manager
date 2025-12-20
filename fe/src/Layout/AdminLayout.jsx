@@ -29,7 +29,7 @@ const AdminLayout = () => {
   const [selectedKey, setSelectedKey] = useState(location.pathname);
 
   const {
-    token: { colorBgContainer, borderRadiusLG },
+    token: { borderRadiusLG },
   } = theme.useToken();
 
   useEffect(() => {
@@ -44,11 +44,8 @@ const AdminLayout = () => {
       setSelectedKey(ROUTES_PATH.ADMIN_DASHBOARD);
     }
     // 2. Các trang con khác (check cụ thể trước)
-    else if (path === ROUTES_PATH.ADMIN_STUDENTS_XML) {
-      setSelectedKey(ROUTES_PATH.ADMIN_STUDENTS_XML);
-    }
     else if (path === ROUTES_PATH.ADMIN_STUDENTS) {
-      setSelectedKey("admin-students-submenu");
+      setSelectedKey(ROUTES_PATH.ADMIN_STUDENTS);
     }
     else if (path.startsWith(ROUTES_PATH.ADMIN_LESSONS)) {
       setSelectedKey(ROUTES_PATH.ADMIN_LESSONS);
@@ -76,19 +73,9 @@ const AdminLayout = () => {
     { key: ROUTES_PATH.ADMIN_COURSES, icon: <BookOutlined />, label: "Khoá học" },
     {key: ROUTES_PATH.ADMIN_LESSONS, icon: <BookOutlined />, label: "Quản lý bài giảng" },
     {
-      key: "admin-students-submenu",
+      key: ROUTES_PATH.ADMIN_STUDENTS,
       icon: <UsergroupDeleteOutlined />,
       label: "Học Viên",
-      children: [
-        {
-          key: ROUTES_PATH.ADMIN_STUDENTS,
-          label: "📝 Học viên thi sát hạch",
-        },
-        {
-          key: ROUTES_PATH.ADMIN_STUDENTS_XML,
-          label: "📸 Danh sách học viên",
-        },
-      ],
     },
     { key: ROUTES_PATH.ADMIN_STATS, icon: <BarChartOutlined />, label: "Thống kê" },
     { key: ROUTES_PATH.ADMIN_SCHEDULES, icon: <CalendarOutlined />, label: "Lịch học" },

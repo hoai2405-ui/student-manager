@@ -1,4 +1,17 @@
-import { PlusOutlined, SearchOutlined, DownloadOutlined, UserOutlined } from "@ant-design/icons";
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  PlusOutlined,
+  SearchOutlined,
+  DownloadOutlined,
+  UserOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  IdcardOutlined,
+  CalendarOutlined,
+  ReadOutlined,
+  ManOutlined,
+  WomanOutlined
+} from "@ant-design/icons";
 import {
   Button,
   Input,
@@ -12,9 +25,14 @@ import {
   DatePicker,
   Grid,
   Avatar,
+  Card,
+  Tag,
+  Tooltip,
+  Row,
+  Col,
+  Typography
 } from "antd";
 import { debounce } from "lodash";
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ROUTES_PATH } from "../../Common/constants";
 import axios from "../../Common/axios";
@@ -23,64 +41,109 @@ import * as XLSX from 'xlsx';
 import { TableSkeleton } from '../../Components/Loading';
 
 const { useBreakpoint } = Grid;
+const { Title, Text } = Typography;
+
+// --- HÀM XỬ LÝ ẢNH AN TOÀN ---
+const getAvatarSrc = (imgData) => {
+  if (!imgData) return null;
+  if (imgData.includes("http") || imgData.includes("/uploads")) {
+     if(imgData.startsWith("/uploads")) return `http://localhost:3001${imgData}`;
+     return imgData; 
+  }
+  const cleanData = imgData.replace(/[\r\n\s]+/g, "");
+  if (cleanData.startsWith("data:image")) return cleanData;
+  if (cleanData.length > 100) return `data:image/jpeg;base64,${cleanData}`;
+  return null;
+};
 
 const Students = () => {
   const screens = useBreakpoint();
   const navigate = useNavigate();
+  
+  // State
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [tableParams, setTableParams] = useState({ pagination: { current: 1, pageSize: 10 } });
+  
+  // Filter State
   const [name, setName] = useState("");
   const [cccd, setCccd] = useState("");
-  const [tableParams, setTableParams] = useState({
-    pagination: { current: 1, pageSize: 10 },
-  });
-  const [showModal, setShowModal] = useState(false);
-  const [editingStudent, seteditingStudent] = useState(null);
-
-  const [selectedCourse, setSelectedCourse] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedCourse, setSelectedCourse] = useState(null);
   const [courseList, setCoursesList] = useState([]);
 
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+
+  // 1. Load danh sách khóa học
   useEffect(() => {
-    if (selectedCourse) {
+    axios.get("/api/courses").then((res) => {
+        setCoursesList(res.data);
+    }).catch(() => {});
+  }, []);
+
+  // 2. Fetch Data
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (selectedCourse) params.ma_khoa_hoc = selectedCourse;
+      if (name) params.name = name.trim();
+      if (cccd) params.cccd = cccd.trim();
+
+      console.log("Fetching students with params:", params);
+      const res = await axios.get("/api/students", { params });
+      console.log("API response data:", res.data);
+      setData(res.data || []);
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [name, cccd, selectedCourse]);
+
+  const debouncedFetch = useCallback(debounce(() => fetchData(), 500), [fetchData]);
+
+  // Effect triggers
+  useEffect(() => {
+    if (selectedCourse && !name.trim() && !cccd.trim()) {
+      // Chỉ hiển thị học viên khi đã chọn khóa và không có từ khóa tìm kiếm
       fetchData();
-    } else {
-      // Clear data when no course is selected
+    } else if (!selectedCourse && !name.trim() && !cccd.trim()) {
+      // Reset data khi không chọn khóa học và không tìm kiếm
       setData([]);
     }
-    // eslint-disable-next-line
-  }, [tableParams.pagination?.current, tableParams.pagination?.pageSize, selectedCourse]);
+  }, [selectedCourse, tableParams.pagination.current]);
 
+  // Tìm kiếm hoạt động bất kể có chọn khóa hay không
+  useEffect(() => {
+    if (name.trim() || cccd.trim()) {
+      // Có từ khóa tìm kiếm - tìm kiếm tất cả học viên
+      debouncedFetch();
+    } else if (selectedCourse) {
+      // Không có từ khóa nhưng đã chọn khóa - hiển thị tất cả học viên của khóa
+      fetchData();
+    } else {
+      // Không có từ khóa và không chọn khóa - reset data
+      setData([]);
+    }
+  }, [name, cccd, selectedCourse]);
+
+
+  // --- ACTIONS ---
   const handleEdit = (student) => {
-    seteditingStudent({
-      ...student,
-      ma_khoa_hoc: student.ma_khoa_hoc || undefined,
-    });
+    setEditingStudent({ ...student });
     setShowModal(true);
   };
 
   const handleUpdateStudent = async () => {
     try {
-      // Gửi đủ các trường backend yêu cầu
-      const payload = {
-        ho_va_ten: editingStudent.ho_va_ten,
-        ngay_sinh: editingStudent.ngay_sinh,
-        hang_gplx: editingStudent.hang_gplx,
-        so_cmt: editingStudent.so_cmt,
-        ma_khoa_hoc: editingStudent.ma_khoa_hoc,
-        status: editingStudent.status || "chua thi",
-        status_ly_thuyet: editingStudent.status_ly_thuyet || "chua thi",
-        status_mo_phong: editingStudent.status_mo_phong || "chua thi",
-        status_duong: editingStudent.status_duong || "chua thi",
-        status_truong: editingStudent.status_truong || "chua thi",
-      };
-      await axios.put(`/api/students/${editingStudent.id}`, payload);
-      message.success("Cập nhật học viên thành công");
+      await axios.put(`/api/students/${editingStudent.id}`, editingStudent);
+      message.success("Cập nhật thành công");
       setShowModal(false);
       fetchData();
-    } catch (err) {
-      message.error("Lỗi khi cập nhật học viên: " + (err.response?.data?.message || err.message));
-    }
+    } catch (err) { message.error("Lỗi cập nhật"); }
   };
 
   const handleDelete = async (id) => {
@@ -88,820 +151,250 @@ const Students = () => {
       await axios.delete(`/api/students/${id}`);
       message.success("Đã xoá học viên");
       fetchData();
-    } catch (err) {
-      message.error("Lỗi khi xoá học viên");
-    }
-  };
-
-  const updateStatus = async (id, field, value) => {
-    try {
-      await axios.post("/api/students/update-status", { id, field, value });
-      setData((prev) =>
-        prev.map((item) =>
-          item.id === id ? { ...item, [field]: value } : item
-        )
-      );
-      message.success("Cập nhật trạng thái thành công");
-    } catch (err) {
-      message.error("Lỗi khi cập nhật trạng thái");
-    }
-  };
-
-  const handleCccdChange = (e) => {
-    setCccd(e.target.value);
-    debouncedFetchData(e.target.value);
-  };
-  const debouncedFetchData = debounce((newCccd) => {
-    fetchData(newCccd);
-  }, 300);
-
-  const fetchData = async (newCccd) => {
-    setLoading(true);
-    try {
-      const res = await axios.get("/api/students", {
-        params: {
-          name: name.trim(),
-          cccd: newCccd ?? cccd.trim(),
-          status: selectedStatus,
-          ma_khoa_hoc: selectedCourse,
-        },
-      });
-      setData(res.data);
-    } catch (err) {
-      setData([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    axios
-      .get("/api/courses")
-      .then((res) => {
-        setCoursesList(res.data);
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleTableChange = (pagination) => {
-    setTableParams({ pagination });
-    if (pagination.pageSize !== tableParams.pagination?.pageSize) {
-      setData([]);
-    }
-  };
-
-  const handleSearch = () => {
-    setTableParams({
-      ...tableParams,
-      pagination: { ...tableParams.pagination, current: 1 },
-    });
-    fetchData();
+    } catch (err) { message.error("Lỗi xóa"); }
   };
 
   const handleExportExcel = () => {
-    if (data.length === 0) {
-      message.warning('Không có dữ liệu để xuất!');
-      return;
-    }
-
-    const exportData = data.map((student, index) => ({
-      'STT': index + 1,
-      'Họ và tên': student.ho_va_ten,
-      'Ngày sinh': student.ngay_sinh ? moment(student.ngay_sinh).format('DD/MM/YYYY') : 'Không rõ',
-      'Hạng GPLX': student.hang_gplx || (courseList.find(c => c.ma_khoa_hoc === student.ma_khoa_hoc)?.hang_gplx) || 'Không rõ',
-      'CCCD/CMT': student.so_cmt,
-      'Khoá học': student.ten_khoa_hoc,
-      'Lý thuyết': STATUS_OPTIONS.find(s => s.value === student.status_ly_thuyet)?.text || student.status_ly_thuyet,
-      'Mô phỏng': STATUS_OPTIONS.find(s => s.value === student.status_mo_phong)?.text || student.status_mo_phong,
-      'Đường': STATUS_OPTIONS.find(s => s.value === student.status_duong)?.text || student.status_duong,
-      'Hình': STATUS_OPTIONS.find(s => s.value === student.status_truong)?.text || student.status_truong,
+    if (data.length === 0) return message.warning('Không có dữ liệu!');
+    const exportData = data.map((st, idx) => ({
+      'STT': idx + 1,
+      'Họ tên': st.ho_va_ten,
+      'Ngày sinh': st.ngay_sinh ? moment(st.ngay_sinh).format('DD/MM/YYYY') : '',
+      'CCCD': st.so_cmt,
+      'Khóa': st.ten_khoa_hoc,
+      'Hạng': st.hang_gplx
     }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách học viên');
-
-    // Auto-size columns
-    const maxWidth = exportData.reduce((acc, row) => {
-      Object.keys(row).forEach((key, i) => {
-        const cellLength = String(row[key]).length;
-        if (!acc[i] || acc[i] < cellLength) {
-          acc[i] = cellLength;
-        }
-      });
-      return acc;
-    }, []);
-    
-    worksheet['!cols'] = maxWidth.map(w => ({ wch: Math.min(w + 2, 30) }));
-
-    const fileName = `Danh_sach_hoc_vien_${moment().format('DDMMYYYY_HHmmss')}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
-    message.success('Xuất file Excel thành công!');
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportData), "HocVien");
+    XLSX.writeFile(wb, `DS_HocVien_${moment().format('DDMMYYYY')}.xlsx`);
   };
 
-  const STATUS_OPTIONS = [
-    { value: "dat", text: "Đạt" },
-    { value: "rot", text: "Rớt" },
-    { value: "vang", text: "Vắng" },
-    { value: "thi", text: "Đang thi" },
-    { value: "chua thi", text: "Chưa thi" },
-  ];
-
-  // Responsive columns
+  // --- COLUMNS (TỐI ƯU HIỂN THỊ) ---
   const columns = [
-    {
-      title: "STT",
-      key: "index",
-      width: screens.xs ? 44 : 60,
-      responsive: ["xs", "sm", "md", "lg", "xl"],
-      render: (text, record, index) =>
-        (tableParams.pagination?.current - 1) *
-          tableParams.pagination?.pageSize +
-        index +
-        1,
+    { 
+      title: "STT", 
+      width: 60, 
+      align: 'center', 
+      render: (_, __, i) => <span className="text-gray-500 font-medium">{i + 1}</span> 
     },
     {
-      title: "Họ và tên",
-      dataIndex: "ho_va_ten",
-      minWidth: 120,
-      maxWidth: 200,
-      width: screens.xs ? 140 : 200,
-      ellipsis: true,
-      responsive: ["xs", "sm", "md", "lg", "xl"],
-      render: (text) => (
-        <span
-          style={{
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            fontWeight: 600,
-            color: "#222",
-            display: "block",
-            maxWidth: screens.xs ? 120 : 180,
-          }}
-          title={text}
-        >
-          {text}
-        </span>
+      title: "Thông tin Học viên",
+      width: 300,
+      render: (_, record) => (
+        <div className="flex items-center gap-4 py-1">
+           <Avatar 
+              size={52} 
+              src={getAvatarSrc(record.anh_chan_dung)} 
+              icon={<UserOutlined />} 
+              className="border-2 border-white shadow-md flex-shrink-0 bg-gray-200"
+           />
+           <div className="flex flex-col">
+              <span className="font-bold text-gray-800 text-base leading-tight">{record.ho_va_ten}</span>
+              <span className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                 <IdcardOutlined /> {record.so_cmt || "---"}
+              </span>
+           </div>
+        </div>
       ),
     },
     {
-      title: "Ảnh",
-      dataIndex: "anh_chan_dung",
-      key: "avatar",
-      width: screens.xs ? 80 : 110,
-      responsive: ["xs", "sm", "md", "lg", "xl"],
-      render: (avatar, record) => {
-        // Try multiple field names for photos
-        let photoUrl = avatar || record.anh || record.anh_chan_dung;
-
-        // Xử lý base64: nếu có dữ liệu nhưng không có prefix, thêm prefix
-        if (photoUrl && typeof photoUrl === 'string' && photoUrl.trim()) {
-          // Nếu là base64 string nhưng không có prefix data:image
-          if (!photoUrl.startsWith('data:') &&
-              !photoUrl.startsWith('http') &&
-              !photoUrl.startsWith('https') &&
-              !photoUrl.startsWith('/')) {
-            // Thử thêm prefix data:image/png;base64,
-            // Nhưng chỉ nếu có vẻ như là base64 (có ký tự đặc biệt của base64)
-            if (photoUrl.length > 100 && /^[A-Za-z0-9+/=]+$/.test(photoUrl.replace(/\s/g, ''))) {
-              photoUrl = `data:image/png;base64,${photoUrl}`;
-            }
-          }
-        } else {
-          photoUrl = undefined; // Không có ảnh
-        }
-
-        return (
-          <Avatar
-            size={screens.xs ? 60 : 80}
-            src={photoUrl}
-            icon={<UserOutlined />}
-            style={{
-              border: "3px solid #e1e5e9",
-              boxShadow: "0 3px 6px rgba(0,0,0,0.15)",
-              transition: "transform 0.2s ease",
-            }}
-          >
-            {record.ho_va_ten?.charAt(0)?.toUpperCase()}
-          </Avatar>
-        );
-      },
+        title: "Khóa học & Hạng",
+        width: 200,
+        responsive: ["sm"],
+        render: (_, record) => (
+            <div className="flex flex-col gap-1">
+                <div className="text-sm font-medium text-blue-800 flex items-center gap-1">
+                    <ReadOutlined /> {record.ten_khoa_hoc || "---"}
+                </div>
+                <div>
+                   <Tag color="blue" className="font-bold border-none bg-blue-100 text-blue-700">
+                      Hạng {record.hang_gplx}
+                   </Tag>
+                </div>
+            </div>
+        )
     },
     {
-      title: "Ngày sinh",
-      dataIndex: "ngay_sinh",
-      width: 100,
-      responsive: ["md", "lg", "xl"],
-      render: (value) => {
-        if (!value) return "Không rõ";
-        const date = moment(
-          value,
-          ["YYYY-MM-DD", "YYYY-MM-DDTHH:mm:ss.SSSZ", "DD/MM/YYYY", "YYYYMMDD"],
-          true
-        );
-        return date.isValid() ? date.format("DD/MM/YYYY") : "Không rõ";
-      },
-    },
-    {
-      title: "Hạng lái xe",
-      dataIndex: "hang_gplx",
-      width: 90,
-      responsive: ["sm", "md", "lg", "xl"],
-      render: (value, record) => {
-        if (value) return value;
-        const course = courseList.find(
-          (c) => c.ma_khoa_hoc === record.ma_khoa_hoc
-        );
-        return course?.hang_gplx || "Không rõ";
-      },
-    },
-    {
-      title: "CCCD/CMT",
-      dataIndex: "so_cmt",
-      width: 110,
-      responsive: ["md", "lg", "xl"],
-    },
-    // {
-    //   title: "Khoá học",
-    //   dataIndex: "ten_khoa_hoc",
-    //   width: 120,
-    //   responsive: ["md", "lg", "xl"],
-    // },
-    {
-      title: "Lý thuyết",
-      dataIndex: "status_ly_thuyet",
-      width: 84,
-      responsive: ["xs", "sm", "md", "lg", "xl"],
-      filters: STATUS_OPTIONS.map((opt) => ({
-        text: opt.text,
-        value: opt.value,
-      })),
-      onFilter: (value, record) => record.status_ly_thuyet === value,
-      render: (value, record) => (
-        <Select
-          value={value}
-          options={STATUS_OPTIONS.map((opt) => ({
-            value: opt.value,
-            label: opt.text,
-          }))}
-          onChange={(val) => updateStatus(record.id, "status_ly_thuyet", val)}
-          style={{ width: "90px" }}
-          size={screens.xs ? "small" : "middle"}
-        />
-      ),
-    },
-    {
-      title: "Mô phỏng",
-      dataIndex: "status_mo_phong",
-      width: 84,
-      responsive: ["xs", "sm", "md", "lg", "xl"],
-      filters: STATUS_OPTIONS.map((opt) => ({
-        text: opt.text,
-        value: opt.value,
-      })),
-      onFilter: (value, record) => record.status_mo_phong === value,
-      render: (value, record) => (
-        <Select
-          value={value}
-          options={STATUS_OPTIONS.map((opt) => ({
-            value: opt.value,
-            label: opt.text,
-          }))}
-          onChange={(val) => updateStatus(record.id, "status_mo_phong", val)}
-          style={{ width: "90px" }}
-          size={screens.xs ? "small" : "middle"}
-        />
-      ),
-    },
-    {
-      title: "Đường",
-      dataIndex: "status_duong",
-      width: 84,
-      responsive: ["xs", "sm", "md", "lg", "xl"],
-
-      filters: STATUS_OPTIONS.map((opt) => ({
-        text: opt.text,
-        value: opt.value,
-      })),
-      onFilter: (value, record) => record.status_duong === value,
-      render: (value, record) => (
-        <Select
-          value={value}
-          options={STATUS_OPTIONS.map((opt) => ({
-            value: opt.value,
-            label: opt.text,
-          }))}
-          onChange={(val) => updateStatus(record.id, "status_duong", val)}
-          style={{ width: "90px" }}
-          size={screens.xs ? "small" : "middle"}
-        />
-      ),
-    },
-    {
-      title: "Hình",
-      dataIndex: "status_truong",
-      width: 84,
-      responsive: ["xs", "sm", "md", "lg", "xl"],
-
-      filters: STATUS_OPTIONS.map((opt) => ({
-        text: opt.text,
-        value: opt.value,
-      })),
-      onFilter: (value, record) => record.status_truong === value,
-      render: (value, record) => (
-        <Select
-          value={value}
-          options={STATUS_OPTIONS.map((opt) => ({
-            value: opt.value,
-            label: opt.text,
-          }))}
-          onChange={(val) => updateStatus(record.id, "status_truong", val)}
-          style={{ width: "90px" }}
-          size={screens.xs ? "small" : "middle"}
-        />
-      ),
+        title: "Ngày sinh",
+        dataIndex: "ngay_sinh",
+        width: 150,
+        responsive: ["md"],
+        render: (d) => (
+            <div className="text-gray-600 flex items-center gap-2">
+                <CalendarOutlined /> 
+                {d ? moment(d).format("DD/MM/YYYY") : "--"}
+            </div>
+        )
     },
     {
       title: "Hành động",
-      key: "action",
-      width: 78,
-      fixed: screens.xs ? "right" : undefined,
+      width: 100,
+      fixed: "right",
+      align: 'center',
       render: (_, record) => (
-        <>
-          <Button
-            type="link"
-            onClick={() => handleEdit(record)}
-            size={screens.xs ? "small" : "middle"}
-            style={{
-              padding: screens.xs ? "2px 6px" : "4px 12px",
-              marginRight: 4,
-            }}
-          >
-            Sửa
-          </Button>
-          <Popconfirm
-            title="Bạn chắc chắn muốn xóa học viên này?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Xoá"
-            cancelText="Hủy"
-          >
-            <Button
-              type="link"
-              danger
-              size={screens.xs ? "small" : "middle"}
-              style={{ padding: screens.xs ? "2px 6px" : "4px 12px" }}
-            >
-              Xóa
-            </Button>
-          </Popconfirm>
-        </>
+        <Space size="small">
+            <Tooltip title="Chỉnh sửa">
+                <Button 
+                    type="text" 
+                    className="text-blue-600 hover:bg-blue-50" 
+                    icon={<EditOutlined />} 
+                    onClick={() => handleEdit(record)} 
+                />
+            </Tooltip>
+            <Popconfirm title="Xóa học viên này?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
+                <Button 
+                    type="text" 
+                    className="text-red-500 hover:bg-red-50" 
+                    icon={<DeleteOutlined />} 
+                />
+            </Popconfirm>
+        </Space>
       ),
     },
   ];
 
   return (
-    <>
-      <div
-        className="admin-header-title"
-        style={{
-          display: "flex",
-          flexDirection: screens.xs ? "column" : "row",
-          alignItems: screens.xs ? "stretch" : "center",
-          gap: screens.xs ? 8 : 16,
-          marginBottom: 8,
-        }}
-      >
-      <style>{`
-        @media (max-width: 700px) {
-          .ant-table-wrapper {
-            overflow-x: auto;
-          }
-        }
-      `}</style>
-        <div
-          className="title"
-          style={{
-            fontSize: screens.xs ? 19 : 28,
-            fontWeight: 600,
-            marginBottom: screens.xs ? 4 : 0,
-            textAlign: screens.xs ? "center" : "left",
-          }}
-        >
-          Danh sách Học viên
-        </div>
-        </div>
-
-         <div
-    style={{
-      marginBottom: 10,
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      width: "100%",
-      gap: 8,
-      flexWrap: "wrap",
-    }}
-  >
-    <Button
-      onClick={() => navigate(ROUTES_PATH.STUDENTS_NEW)}
-      type="primary"
-      size={screens.xs ? "small" : "middle"}
-      icon={<PlusOutlined />}
-      style={{
-        fontWeight: 600,
-        letterSpacing: 0.5,
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        border: 'none',
-        boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)',
-      }}
-    >
-      {screens.xs ? "Tạo mới" : "Thêm học viên"}
-    </Button>
-    
-    <Button
-      onClick={handleExportExcel}
-      icon={<DownloadOutlined />}
-      size={screens.xs ? "small" : "middle"}
-      style={{
-        fontWeight: 600,
-        letterSpacing: 0.5,
-        background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-        border: 'none',
-        color: '#fff',
-        boxShadow: '0 2px 8px rgba(79, 172, 254, 0.3)',
-      }}
-    >
-      {!screens.xs && "Xuất Excel"}
-    </Button>
-  </div>
-     
-      <div className="mb-3" style={{ marginTop: 12 }}>
-        {courseList.length === 0 && (
-          <Empty description="Không có khóa học nào" style={{ marginTop: 8 }} />
-        )}
-        <Space
-          direction={screens.xs ? "vertical" : "horizontal"}
-          style={{ width: "100%" }}
-        >
-          <Input
-            placeholder="Tìm tên"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onPressEnter={handleSearch}
-            style={{ minWidth: screens.xs ? "100%" : 180 }}
-            size={screens.xs ? "small" : "middle"}
-          />
-          <Input
-            placeholder="Tìm CCCD"
-            value={cccd}
-            onChange={handleCccdChange}
-            onPressEnter={handleSearch}
-            style={{ minWidth: screens.xs ? "100%" : 150 }}
-            size={screens.xs ? "small" : "middle"}
-          />
-          <Button
-            icon={<SearchOutlined />}
-            type="primary"
-            onClick={handleSearch}
-            size={screens.xs ? "small" : "middle"}
-            style={{ width: screens.xs ? "100%" : undefined }}
-          >
-            Tìm kiếm
-          </Button>
-          <Select
-            showSearch
-            allowClear
-            placeholder="Chọn khoá học"
-            style={{ width: screens.xs ? "100%" : 220 }}
-            value={selectedCourse || undefined}
-            onChange={(value) => {
-              setSelectedCourse(value || "");
-              fetchData();
-            }}
-            options={courseList.map((course) => ({
-              value: course.ma_khoa_hoc,
-              label: course.ten_khoa_hoc,
-            }))}
-            size={screens.xs ? "small" : "middle"}
-          />
-          
-        </Space>
+    <div className="p-4 md:p-6 bg-[#f0f2f5] min-h-screen">
+      
+      {/* 1. HEADER & ACTIONS */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
+         <div>
+            <Title level={3} style={{ margin: 0, color: '#003a8c' }}>QUẢN LÝ HỌC VIÊN</Title>
+            <Text type="secondary">Danh sách học viên và hồ sơ đào tạo</Text>
+         </div>
+         <Space wrap>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+                console.log("Button clicked!");
+                console.log("ROUTES_PATH.ADMIN_STUDENTS_NEW:", ROUTES_PATH.ADMIN_STUDENTS_NEW);
+                console.log("navigate function:", typeof navigate);
+                try {
+                    navigate(ROUTES_PATH.ADMIN_STUDENTS_NEW);
+                    console.log("Navigation called successfully");
+                } catch (error) {
+                    console.error("Navigation error:", error);
+                }
+            }} size="large" className="shadow-sm">
+                Thêm mới
+            </Button>
+            <Button icon={<DownloadOutlined />} onClick={handleExportExcel} size="large">Xuất Excel</Button>
+         </Space>
       </div>
-      <div className="admin-content">
-        {loading && data.length === 0 ? (
-          <TableSkeleton rows={8} columns={8} />
-        ) : (
-          <Table
-            columns={columns}
-            dataSource={data}
-            rowKey={(record) => record.id}
-            pagination={tableParams.pagination}
-            loading={false}
-            onChange={handleTableChange}
-            scroll={{ x: screens.xs ? 700 : 900 }}
-            size={screens.xs ? "small" : "middle"}
-            locale={{
-              emptyText: (
-                <Empty
+
+      {/* 2. FILTER CARD */}
+      <Card className="mb-6 shadow-sm border-0 rounded-lg" styles={{ body: { padding: '20px' } }}>
+         <Row gutter={[16, 16]} align="middle">
+             <Col xs={24} md={8}>
+                 <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Lọc theo Khóa học</label>
+                 <Select
+                    placeholder="Tất cả khóa học"
+                    style={{ width: '100%' }} size="large"
+                    value={selectedCourse} onChange={setSelectedCourse} allowClear
+                    options={courseList.map(c => ({ label: c.ten_khoa_hoc, value: c.ma_khoa_hoc }))}
+                 />
+             </Col>
+             <Col xs={24} md={10}>
+                 <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Tìm kiếm</label>
+                 <Input
+                    placeholder="Nhập tên hoặc số CCCD..."
+                    prefix={<SearchOutlined className="text-gray-400" />}
+                    size="large"
+                    value={name} onChange={(e) => setName(e.target.value)}
+                 />
+             </Col>
+             <Col xs={24} md={6}>
+                 <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Thống kê</label>
+                 <div className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold text-center border border-blue-200">
+                     Tổng số: {data.length} học viên
+                 </div>
+             </Col>
+         </Row>
+      </Card>
+
+      {/* 3. TABLE DATA */}
+      <Card className="shadow-md border-0 rounded-lg overflow-hidden" styles={{ body: { padding: 0 } }}>
+         {(!selectedCourse && !name.trim() && !cccd.trim()) ? (
+            <div className="py-16 text-center">
+               <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
                   description={
-                    <div style={{ color: '#999', fontSize: 16 }}>
-                      <div style={{ marginBottom: 8, fontWeight: 500 }}>Không có học viên nào</div>
-                      <div style={{ fontSize: 14 }}>Hãy thêm học viên đầu tiên để bắt đầu!</div>
-                    </div>
+                     <div className="text-gray-500">
+                        <div className="text-lg font-medium mb-2">Vui lòng chọn khóa học hoặc tìm kiếm</div>
+                        <div className="text-sm">Chọn khóa học từ dropdown hoặc nhập từ khóa để xem danh sách học viên</div>
+                     </div>
                   }
-                >
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => navigate(ROUTES_PATH.STUDENTS_NEW)}
-                    style={{
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      border: 'none',
-                      boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)'
-                    }}
-                  >
-                    Thêm học viên mới
-                  </Button>
-                </Empty>
-              )
-            }}
-          />
-        )}
-        <Modal
-          open={showModal}
-          title="Chỉnh sửa học viên"
-          onCancel={() => setShowModal(false)}
-          footer={
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, padding: '8px 0 0 0' }}>
-              <button
-                onClick={() => setShowModal(false)}
-                style={{
-                  minWidth: 90,
-                  padding: '7px 0',
-                  borderRadius: 7,
-                  border: '1px solid #d9d9d9',
-                  background: '#fff',
-                  color: '#333',
-                  fontWeight: 500,
-                  fontSize: 15,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }}
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleUpdateStudent}
-                style={{
-                  minWidth: 90,
-                  padding: '7px 0',
-                  borderRadius: 7,
-                  border: 'none',
-                  background: 'linear-gradient(120deg,#1976d2 60%,#0ec8ee 100%)',
-                  color: '#fff',
-                  fontWeight: 600,
-                  fontSize: 15,
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 6px #1976d214',
-                  transition: 'all 0.2s',
-                }}
-              >
-                Lưu
-              </button>
+               />
             </div>
-          }
-          width={screens.xs ? "98vw" : 600}
-          styles={{ body: { padding: 16 } }}
-        >
-          {editingStudent && (
-            <Space direction="vertical" style={{ width: "100%" }}>
-              <div>
-                <label>Họ và tên:</label>
-                <Input
-                  value={editingStudent.ho_va_ten}
-                  onChange={(e) =>
-                    seteditingStudent({
-                      ...editingStudent,
-                      ho_va_ten: e.target.value,
-                    })
-                  }
-                  size={screens.xs ? "small" : "middle"}
-                />
-              </div>
-              <div>
-                <label>Ngày sinh:</label>
-                <br />
-                <DatePicker
-                  format={["DD/MM/YYYY", "YYYY-MM-DD"]}
-                  value={
-                    editingStudent?.ngay_sinh
-                      ? moment(editingStudent.ngay_sinh)
-                      : null
-                  }
-                  onChange={(date) =>
-                    seteditingStudent({
-                      ...editingStudent,
-                      ngay_sinh: date ? date.format("YYYY-MM-DD") : "",
-                    })
-                  }
-                  style={{ width: "100%" }}
-                  size={screens.xs ? "small" : "middle"}
-                />
-              </div>
-              <div>
-                <label>Hạng GPLX:</label>
-                <Input
-                  value={editingStudent.hang_gplx}
-                  onChange={(e) =>
-                    seteditingStudent({
-                      ...editingStudent,
-                      hang_gplx: e.target.value,
-                    })
-                  }
-                  size={screens.xs ? "small" : "middle"}
-                />
-              </div>
-              <div>
-                <label>Khoá học:</label>
-                <Select
-                  value={editingStudent?.ma_khoa_hoc}
-                  style={{ width: "100%" }}
-                  onChange={(value) =>
-                    seteditingStudent({
-                      ...editingStudent,
-                      ma_khoa_hoc: value,
-                    })
-                  }
-                  options={courseList.map((course) => ({
-                    value: course.ma_khoa_hoc,
-                    label: course.ten_khoa_hoc,
-                  }))}
-                  placeholder="Chọn khoá học"
-                  showSearch
-                  loading={courseList.length === 0}
-                  size={screens.xs ? "small" : "middle"}
-                />
-              </div>
-              <div>
-                <label>Lý thuyết:</label>
-                <Select
-                  value={editingStudent?.status_ly_thuyet || "chua thi"}
-                  options={STATUS_OPTIONS}
-                  style={{ width: "100%" }}
-                  onChange={(value) =>
-                    seteditingStudent({
-                      ...editingStudent,
-                      status_ly_thuyet: value,
-                    })
-                  }
-                  size={screens.xs ? "small" : "middle"}
-                />
-              </div>
-              <div>
-                <label>Mô phỏng:</label>
-                <Select
-                  value={editingStudent?.status_mo_phong || "chua thi"}
-                  options={STATUS_OPTIONS}
-                  style={{ width: "100%" }}
-                  onChange={(value) =>
-                    seteditingStudent({
-                      ...editingStudent,
-                      status_mo_phong: value,
-                    })
-                  }
-                  size={screens.xs ? "small" : "middle"}
-                />
-              </div>
-              <div>
-                <label>Đường:</label>
-                <Select
-                  value={editingStudent?.status_duong || "chua thi"}
-                  options={STATUS_OPTIONS}
-                  style={{ width: "100%" }}
-                  onChange={(value) =>
-                    seteditingStudent({
-                      ...editingStudent,
-                      status_duong: value,
-                    })
-                  }
-                  size={screens.xs ? "small" : "middle"}
-                />
-              </div>
-              <div>
-                <label>Hình:</label>
-                <Select
-                  value={editingStudent?.status_truong || "chua thi"}
-                  options={STATUS_OPTIONS}
-                  style={{ width: "100%" }}
-                  onChange={(value) =>
-                    seteditingStudent({
-                      ...editingStudent,
-                      status_truong: value,
-                    })
-                  }
-                  size={screens.xs ? "small" : "middle"}
-                />
-              </div>
-              <div>
-                <label>CCCD/CMT:</label>
-                <Input
-                  value={editingStudent.so_cmt}
-                  onChange={(e) =>
-                    seteditingStudent({
-                      ...editingStudent,
-                      so_cmt: e.target.value,
-                    })
-                  }
-                  size={screens.xs ? "small" : "middle"}
-                />
-              </div>
-            </Space>
-          )}
-        </Modal>
-      </div>
-      <style>
-        {`
-          @media (max-width: 767px) {
-            .admin-header-title {
-              flex-direction: column !important;
-              align-items: stretch !important;
-            }
-            .admin-content {
-              padding: 0;
-            }
-          }
-          @media (max-width: 600px) {
-  .dashboard-title {
-    font-size: 16px !important;
-  }
-  .admin-header-title .title {
-    font-size: 17px !important;
-  }
-  .ant-btn-primary {
-    font-size: 14px !important;
-    height: 32px !important;
-    border-radius: 8px !important;
-  }
-  .ant-input, .ant-select-selector {
-    font-size: 14px !important;
-    border-radius: 7px !important;
-    min-height: 32px !important;
-  }
-  .admin-header-title .action {
-    margin-top: 5px;
-  }
-}
+         ) : loading ? (
+            <TableSkeleton />
+         ) : (
+            <Table
+                columns={columns}
+                dataSource={data}
+                rowKey="id"
+                pagination={{
+                    pageSize: 10,
+                    showTotal: (total) => `Tổng ${total}`,
+                    showSizeChanger: true
+                }}
+                scroll={{ x: 800 }}
+                locale={{ emptyText: <Empty description="Không tìm thấy dữ liệu" /> }}
+            />
+         )}
+      </Card>
 
+      {/* 4. MODAL EDIT */}
+      <Modal
+         title={<span className="text-blue-700 font-bold uppercase">Cập nhật thông tin</span>}
+         open={showModal} onCancel={() => setShowModal(false)}
+         onOk={handleUpdateStudent} destroyOnHidden width={600}
+         okText="Lưu thay đổi" cancelText="Hủy bỏ"
+      >
+         {editingStudent && (
+             <div className="py-4 grid grid-cols-1 md:grid-cols-2 gap-5">
+                 <div className="col-span-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Họ và tên</label>
+                    <Input size="large" value={editingStudent.ho_va_ten} onChange={(e) => setEditingStudent({...editingStudent, ho_va_ten: e.target.value})} />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Ngày sinh</label>
+                    <DatePicker size="large" className="w-full" format="DD/MM/YYYY" 
+                        value={editingStudent.ngay_sinh ? moment(editingStudent.ngay_sinh) : null} 
+                        onChange={(d) => setEditingStudent({...editingStudent, ngay_sinh: d})} 
+                    />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CCCD / CMT</label>
+                    <Input size="large" value={editingStudent.so_cmt} onChange={(e) => setEditingStudent({...editingStudent, so_cmt: e.target.value})} />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Khóa học</label>
+                    <Select size="large" className="w-full" value={editingStudent.ma_khoa_hoc} 
+                        options={courseList.map(c => ({label: c.ten_khoa_hoc, value: c.ma_khoa_hoc}))} 
+                        onChange={(v) => setEditingStudent({...editingStudent, ma_khoa_hoc: v})} 
+                    />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hạng bằng</label>
+                    <Input size="large" value={editingStudent.hang_gplx} onChange={(e) => setEditingStudent({...editingStudent, hang_gplx: e.target.value})} />
+                 </div>
+             </div>
+         )}
+      </Modal>
 
-
-/* Table row màu xen kẽ */
-.ant-table-tbody > tr:nth-child(odd) > td {
-  background: #f4faff !important;
-}
-.ant-table-tbody > tr:nth-child(even) > td {
-  background: #ffffff !important;
-}
-
-/* Hover row nổi bật hơn */
-.ant-table-tbody > tr:hover > td {
-  background: #e3f2fd !important;
-  transition: background 0.2s;
-}
-
-/* Nút sửa/xoá thêm hiệu ứng */
-.ant-btn-link {
-  color: #1565c0 !important;
-  font-weight: 600;
-}
-.ant-btn-link[danger] {
-  color: #e53935 !important;
-}
-
-/* Responsive table: co font trên mobile, ẩn vài cột phụ nếu nhỏ */
-@media (max-width: 700px) {
-  .ant-table-thead > tr > th,
-  .ant-table-tbody > tr > td {
-    font-size: 13px !important;
-    padding: 4px !important;
-  }
-  .admin-header-title .title {
-    font-size: 19px !important;
-  }
-}
-
-/* Nút tạo mới lớn, đẹp trên PC, gọn trên mobile */
-@media (max-width: 500px) {
-  .admin-header-title .title {
-    font-size: 16px !important;
-    text-align: left;
-  }
-}
-        `}
-      </style>
-      ;
-    </>
+      {/* GLOBAL CSS */}
+      <style>{`
+        .ant-table-thead > tr > th { 
+            background: #fafafa !important; 
+            color: #555; 
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+        .ant-table-row { transition: all 0.2s; }
+        .ant-table-row:hover { background-color: #f0f7ff !important; }
+        .ant-modal-header { border-bottom: 1px solid #f0f0f0; margin-bottom: 10px; }
+      `}</style>
+    </div>
   );
 };
 

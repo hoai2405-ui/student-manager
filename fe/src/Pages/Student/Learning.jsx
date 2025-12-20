@@ -40,6 +40,10 @@ export default function Learning() {
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);
 
+  // Kiểm tra khóa học hết hạn
+  const [courseExpired, setCourseExpired] = useState(false);
+  const [courseInfo, setCourseInfo] = useState(null);
+
   // --- 1. HÀM XỬ LÝ VĂN BẢN (ĐỂ RENDER ĐẸP) ---
   const processContent = (text) => {
     if (!text) return "";
@@ -74,7 +78,7 @@ export default function Learning() {
     const fetchData = async () => {
         setLoading(true);
         setErrorMsg(null);
-        
+
         // Reset Audio
         synthRef.current.cancel();
         setSpeaking(false);
@@ -83,17 +87,48 @@ export default function Learning() {
             // A. Lấy bài học (QUAN TRỌNG NHẤT)
             const lessonRes = await axios.get(`${API_URL}/api/lessons/${lessonId}`);
             setLesson(lessonRes.data);
-            
-            // B. Lấy tiến độ (NẾU LỖI THÌ BỎ QUA, KHÔNG ĐỂ CHẾT TRANG WEB)
+
+            // B. Kiểm tra khóa học có hết hạn không
+            if (user?.id) {
+              try {
+                const studentRes = await axios.get(`${API_URL}/api/student/${user.id}`);
+                const courseCode = studentRes.data.ma_khoa_hoc;
+
+                if (courseCode) {
+                  const courseRes = await axios.get(`${API_URL}/api/courses?ma_khoa_hoc=${courseCode}`);
+                  const course = courseRes.data.find(c => c.ma_khoa_hoc === courseCode);
+
+                  if (course && course.ngay_hoc && course.so_ngay_hoc) {
+                    const ngayBatDau = new Date(course.ngay_hoc);
+                    const ngayHienTai = new Date();
+                    const soNgayDaHoc = Math.floor((ngayHienTai - ngayBatDau) / (1000 * 60 * 60 * 24));
+
+                    if (soNgayDaHoc > course.so_ngay_hoc) {
+                      setCourseExpired(true);
+                      setCourseInfo({
+                        ten_khoa_hoc: course.ten_khoa_hoc,
+                        hang_gplx: course.hang_gplx,
+                        so_ngay_hoc: course.so_ngay_hoc,
+                        so_ngay_da_hoc: soNgayDaHoc
+                      });
+                    }
+                  }
+                }
+              } catch (courseErr) {
+                console.warn("⚠️ Không kiểm tra được khóa học:", courseErr.message);
+              }
+            }
+
+            // C. Lấy tiến độ (NẾU LỖI THÌ BỎ QUA, KHÔNG ĐỂ CHẾT TRANG WEB)
             try {
                 const token = localStorage.getItem("studentToken");
                 if (token) {
                     const progressRes = await axios.get(`/api/progress/${lessonId}`);
                     const savedTime = progressRes.data.learned_seconds || 0;
-                    
+
                     setLearnedSeconds(savedTime);
                     secondsValueRef.current = savedTime; // Sync Ref
-                    
+
                     if (savedTime > 0) {
                         console.log("📍 Resume tại giây:", savedTime);
                     }
@@ -118,7 +153,7 @@ export default function Learning() {
         synthRef.current.cancel();
         clearTimeout(safetyTimeout);
     };
-  }, [lessonId]);
+  }, [lessonId, user?.id]);
 
   // --- 3. HÀM LƯU TIẾN ĐỘ (ĐÃ THÊM VÀO ĐÂY) ---
   const saveProgress = async (currentTime) => {
@@ -136,7 +171,7 @@ export default function Learning() {
 
   // --- 4. LOGIC ĐẾM GIỜ & AUTO SAVE ---
   useEffect(() => {
-    if (!lesson) return;
+    if (!lesson || courseExpired) return;
 
     // Chạy đồng hồ
     timerRef.current = setInterval(() => {
@@ -153,13 +188,13 @@ export default function Learning() {
         clearInterval(timerRef.current);
         clearInterval(saveRef.current);
     };
-  }, [lesson]);
+  }, [lesson, courseExpired]);
 
   const handleEndSession = async () => {
     // Lưu vị trí hiện tại để resume
     await saveProgress(secondsValueRef.current);
 
-    // Lưu tiến độ học vào learning_history (tính giờ học)
+    // Lưu tiến độ học vào learning_history (tính giờ học
     try {
       const durationMinutes = lesson?.duration_minutes || 45;
       await axios.post("/api/student/lesson-progress", {
@@ -277,7 +312,57 @@ export default function Learning() {
            ) : <Empty description="Chưa có nội dung" />}
         </div>
       </div>
-      
+
+      {/* MODAL THÔNG BÁO KHÓA HỌC HẾT HẠN */}
+      <Modal
+        title={
+          <div style={{ color: '#ff4d4f', fontSize: '18px', fontWeight: 600 }}>
+            🚫 Khóa học đã kết thúc
+          </div>
+        }
+        open={courseExpired}
+        closable={false}
+        footer={[
+          <Button key="back" onClick={() => navigate(-1)}>
+            Quay lại trang chủ
+          </Button>
+        ]}
+        width={500}
+      >
+        {courseInfo && (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ fontSize: '16px', marginBottom: '16px', color: '#666' }}>
+              Khóa học của bạn đã vượt quá thời hạn quy định.
+            </div>
+
+            <div style={{
+              background: '#fff2f0',
+              border: '1px solid #ffccc7',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '8px' }}>
+                {courseInfo.ten_khoa_hoc}
+              </div>
+              <div style={{ color: '#666', marginBottom: '8px' }}>
+                Hạng: {courseInfo.hang_gplx}
+              </div>
+              <div style={{ color: '#ff4d4f', fontWeight: 600 }}>
+                Đã học: {courseInfo.so_ngay_da_hoc} ngày
+              </div>
+              <div style={{ color: '#666' }}>
+                Thời hạn: {courseInfo.so_ngay_hoc} ngày
+              </div>
+            </div>
+
+            <div style={{ color: '#ff4d4f', fontWeight: 600 }}>
+              Bạn không thể tiếp tục học tập trong khóa học này.
+            </div>
+          </div>
+        )}
+      </Modal>
+
       <style>{` .doc-header { font-weight:bold; margin:20px 0; text-align:center; } .doc-text { text-indent: 30px; margin-bottom: 10px; } `}</style>
     </div>
   );
