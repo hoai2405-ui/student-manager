@@ -227,6 +227,8 @@ async function createTables() {
         hang_gplx VARCHAR(50),
         ngay_khai_giang DATE,
         ngay_be_giang DATE,
+        ngay_hoc DATE,
+        so_ngay_hoc INT DEFAULT 0,
         so_hoc_sinh INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -339,6 +341,8 @@ async function createTables() {
     }
 
     console.log("✅ Đảm bảo table learning_history tồn tại");
+
+    
 
     // Insert các môn học chính thức nếu chưa có (không xóa dữ liệu cũ)
     const subjects = [
@@ -663,8 +667,13 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
             .status(400)
             .json({ message: " Không tìm thấy danh sách học viên trong XML" });
         }
+
+        // Lấy thông tin ngày học từ request body (nếu có)
+        const { ngay_hoc, so_ngay_hoc } = req.body;
+        console.log("📅 Thông tin ngày học:", { ngay_hoc, so_ngay_hoc });
+
         const sql =
-          "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, ngay_khai_giang, ngay_be_giang, so_hoc_sinh, hang_gplx) VALUES (?, ?, ?, ?, ?, ?)";
+          "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, ngay_khai_giang, ngay_be_giang, ngay_hoc, so_ngay_hoc, so_hoc_sinh, hang_gplx) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         const sqlstudent = `
           INSERT INTO students (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc, status, anh_chan_dung)
           VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -700,6 +709,8 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
             khoa.TEN_KHOA_HOC[0],
             khoa.NGAY_KHAI_GIANG[0],
             khoa.NGAY_BE_GIANG[0],
+            ngay_hoc || khoa.NGAY_KHAI_GIANG[0], // Sử dụng ngay_hoc nếu có, không thì dùng ngày khai giảng
+            so_ngay_hoc || 0, // Sử dụng so_ngay_hoc nếu có
             parseInt(khoa.SO_HOC_SINH[0]),
             khoa.HANG_GPLX?.[0] || "",
           ]);
@@ -1078,11 +1089,7 @@ app.put("/api/students/:id", async (req, res) => {
     hang_gplx,
     so_cmt,
     ma_khoa_hoc,
-    status,
-    status_ly_thuyet,
-    status_mo_phong,
-    status_duong,
-    status_truong,
+    
   } = req.body;
 
   const formatDateToMySQL = (dateInput) => {
@@ -1099,7 +1106,7 @@ app.put("/api/students/:id", async (req, res) => {
   const sql = `
     UPDATE students SET
       ho_va_ten = ?, ngay_sinh = ?, hang_gplx = ?, so_cmt = ?, ma_khoa_hoc = ?,
-      status = ?, status_ly_thuyet = ?, status_mo_phong = ?, status_duong = ?, status_truong = ?
+      
     WHERE id = ?
   `;
   try {
@@ -1109,11 +1116,7 @@ app.put("/api/students/:id", async (req, res) => {
       hang_gplx,
       so_cmt,
       ma_khoa_hoc,
-      status,
-      status_ly_thuyet,
-      status_mo_phong,
-      status_duong,
-      status_truong,
+      
       id,
     ]);
     res.json({ success: true });
@@ -1135,15 +1138,12 @@ app.post("/api/students", async (req, res) => {
     hang_gplx,
     so_cmt,
     ma_khoa_hoc,
-    status_ly_thuyet,
-    status_mo_phong,
-    status_duong,
-    status_truong,
+    
   } = req.body;
   try {
     await pool.query(
       `INSERT INTO students 
-       (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc, status_ly_thuyet, status_mo_phong, status_duong, status_truong)
+       (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         ho_va_ten,
@@ -1151,10 +1151,7 @@ app.post("/api/students", async (req, res) => {
         hang_gplx,
         so_cmt,
         ma_khoa_hoc,
-        status_ly_thuyet || "chua thi",
-        status_mo_phong || "chua thi",
-        status_duong || "chua thi",
-        status_truong || "chua thi",
+        
       ]
     );
     res.json({ success: true });
@@ -1191,28 +1188,41 @@ app.put("/api/courses/:id", async (req, res) => {
     ten_khoa_hoc,
     ngay_khai_giang,
     ngay_be_giang,
+    so_ngay_hoc,
     so_hoc_sinh,
   } = req.body;
   console.log("[PUT /courses/:id] Dữ liệu nhận:", req.body);
+  console.log("[PUT /courses/:id] so_ngay_hoc type:", typeof so_ngay_hoc, "value:", so_ngay_hoc);
+
   const sql = `
     UPDATE courses
-    SET ma_khoa_hoc = ?, ten_khoa_hoc = ?, ngay_khai_giang = ?, ngay_be_giang = ?, so_hoc_sinh = ?
+    SET ma_khoa_hoc = ?, ten_khoa_hoc = ?, ngay_khai_giang = ?, ngay_be_giang = ?, so_ngay_hoc = ?, so_hoc_sinh = ?
     WHERE id = ?
   `;
+
   try {
-    await pool.query(sql, [
+    const [result] = await pool.query(sql, [
       ma_khoa_hoc,
       ten_khoa_hoc,
       ngay_khai_giang,
       ngay_be_giang,
+      so_ngay_hoc,
       so_hoc_sinh,
       id,
     ]);
+
+    console.log("[PUT /courses/:id] Update result:", result);
+
     // Lấy lại bản ghi mới nhất để trả về cho FE
     const [rows] = await pool.query("SELECT * FROM courses WHERE id = ?", [id]);
+    console.log("[PUT /courses/:id] Updated course:", rows[0]);
+
     res.json({ success: true, course: rows[0] });
   } catch (err) {
-    res.status(500).json({ message: "Lỗi khi cập nhật", err });
+    console.error("[PUT /courses/:id] Error:", err);
+    console.error("[PUT /courses/:id] Error code:", err.code);
+    console.error("[PUT /courses/:id] Error message:", err.message);
+    res.status(500).json({ message: "Lỗi khi cập nhật", error: err.message, code: err.code });
   }
 });
 
@@ -1222,6 +1232,7 @@ app.get("/api/students", async (req, res) => {
   let sql = `
     SELECT s.*,
            c.ten_khoa_hoc,
+           c.ma_khoa_hoc as course_code,
            COALESCE(s.anh_chan_dung, '') as anh
     FROM students s
     LEFT JOIN courses c ON s.ma_khoa_hoc = c.ma_khoa_hoc
@@ -1441,218 +1452,7 @@ app.get("/api/quick-stats", async (req, res) => {
   }
 });
 
-// API: Tạo table students_xml nếu chưa có
-app.post("/api/init-students-xml-table", async (req, res) => {
-  try {
-    const createTableSQL = `
-      CREATE TABLE IF NOT EXISTS students_xml (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        ho_ten VARCHAR(255) NOT NULL,
-        so_dien_thoai VARCHAR(20),
-        email VARCHAR(255),
-        ngay_sinh DATE,
-        dia_chi TEXT,
-        ma_khoa_hoc VARCHAR(50),
-        anh_chan_dung LONGTEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `;
-    await pool.query(createTableSQL);
-    res.json({ message: "Table students_xml đã được tạo hoặc đã tồn tại!" });
-  } catch (err) {
-    console.error("Error creating table:", err);
-    res.status(500).json({ message: "Lỗi tạo table", error: err.message });
-  }
-});
 
-// API: Lấy danh sách học viên từ XML
-app.get("/api/students/xml", async (req, res) => {
-  try {
-    const [results] = await pool.query(
-      `SELECT ho_ten, so_dien_thoai, email, ngay_sinh, dia_chi, ma_khoa_hoc, COALESCE(anh_chan_dung, '') as anh, id, created_at, updated_at FROM students_xml ORDER BY created_at DESC`
-    );
-    res.json(results);
-  } catch (err) {
-    console.error("Error fetching XML students:", err);
-    res
-      .status(500)
-      .json({ message: "Lỗi lấy danh sách học viên XML", error: err.message });
-  }
-});
-
-// API: Upload file XML cho học viên
-app.post(
-  "/api/students/xml/upload",
-  upload.single("file"),
-  async (req, res) => {
-    const filePath = req.file.path;
-    const parser = new xml2js.Parser();
-
-    fs.readFile(filePath, async (err, data) => {
-      if (err)
-        return res
-          .status(500)
-          .json({ message: "Lỗi đọc file", error: err.message });
-
-      parser.parseString(data, async (err, result) => {
-        if (err)
-          return res
-            .status(400)
-            .json({ message: "Lỗi parse XML", error: err.message });
-
-        try {
-          // Kiểm tra cấu trúc XML
-          let students = [];
-          if (result.students && result.students.student) {
-            students = Array.isArray(result.students.student)
-              ? result.students.student
-              : [result.students.student];
-          } else if (result.HO_SO) {
-            // Single HO_SO item
-            students = [result.HO_SO];
-          } else {
-            return res.status(400).json({
-              message:
-                "Cấu trúc XML không đúng. Cần có <students><student>...</student></students> hoặc <HO_SO>",
-            });
-          }
-
-          // Tạo table nếu chưa có
-          await pool.query(`
-          CREATE TABLE IF NOT EXISTS students_xml (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            ho_ten VARCHAR(255) NOT NULL,
-            so_dien_thoai VARCHAR(20),
-            email VARCHAR(255),
-            ngay_sinh DATE,
-            dia_chi TEXT,
-            ma_khoa_hoc VARCHAR(50),
-            anh_chan_dung LONGTEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        `);
-
-          // Cố gắng thay đổi anh_chan_dung từ VARCHAR(500) thành LONGTEXT nếu table cũ
-          try {
-            await pool.query(
-              `ALTER TABLE students_xml MODIFY COLUMN anh_chan_dung LONGTEXT`
-            );
-          } catch (alterErr) {
-            console.warn(
-              "ALTER anh_chan_dung column failed, might already be LONGTEXT:",
-              alterErr.message
-            );
-          }
-
-          // Insert học viên
-          const insertSQL = `
-          INSERT INTO students_xml (ho_ten, so_dien_thoai, email, ngay_sinh, dia_chi, ma_khoa_hoc, anh_chan_dung)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `;
-
-          for (const student of students) {
-            // Xử lý trường anh: tùy theo cấu trúc XML
-            let anhValue;
-            if (result.students && result.students.student) {
-              anhValue = student.anh?.[0];
-            } else if (result.HO_SO) {
-              anhValue = student.ANH_CHAN_DUNG?.[0];
-            }
-            console.log("Raw anh value:", anhValue);
-            let anh = "";
-            if (typeof anhValue === "string") {
-              anh = anhValue || "";
-            } else if (anhValue && typeof anhValue === "object" && anhValue._) {
-              anh = anhValue._ || "";
-            } else {
-              anh = anhValue || "";
-            }
-            console.log("Processed anh:", anh);
-
-            await pool.query(insertSQL, [
-              student.ho_ten?.[0] || "",
-              student.so_dien_thoai?.[0] || "",
-              student.email?.[0] || "",
-              student.ngay_sinh?.[0] || null,
-              student.dia_chi?.[0] || "",
-              student.ma_khoa_hoc?.[0] || "",
-              anh,
-            ]);
-          }
-
-          res.json({
-            message: `Đã thêm ${students.length} học viên thành công!`,
-          });
-        } catch (dbErr) {
-          console.error("Database error:", dbErr);
-          if (dbErr.code === "ER_DUP_ENTRY") {
-            res
-              .status(409)
-              .json({ message: "Một số học viên đã tồn tại trong database!" });
-          } else {
-            res
-              .status(500)
-              .json({ message: "Lỗi lưu vào database", error: dbErr.message });
-          }
-        }
-      });
-    });
-  }
-);
-
-// API: Cập nhật học viên XML
-app.put("/api/students/xml/:id", async (req, res) => {
-  const { id } = req.params;
-  const {
-    ho_ten,
-    so_dien_thoai,
-    email,
-    ngay_sinh,
-    dia_chi,
-    ma_khoa_hoc,
-    anh_chan_dung,
-  } = req.body;
-
-  try {
-    await pool.query(
-      `
-      UPDATE students_xml
-      SET ho_ten = ?, so_dien_thoai = ?, email = ?, ngay_sinh = ?, dia_chi = ?, ma_khoa_hoc = ?, anh_chan_dung = ?
-      WHERE id = ?
-    `,
-      [
-        ho_ten,
-        so_dien_thoai,
-        email,
-        ngay_sinh,
-        dia_chi,
-        ma_khoa_hoc,
-        anh_chan_dung,
-        id,
-      ]
-    );
-
-    res.json({ message: "Cập nhật thành công!" });
-  } catch (err) {
-    console.error("Update error:", err);
-    res.status(500).json({ message: "Lỗi cập nhật", error: err.message });
-  }
-});
-
-// API: Xóa học viên XML
-app.delete("/api/students/xml/:id", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    await pool.query("DELETE FROM students_xml WHERE id = ?", [id]);
-    res.json({ message: "Đã xóa học viên!" });
-  } catch (err) {
-    console.error("Delete error:", err);
-    res.status(500).json({ message: "Lỗi xóa học viên", error: err.message });
-  }
-});
 
 // đăng ký lích học
 // ...existing code...
@@ -1889,6 +1689,10 @@ app.get("/api/subject-requirements", async (req, res) => {
     });
   }
 });
+
+
+
+
 
 // ...existing code...
 // dành cho trang học viên
