@@ -10,22 +10,22 @@ const xml2js = require("xml2js");
 const xlsx = require("xlsx");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const pool = require("./db"); // file db.js dùng mysql2
+const pool = require("./db"); // file db.js d├╣ng mysql2
 
 
 
 require("dotenv").config();
 
-// JWT Secret - phải định nghĩa trước khi dùng
+// JWT Secret - phß║úi ─æß╗ïnh ngh─⌐a tr╞░ß╗¢c khi d├╣ng
 const JWT_SECRET = process.env.JWT_SECRET || (() => {
   const fallback = "dev-secret-change-me";
-  console.warn("⚠️ JWT_SECRET is not set. Using development fallback secret. Set JWT_SECRET in environment for production.");
+  console.warn("ΓÜá∩╕Å JWT_SECRET is not set. Using development fallback secret. Set JWT_SECRET in environment for production.");
   return fallback;
 })();
 
 // Helper function to extract text from PDF
-// --- 2. HÀM PHỤ TRỢ ĐỌC PDF (ĐỔI SỰA TYPE OBJECT) ---
-// --- 2. HÀM PHỤ TRỢ ĐỌC PDF (PHÍM BÊN KHÔNG CRASH) ---
+// --- 2. H├ÇM PHß╗ñ TRß╗ó ─Éß╗îC PDF (─É├â Sß╗¼A Lß╗ûI TYPE OBJECT) ---
+// --- 2. H├ÇM PHß╗ñ TRß╗ó ─Éß╗îC PDF (PHI├èN Bß║óN KH├öNG CRASH) ---
 async function extractPdfText(fileUrl) {
   if (!fileUrl) return "";
   try {
@@ -33,21 +33,21 @@ async function extractPdfText(fileUrl) {
     const normalizedPath = relativePath.split('/').join(path.sep);
     const absolutePath = path.resolve(__dirname, normalizedPath);
 
-    // console.log(`🔍 Đang xử lý file: ${absolutePath}`);
+    // console.log(`≡ƒæë ─Éang xß╗¡ l├╜ file: ${absolutePath}`);
 
     if (fs.existsSync(absolutePath)) {
       const dataBuffer = fs.readFileSync(absolutePath);
 
-      // Thử load thư viện
+      // Thß╗¡ load th╞░ viß╗çn
       let pdfLib;
       try {
           pdfLib = require("pdf-parse");
       } catch (e) {
-          console.warn("⚠️ Không tìm thấy module pdf-parse. Bỏ qua bước đọc text.");
+          console.warn("ΓÜá∩╕Å Kh├┤ng t├¼m thß║Ñy module pdf-parse. Bß╗Å qua b╞░ß╗¢c ─æß╗ìc text.");
           return "";
       }
 
-      // Kiểm tra xem thư viện có đúng được không
+      // Kiß╗âm tra xem th╞░ viß╗çn c├│ d├╣ng ─æ╞░ß╗úc kh├┤ng
       if (typeof pdfLib === 'function') {
           const data = await pdfLib(dataBuffer);
           return data.text ? data.text.replace(/\n\s*\n/g, '\n').trim() : "";
@@ -55,39 +55,39 @@ async function extractPdfText(fileUrl) {
           const data = await pdfLib.default(dataBuffer);
           return data.text ? data.text.replace(/\n\s*\n/g, '\n').trim() : "";
       } else {
-          // Nếu thư viện là (như log bên gửi), bỏ qua luôn để không lỗi
-          console.warn("⚠️ Thư viện PDF không tương thích cấu trúc. Bỏ qua bước đọc text.");
+          // Nß║┐u th╞░ viß╗çn lß║í (nh╞░ log bß║ín gß╗¡i), bß╗Å qua lu├┤n ─æß╗â kh├┤ng lß╗ùi
+          console.warn("ΓÜá∩╕Å Th╞░ viß╗çn PDF kh├┤ng t╞░╞íng th├¡ch cß║Ñu tr├║c. Bß╗Å qua b╞░ß╗¢c ─æß╗ìc text.");
           return "";
       }
     }
   } catch (error) {
-    // Bắt tất cả lỗi để server không bao giờ bị dừng
-    console.error("⚠️ Lỗi đọc PDF (Đã bỏ qua để tiếp tục lưu):", error.message);
+    // Bß║»t tß║Ñt cß║ú lß╗ùi ─æß╗â server kh├┤ng bao giß╗¥ bß╗ï dß╗½ng
+    console.error("ΓÜá∩╕Å Lß╗ùi ─æß╗ìc PDF (─É├ú bß╗Å qua ─æß╗â tiß║┐p tß╗Ñc l╞░u):", error.message);
   }
-  return ""; // Luôn trả về chuỗi rỗng nếu có lỗi
+  return ""; // Lu├┤n trß║ú vß╗ü chuß╗ùi rß╗ùng nß║┐u c├│ lß╗ùi
 }
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
 
 
-// Middleware xác thực token
+// Middleware x├íc thß╗▒c token
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-        console.log("❌ [Auth] Không có token");
+        console.log("Γ¥î [Auth] Kh├┤ng c├│ token");
 
-    return res.status(401).json({ message: "Thiếu token xác thực" });
+    return res.status(401).json({ message: "Thiß║┐u token x├íc thß╗▒c" });
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-        console.log("❌ [Auth] Token lỗi:", err.message);
+        console.log("Γ¥î [Auth] Token lß╗ùi:", err.message);
       return res
         .status(403)
-        .json({ message: "Token không hợp lệ hoặc hết hạn" });
+        .json({ message: "Token kh├┤ng hß╗úp lß╗ç hoß║╖c hß║┐t hß║ín" });
     }
     req.user = user;
     next();
@@ -108,45 +108,34 @@ app.use(
 
 app.use(express.json());
 
-// Serve static files từ thư mục uploads (ĐỔI TRỌNG VÀO TRƯỚC ĐỔI, SERVE FILE PDF VÀ VIDEO)
+// Serve static files tß╗½ th╞░ mß╗Ñc uploads (─Éß╗é TRß║«NG V├ÇO TR╞»ß╗ÜC ─Éß╗é SERVE FILE PDF V├Ç VIDEO)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/temp_images", express.static(path.join(__dirname, "temp_images")));
 
-// Tạo admin mặc định nếu chưa có
+// Tß║ío admin mß║╖c ─æß╗ïnh nß║┐u ch╞░a c├│
 async function createDefaultAdmin() {
   try {
-    // Kiểm tra xem có user nào có is_admin = 1 chưa
+    // Kiß╗âm tra xem c├│ user n├áo c├│ is_admin = 1 ch╞░a
     const [admins] = await pool.query(
       "SELECT id FROM users WHERE is_admin = 1 LIMIT 1"
     );
     if (admins.length === 0) {
-      // Tạo admin mặc định
+      // Tß║ío admin mß║╖c ─æß╗ïnh
       const defaultAdmin = {
         username: "admin",
         password: await bcrypt.hash("admin123", 10),
         email: "admin@hoangthinh.vn",
         phone: "0123456789",
       };
-      // Kiểm tra users table có cột is_admin không, nếu không thì thêm
+      // Kiß╗âm tra users table c├│ cß╗Öt is_admin kh├┤ng, nß║┐u kh├┤ng th├¼ th├¬m
       try {
         await pool.query(`
           ALTER TABLE users
           ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0
         `);
-        console.log("✅ Đã thêm cột is_admin vào bảng users");
+        console.log("Γ£à ─É├ú th├¬m cß╗Öt is_admin v├áo bß║úng users");
       } catch (err) {
-        // Nếu cột đã tồn tại, bỏ qua
-      }
-
-      // Kiểm tra users table có cột role không, nếu không thì thêm
-      try {
-        await pool.query(`
-          ALTER TABLE users
-          ADD COLUMN role VARCHAR(50) DEFAULT 'employee'
-        `);
-        console.log("✅ Đã thêm cột role vào bảng users");
-      } catch (err) {
-        // Nếu cột đã tồn tại, bỏ qua
+        // Nß║┐u cß╗Öt ─æ├ú tß╗ôn tß║íi, bß╗Å qua
       }
 
       await pool.query(
@@ -158,20 +147,20 @@ async function createDefaultAdmin() {
           defaultAdmin.phone,
         ]
       );
-      console.log("✅ Đã tạo tài khoản admin mặc định:");
+      console.log("Γ£à ─É├ú tß║ío t├ái khoß║ún admin mß║╖c ─æß╗ïnh:");
       console.log("   Username: admin");
       console.log("   Password: admin123");
-
+      
     }
   } catch (err) {
-    console.error("❌ Lỗi tạo admin mặc định:", err.message);
+    console.error("Γ¥î Lß╗ùi tß║ío admin mß║╖c ─æß╗ïnh:", err.message);
   }
 }
 
-// Tạo tables cần thiết nếu chưa có
+// Tß║ío tables cß║ºn thiß║┐t nß║┐u ch╞░a c├│
 async function createTables() {
   try {
-    // Tạo table subjects
+    // Tß║ío table subjects
     await pool.query(`
       CREATE TABLE IF NOT EXISTS subjects (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -182,9 +171,9 @@ async function createTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    console.log("✅ Đảm bảo table subjects tồn tại");
+    console.log("Γ£à ─Éß║úm bß║úo table subjects tß╗ôn tß║íi");
 
-    // Tạo table lessons
+    // Tß║ío table lessons
     await pool.query(`
       CREATE TABLE IF NOT EXISTS lessons (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -199,9 +188,9 @@ async function createTables() {
         FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    console.log("✅ Đảm bảo table lessons tồn tại");
+    console.log("Γ£à ─Éß║úm bß║úo table lessons tß╗ôn tß║íi");
 
-    // Tạo table schedules cho lịch học
+    // Tß║ío table schedules cho lß╗ïch hß╗ìc
     await pool.query(`
       CREATE TABLE IF NOT EXISTS schedules (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -216,7 +205,7 @@ async function createTables() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
-    // Tạo table registrations
+    // Tß║ío table registrations
     await pool.query(`
       CREATE TABLE IF NOT EXISTS registrations (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -229,7 +218,7 @@ async function createTables() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
-    // Tạo table courses nếu chưa có
+    // Tß║ío table courses nß║┐u ch╞░a c├│
     await pool.query(`
       CREATE TABLE IF NOT EXISTS courses (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -245,9 +234,9 @@ async function createTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    console.log("✅ Đảm bảo table courses tồn tại");
+    console.log("Γ£à ─Éß║úm bß║úo table courses tß╗ôn tß║íi");
 
-    // Tạo table students nếu chưa có
+    // Tß║ío table students nß║┐u ch╞░a c├│
     await pool.query(`
       CREATE TABLE IF NOT EXISTS students (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -266,21 +255,21 @@ async function createTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    console.log("✅ Đảm bảo table students tồn tại");
+    console.log("Γ£à ─Éß║úm bß║úo table students tß╗ôn tß║íi");
 
-    // Đảm bảo cột duration_minutes và content tồn tại
+    // ─Éß║úm bß║úo cß╗Öt duration_minutes v├á content tß╗ôn tß║íi
     try {
       await pool.query("ALTER TABLE lessons ADD COLUMN duration_minutes INT DEFAULT 45");
     } catch (e) {
-      // Bỏ qua nếu cột đã tồn tại
+      // Bß╗Å qua nß║┐u cß╗Öt ─æ├ú tß╗ôn tß║íi
     }
     try {
       await pool.query("ALTER TABLE lessons ADD COLUMN content LONGTEXT");
     } catch (e) {
-      // Bỏ qua nếu cột đã tồn tại
+      // Bß╗Å qua nß║┐u cß╗Öt ─æ├ú tß╗ôn tß║íi
     }
 
-    // Tạo bảng subject_requirements (số giờ yêu cầu cho mỗi môn theo loại bằng)
+    // Tß║ío bß║úng subject_requirements (sß╗æ giß╗¥ y├¬u cß║ºu cho mß╗ùi m├┤n theo loß║íi bß║▒ng)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS subject_requirements (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -290,9 +279,9 @@ async function createTables() {
         FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    console.log("✅ Đảm bảo table subject_requirements tồn tại");
+    console.log("Γ£à ─Éß║úm bß║úo table subject_requirements tß╗ôn tß║íi");
 
-    // Tạo bảng student_lesson_progress để lưu tiến độ từng bài học
+    // Tß║ío bß║úng student_lesson_progress ─æß╗â l╞░u tiß║┐n ─æß╗Ö tß╗½ng b├ái hß╗ìc
     await pool.query(`
       CREATE TABLE IF NOT EXISTS student_lesson_progress (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -307,9 +296,9 @@ async function createTables() {
         UNIQUE KEY unique_student_lesson (student_id, lesson_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    console.log("✅ Đảm bảo table student_lesson_progress tồn tại");
+    console.log("Γ£à ─Éß║úm bß║úo table student_lesson_progress tß╗ôn tß║íi");
 
-    // Tạo bảng learning_history để lưu tiến độ học của học viên
+    // Tß║ío bß║úng learning_history ─æß╗â l╞░u tiß║┐n ─æß╗Ö hß╗ìc cß╗ºa hß╗ìc vi├¬n
     await pool.query(`
       CREATE TABLE IF NOT EXISTS learning_history (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -322,7 +311,7 @@ async function createTables() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
-    // Xóa duplicate entries trước khi thêm unique key
+    // X├│a duplicate entries tr╞░ß╗¢c khi th├¬m unique key
     try {
       await pool.query(`
         DELETE lh1 FROM learning_history lh1
@@ -331,41 +320,41 @@ async function createTables() {
         AND lh1.student_id = lh2.student_id
         AND lh1.subject_id = lh2.subject_id
       `);
-      console.log("✅ Đã xóa duplicate entries trong learning_history");
+      console.log("Γ£à ─É├ú x├│a duplicate entries trong learning_history");
     } catch (err) {
-      console.warn("⚠️ Lỗi xóa duplicates:", err.message);
+      console.warn("ΓÜá∩╕Å Lß╗ùi x├│a duplicates:", err.message);
     }
 
-    // Thêm unique key nếu chưa có
+    // Th├¬m unique key nß║┐u ch╞░a c├│
     try {
       await pool.query(`
         ALTER TABLE learning_history
         ADD UNIQUE KEY unique_student_subject (student_id, subject_id)
       `);
-      console.log("✅ Đã thêm unique key cho learning_history");
+      console.log("Γ£à ─É├ú th├¬m unique key cho learning_history");
     } catch (err) {
       if (err.code === 'ER_DUP_KEYNAME') {
-        console.log("✅ Unique key đã tồn tại");
+        console.log("Γ£à Unique key ─æ├ú tß╗ôn tß║íi");
       } else {
-        console.warn("⚠️ Không thể thêm unique key:", err.message);
+        console.warn("ΓÜá∩╕Å Kh├┤ng thß╗â th├¬m unique key:", err.message);
       }
     }
 
-    console.log("✅ Đảm bảo table learning_history tồn tại");
+    console.log("Γ£à ─Éß║úm bß║úo table learning_history tß╗ôn tß║íi");
 
+    
 
-
-    // Insert các môn học chính thức nếu chưa có (không xóa dữ liệu cũ)
+    // Insert c├íc m├┤n hß╗ìc ch├¡nh thß╗⌐c nß║┐u ch╞░a c├│ (kh├┤ng x├│a dß╗» liß╗çu c┼⌐)
     const subjects = [
-      { name: "Pháp luật giao thông đường bộ", code: "PL", hours: 90 },
-      { name: "Đạo đức người lái xe", code: "DD", hours: 15 },
-      { name: "Cấu tạo và sửa chữa thường xuyên", code: "CT", hours: 10 },
-      { name: "Kỹ thuật lái xe", code: "KT", hours: 20 },
-      { name: "Tình huống mô phỏng", code: "MP", hours: 4 },
+      { name: "Ph├íp luß║¡t giao th├┤ng ─æ╞░ß╗¥ng bß╗Ö", code: "PL", hours: 90 },
+      { name: "─Éß║ío ─æß╗⌐c ng╞░ß╗¥i l├íi xe", code: "DD", hours: 15 },
+      { name: "Cß║Ñu tß║ío v├á sß╗¡a chß╗»a th├┤ng th╞░ß╗¥ng", code: "CT", hours: 10 },
+      { name: "Kß╗╣ thuß║¡t l├íi xe", code: "KT", hours: 20 },
+      { name: "T├¼nh huß╗æng m├┤ phß╗Ång", code: "MP", hours: 4 },
     ];
 
     for (const sub of subjects) {
-      // Kiểm tra xem đã có chưa
+      // Kiß╗âm tra xem ─æ├ú c├│ ch╞░a
       const [[existing]] = await pool.query(
         "SELECT id FROM subjects WHERE code = ?",
         [sub.code]
@@ -376,11 +365,11 @@ async function createTables() {
           "INSERT INTO subjects (name, code, total_hours) VALUES (?, ?, ?)",
           [sub.name, sub.code, sub.hours]
         );
-        console.log(`✅ Đã thêm môn học: ${sub.name}`);
+        console.log(`Γ£à ─É├ú th├¬m m├┤n hß╗ìc: ${sub.name}`);
       }
     }
 
-    // Thêm dữ liệu subject_requirements sau khi đã có subjects
+    // Th├¬m dß╗» liß╗çu subject_requirements sau khi ─æ├ú c├│ subjects
     const subjectRequirementsData = [
       { code: 'PL', hours: 90, license_class: 'B1' },
       { code: 'DD', hours: 15, license_class: 'B1' },
@@ -389,11 +378,11 @@ async function createTables() {
       { code: 'MP', hours: 4, license_class: 'B1' },
     ];
 
-    // Xóa requirements cũ cho license_class B1 trước khi thêm mới
+    // X├│a requirements c┼⌐ cho license_class B1 tr╞░ß╗¢c khi th├¬m mß╗¢i
     await pool.query("DELETE FROM subject_requirements WHERE license_class = 'B1'");
 
     for (const req of subjectRequirementsData) {
-      // Tìm subject_id theo code
+      // T├¼m subject_id theo code
       const [subjectRows] = await pool.query("SELECT id FROM subjects WHERE code = ?", [req.code]);
       if (subjectRows.length > 0) {
         const subjectId = subjectRows[0].id;
@@ -401,11 +390,11 @@ async function createTables() {
           "INSERT INTO subject_requirements (subject_id, required_hours, license_class) VALUES (?, ?, ?)",
           [subjectId, req.hours, req.license_class]
         );
-        console.log(`✅ Đã thêm requirement cho ${req.code}: ${req.hours}h`);
+        console.log(`Γ£à ─É├ú th├¬m requirement cho ${req.code}: ${req.hours}h`);
       }
     }
   } catch (err) {
-    console.error("❌ Lỗi tạo tables:", err.message);
+    console.error("Γ¥î Lß╗ùi tß║ío tables:", err.message);
   }
 }
 
@@ -413,32 +402,32 @@ async function initializeApp() {
   try {
     await createDefaultAdmin();
     await createTables();
-    console.log("✅ Database setup completed successfully");
+    console.log("Γ£à Database setup completed successfully");
   } catch (error) {
-    console.error("❌ Database setup failed:", error);
+    console.error("Γ¥î Database setup failed:", error);
     process.exit(1);
   }
 }
 
 initializeApp();
 
-// Đổi chuyển toàn bộ truy vấn sang dùng pool từ db.js (MySQL)
+// ─É├ú chuyß╗ân to├án bß╗Ö truy vß║Ñn sang d├╣ng pool tß╗½ db.js (MySQL)
 app.use((req, res, next) => {
-  console.log("Nhận request:", req.method, req.url);
+  console.log("Nhß║¡n request:", req.method, req.url);
   next();
 });
 
-// 1. Cấu hình nơi lưu file (Hỗ trợ cả PDF và Video)
+// 1. Cß║Ñu h├¼nh n╞íi l╞░u file (Hß╗ù trß╗ú cß║ú PDF v├á Video)
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    // Tạo folder chung 'uploads/files' cho gọn
+    // Tß║ío folder chung 'uploads/files' cho gß╗ìn
     const dir = "./uploads/files";
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: function (req, file, cb) {
-    // Giữ nguyên tên file nhưng thêm timestamp để không trùng
-    // Dùng Buffer để giữ tên tiếng Việt không bị lỗi font
+    // Giß╗» nguy├¬n t├¬n file nh╞░ng th├¬m timestamp ─æß╗â kh├┤ng tr├╣ng
+    // D├╣ng Buffer ─æß╗â giß╗» t├¬n tiß║┐ng Viß╗çt kh├┤ng bß╗ï lß╗ùi font
     const originalName = Buffer.from(file.originalname, "latin1").toString(
       "utf8"
     );
@@ -446,84 +435,84 @@ const storage = multer.diskStorage({
   },
 });
 
-// 2. Bộ lọc file (Cho phép PDF và Video)
+// 2. Bß╗Ö lß╗ìc file (Cho ph├⌐p PDF v├á Video)
 const fileFilter = (req, file, cb) => {
   if (
     file.mimetype === "application/pdf" ||
-    file.mimetype.startsWith("video/") // Chấp nhận mọi loại video (mp4, webm...)
+    file.mimetype.startsWith("video/") // Chß║Ñp nhß║¡n mß╗ìi loß║íi video (mp4, webm...)
   ) {
     cb(null, true);
   } else {
-    cb(new Error("Chỉ cho phép upload PDF hoặc Video!"), false);
+    cb(new Error("Chß╗ë cho ph├⌐p upload PDF hoß║╖c Video!"), false);
   }
 };
 
-// 3. Khởi tạo Upload (Tăng giới hạn lên 100MB cho video)
+// 3. Khß╗ƒi tß║ío Upload (T─âng giß╗¢i hß║ín l├¬n 100MB cho video)
 const uploadFile = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
 });
 
-// 4. API Upload chung (Thay thế API upload cũ)
+// 4. API Upload chung (Thay thß║┐ API upload c┼⌐)
 app.post("/api/upload/file", uploadFile.single("file"), (req, res) => {
   if (!req.file) {
     return res
       .status(400)
-      .json({ message: "Lỗi upload hoặc file không hợp lệ" });
+      .json({ message: "Lß╗ùi upload hoß║╖c file kh├┤ng hß╗úp lß╗ç" });
   }
-  // Trả về đường dẫn file
+  // Trß║ú vß╗ü ─æ╞░ß╗¥ng dß║½n file
   const fileUrl = `/uploads/files/${req.file.filename}`;
-  // Trả về thêm loại file để Frontend biết đường xử lý
+  // Trß║ú vß╗ü th├¬m loß║íi file ─æß╗â Frontend biß║┐t ─æ╞░ß╗¥ng xß╗¡ l├╜
   const fileType = req.file.mimetype.startsWith("video/") ? "video" : "pdf";
 
   res.json({ url: fileUrl, type: fileType });
 });
 
-// api đăng ký
+// api ─æ─âng k├╜
 app.post("/api/register", async (req, res) => {
   const { username, password, email, phone } = req.body;
   if (!username || !password || !email || !phone)
-    return res.status(400).json({ message: "Thiếu thông tin đăng ký" });
+    return res.status(400).json({ message: "Thiß║┐u th├┤ng tin ─æ─âng k├╜" });
 
   try {
-    // Check username đã tồn tại chưa
+    // Check username ─æ├ú tß╗ôn tß║íi ch╞░a
     const [userRows] = await pool.query(
       "SELECT * FROM users WHERE username = ?",
       [username]
     );
     if (userRows.length > 0)
-      return res.status(409).json({ message: "Tên đăng nhập đã tồn tại" });
+      return res.status(409).json({ message: "T├¬n ─æ─âng nhß║¡p ─æ├ú tß╗ôn tß║íi" });
 
-    // Check email đã tồn tại chưa
+    // Check email ─æ├ú tß╗ôn tß║íi ch╞░a
     const [emailRows] = await pool.query(
       "SELECT * FROM users WHERE email = ?",
       [email]
     );
     if (emailRows.length > 0)
-      return res.status(409).json({ message: "Email đã được sử dụng" });
+      return res.status(409).json({ message: "Email ─æ├ú ─æ╞░ß╗úc sß╗¡ dß╗Ñng" });
 
-    // Check phone đã tồn tại chưa (tùy yêu cầu, có thể bỏ qua nếu muốn)
+    // Check phone ─æ├ú tß╗ôn tß║íi ch╞░a (tuß╗│ y├¬u cß║ºu, c├│ thß╗â bß╗Å qua nß║┐u muß╗æn)
     // const [phoneRows] = await pool.query("SELECT * FROM users WHERE phone = ?", [phone]);
     // if (phoneRows.length > 0)
-    //   return res.status(409).json({ message: "Số điện thoại đã được sử dụng" });
+    //   return res.status(409).json({ message: "Sß╗æ ─æiß╗çn thoß║íi ─æ├ú ─æ╞░ß╗úc sß╗¡ dß╗Ñng" });
 
     const hash = await bcrypt.hash(password, 10);
     await pool.query(
       "INSERT INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)",
       [username, hash, email, phone]
     );
-    return res.json({ message: "Đăng ký thành công" });
+    return res.json({ message: "─É─âng k├╜ th├ánh c├┤ng" });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Lỗi hệ thống" });
+    return res.status(500).json({ message: "Lß╗ùi hß╗ç thß╗æng" });
   }
 });
 
-//api đăng nhập
+//api ─æ─âng nhß║¡p
 
 app.post("/api/login", async (req, res) => {
-  console.log("🔍 ADMIN LOGIN BODY:", req.body);
+  console.log("≡ƒæë ADMIN LOGIN BODY:", req.body);
 
   try {
     const { username, password } = req.body;
@@ -532,7 +521,7 @@ app.post("/api/login", async (req, res) => {
 
     if (!username || !password) {
       return res.status(400).json({
-        message: "Thiếu username hoặc password",
+        message: "Thiß║┐u username hoß║╖c password",
       });
     }
 
@@ -546,28 +535,26 @@ app.post("/api/login", async (req, res) => {
 
     if (!user) {
       return res.status(401).json({
-        message: "Sai tài khoản hoặc mật khẩu",
+        message: "Sai t├ái khoß║ún hoß║╖c mß║¡t khß║⌐u",
       });
     }
 
-    // So sánh password với bcrypt
+    // So s├ính password vß╗¢i bcrypt
     const isValidPassword = user ? await bcrypt.compare(password, user.password) : false;
     console.log("[LOGIN] password match:", isValidPassword);
     if (!isValidPassword) {
       return res.status(401).json({
-        message: "Sai tài khoản hoặc mật khẩu",
+        message: "Sai t├ái khoß║ún hoß║╖c mß║¡t khß║⌐u",
       });
     }
 
-    const isAdminValue = user.is_admin === 1 || username === 'admin' || user.role === 'admin' || user.role === 'administrator';
-    const role = user.role || (isAdminValue ? 'admin' : 'employee');
+    const isAdminValue = user.is_admin === 1 || username === 'admin';
 
     const token = jwt.sign(
       {
         id: user.id,
         username: user.username,
         is_admin: isAdminValue ? 1 : 0,
-        role,
       },
       JWT_SECRET,
       { expiresIn: "7d" }
@@ -579,14 +566,13 @@ app.post("/api/login", async (req, res) => {
         id: user.id,
         username: user.username,
         is_admin: isAdminValue,
-        role,
       },
     });
   } catch (err) {
-    console.error("🔍 ADMIN LOGIN ERROR 🔍");
+    console.error("≡ƒöÑ ADMIN LOGIN ERROR ≡ƒöÑ");
     console.error(err);
     res.status(500).json({
-      message: "Lỗi server khi đăng nhập admin",
+      message: "Lß╗ùi server khi ─æ─âng nhß║¡p admin",
       error: err.message,
     });
   }
@@ -594,97 +580,97 @@ app.post("/api/login", async (req, res) => {
 
 
 
-// API: Lấy danh sách khóa học
+// API: Lß║Ñy danh s├ích kho├í hß╗ìc
 app.get("/api/courses", async (req, res) => {
   try {
     const [results] = await pool.query("SELECT * FROM courses");
     res.json(results);
   } catch (err) {
-    res.status(500).json({ message: "Lỗi DB", err });
+    res.status(500).json({ message: "Lß╗ùi DB", err });
   }
 });
 app.get("/", (req, res) => {
   res.send("Student Manager API is running!");
 });
 
-// API: Upload file XML hoặc Excel để thêm khóa học
+// API: Upload file XML hoß║╖c Excel ─æß╗â th├¬m kho├í hß╗ìcsß╗¡a
 app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
-  console.log("\n🔍 ===== BẮT ĐẦU UPLOAD XML ===== 🔍");
+  console.log("\n≡ƒö╡ ===== Bß║«T ─Éß║ªU UPLOAD XML ===== ≡ƒö╡");
   console.log("File path:", req.file?.path);
   const filePath = req.file.path;
   const parser = new xml2js.Parser();
   fs.readFile(filePath, async (err, data) => {
     if (err) {
-      console.error("❌ Lỗi đọc file:", err);
-      return res.status(500).json({ message: "Lỗi đọc file", err });
+      console.error("Γ¥î Lß╗ùi ─æß╗ìc file:", err);
+      return res.status(500).json({ message: "Lß╗ùi ─æß╗ìc file", err });
     }
-    console.log("✅ Đọc file thành công, kích thước:", data.length, "bytes");
+    console.log("Γ£à ─Éß╗ìc file th├ánh c├┤ng, k├¡ch th╞░ß╗¢c:", data.length, "bytes");
 
     parser.parseString(data, async (err, result) => {
       if (err) {
-        console.error("❌ Lỗi parse XML:", err);
-        return res.status(400).json({ message: "Lỗi parse XML", err });
+        console.error("Γ¥î Lß╗ùi parse XML:", err);
+        return res.status(400).json({ message: "Lß╗ùi parse XML", err });
       }
-      console.log("✅ Parse XML thành công");
-      console.log("Cấu trúc XML - Top level keys:", Object.keys(result));
+      console.log("Γ£à Parse XML th├ánh c├┤ng");
+      console.log("Cß║Ñu tr├║c XML - Top level keys:", Object.keys(result));
       let conn;
       try {
-        console.log("🔍 Đang tìm cấu trúc XML...");
+        console.log("≡ƒöì ─Éang t├¼m cß║Ñu tr├║c XML...");
         if (!result.BAO_CAO1) {
-          console.error("❌ Không tìm thấy BAO_CAO1 trong XML");
+          console.error("Γ¥î Kh├┤ng t├¼m thß║Ñy BAO_CAO1 trong XML");
           return res
             .status(400)
-            .json({ message: "Cấu trúc XML không đúng: thiếu BAO_CAO1" });
+            .json({ message: "Cß║Ñu tr├║c XML kh├┤ng ─æ├║ng: thiß║┐u BAO_CAO1" });
         }
         if (!result.BAO_CAO1.DATA || !result.BAO_CAO1.DATA[0]) {
-          console.error("❌ Không tìm thấy DATA trong BAO_CAO1");
+          console.error("Γ¥î Kh├┤ng t├¼m thß║Ñy DATA trong BAO_CAO1");
           return res
             .status(400)
-            .json({ message: "Cấu trúc XML không đúng: thiếu DATA" });
+            .json({ message: "Cß║Ñu tr├║c XML kh├┤ng ─æ├║ng: thiß║┐u DATA" });
         }
         if (
           !result.BAO_CAO1.DATA[0].KHOA_HOC ||
           !result.BAO_CAO1.DATA[0].KHOA_HOC[0]
         ) {
-          console.error("❌ Không tìm thấy KHOA_HOC trong DATA");
+          console.error("Γ¥î Kh├┤ng t├¼m thß║Ñy KHOA_HOC trong DATA");
           return res
             .status(400)
-            .json({ message: "Cấu trúc XML không đúng: thiếu KHOA_HOC" });
+            .json({ message: "Cß║Ñu tr├║c XML kh├┤ng ─æ├║ng: thiß║┐u KHOA_HOC" });
         }
         if (
           !result.BAO_CAO1.DATA[0].NGUOI_LXS ||
           !result.BAO_CAO1.DATA[0].NGUOI_LXS[0]
         ) {
-          console.error("❌ Không tìm thấy NGUOI_LXS trong DATA");
+          console.error("Γ¥î Kh├┤ng t├¼m thß║Ñy NGUOI_LXS trong DATA");
           return res
             .status(400)
-            .json({ message: "Cấu trúc XML không đúng: thiếu NGUOI_LXS" });
+            .json({ message: "Cß║Ñu tr├║c XML kh├┤ng ─æ├║ng: thiß║┐u NGUOI_LXS" });
         }
 
         const khoa = result.BAO_CAO1.DATA[0].KHOA_HOC[0];
         const hocvienList = result.BAO_CAO1.DATA[0].NGUOI_LXS[0].NGUOI_LX;
         console.log(
-          "✅ Tìm thấy khóa học:",
+          "Γ£à T├¼m thß║Ñy kh├│a hß╗ìc:",
           khoa.MA_KHOA_HOC?.[0] || khoa.TEN_KHOA_HOC?.[0]
         );
         console.log(
-          "✅ Số lượng học viên:",
-          Array.isArray(hocvienList) ? hocvienList.length : "Không phải array"
+          "Γ£à Sß╗æ l╞░ß╗úng hß╗ìc vi├¬n:",
+          Array.isArray(hocvienList) ? hocvienList.length : "Kh├┤ng phß║úi array"
         );
 
         if (!Array.isArray(hocvienList)) {
           console.error(
-            "❌ hocvienList không phải là array:",
+            "Γ¥î hocvienList kh├┤ng phß║úi l├á array:",
             typeof hocvienList
           );
           return res
             .status(400)
-            .json({ message: " Không tìm thấy danh sách học viên trong XML" });
+            .json({ message: " Kh├┤ng t├¼m thß║Ñy danh s├ích hß╗ìc vi├¬n trong XML" });
         }
 
-        // Lấy thông tin ngày học từ request body (nếu có)
+        // Lß║Ñy th├┤ng tin ng├áy hß╗ìc tß╗½ request body (nß║┐u c├│)
         const { ngay_hoc, so_ngay_hoc } = req.body;
-        console.log("🔍 Thông tin ngày học:", { ngay_hoc, so_ngay_hoc });
+        console.log("≡ƒôà Th├┤ng tin ng├áy hß╗ìc:", { ngay_hoc, so_ngay_hoc });
 
         const sql =
           "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, ngay_khai_giang, ngay_be_giang, ngay_hoc, so_ngay_hoc, so_hoc_sinh, hang_gplx) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
@@ -696,71 +682,71 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
           await pool.query(
             `ALTER TABLE students ADD COLUMN anh_chan_dung LONGTEXT NULL`
           );
-          console.log("✅ Đảm bảo cột anh_chan_dung tồn tại (LONGTEXT)");
+          console.log("Γ£à ─Éß║úm bß║úo cß╗Öt anh_chan_dung tß╗ôn tß║íi (LONGTEXT)");
         } catch (preErr) {
           if (preErr.code === "ER_DUP_FIELDNAME") {
             try {
               await pool.query(
                 `ALTER TABLE students MODIFY COLUMN anh_chan_dung LONGTEXT NULL`
               );
-              console.log("✅ Đã xác nhận cột ảnh là LONGTEXT");
+              console.log("Γ£à ─É├ú x├íc nhß║¡n cß╗Öt anh_chan_dung l├á LONGTEXT");
             } catch (modErr) {
               console.warn(
-                "⚠️ Không thể sửa cột ảnh:",
+                "ΓÜá∩╕Å Kh├┤ng thß╗â sß╗¡a cß╗Öt anh_chan_dung:",
                 modErr.message
               );
             }
           } else {
-            console.warn("⚠️ Bỏ qua bước đảm bảo cột ảnh:", preErr.message);
+            console.warn("ΓÜá∩╕Å Bß╗Å qua b╞░ß╗¢c ─æß║úm bß║úo cß╗Öt ß║únh:", preErr.message);
           }
         }
         conn = await pool.getConnection();
         try {
           await conn.beginTransaction();
-          // Thêm khóa học
+          // Th├¬m kh├│a hß╗ìc
           await conn.query(sql, [
             khoa.MA_KHOA_HOC[0],
             khoa.TEN_KHOA_HOC[0],
             khoa.NGAY_KHAI_GIANG[0],
             khoa.NGAY_BE_GIANG[0],
-            ngay_hoc || khoa.NGAY_KHAI_GIANG[0], // Sử dụng ngay_hoc nếu có, không thì dùng ngày khai giảng
-            so_ngay_hoc || 0, // Sử dụng so_ngay_hoc nếu có
+            ngay_hoc || khoa.NGAY_KHAI_GIANG[0], // Sß╗¡ dß╗Ñng ngay_hoc nß║┐u c├│, kh├┤ng th├¼ d├╣ng ng├áy khai giß║úng
+            so_ngay_hoc || 0, // Sß╗¡ dß╗Ñng so_ngay_hoc nß║┐u c├│
             parseInt(khoa.SO_HOC_SINH[0]),
             khoa.HANG_GPLX?.[0] || "",
           ]);
-          // Thêm học viên
-          console.log(`\n🔍 Bắt đầu xử lý ${hocvienList.length} học viên...`);
+          // Th├¬m hß╗ìc vi├¬n
+          console.log(`\n≡ƒôï Bß║»t ─æß║ºu xß╗¡ l├╜ ${hocvienList.length} hß╗ìc vi├¬n...`);
           // for (let i = 0; i < hocvienList.length; i++) {
           //   const hocvien = hocvienList[i];
-          //   // Lấy tên, nếu lỗi font hoặc mảng thì lấy phần tử đầu
+          //   // Lß║Ñy t├¬n, nß║┐u lß╗ùi font hoß║╖c mß║úng th├¼ lß║Ñy phß║ºn tß╗¡ ─æß║ºu
           //   const studentName = Array.isArray(hocvien.HO_VA_TEN)
           //     ? hocvien.HO_VA_TEN[0]
           //     : hocvien.HO_VA_TEN || `Student_${i + 1}`;
 
-          //   console.log(`\n--- Đang xử lý: ${studentName} ---`);
+          //   console.log(`\n--- ─Éang xß╗¡ l├╜: ${studentName} ---`);
 
-          //   // --- 1. HÀM HỖ TRỢ LẤY DỮ LIỆU SẠCH TỪ XML ---
-          //   // Giúp lấy text bất kể nó nằm trong mảng [0] hay object có thuộc tính _
+          //   // --- 1. H├ÇM Hß╗û TRß╗ó Lß║ñY Dß╗« LIß╗åU Sß║áCH Tß╗¬ XML ---
+          //   // Gi├║p lß║Ñy text bß║Ñt kß╗â n├│ nß║▒m trong mß║úng [0] hay object c├│ thuß╗Öc t├¡nh _
           //   const getCleanText = (node) => {
           //     if (!node) return null;
-          //     if (Array.isArray(node)) return getCleanText(node[0]); // Nếu là mảng, bóc lặp về mảng ra
+          //     if (Array.isArray(node)) return getCleanText(node[0]); // Nß║┐u l├á mß║úng, b├│c lß╗¢p vß╗Å mß║úng ra
           //     if (typeof node === "object") {
-          //       // Trường hợp XML có thuộc tính (VD: <ANH format="jpg">Base64...</ANH>)
+          //       // Tr╞░ß╗¥ng hß╗úp XML c├│ thuß╗Öc t├¡nh (VD: <ANH format="jpg">Base64...</ANH>)
           //       if (node._) return node._;
           //       return null;
           //     }
-          //     return String(node).trim(); // Trả về chuỗi sạch
+          //     return String(node).trim(); // Trß║ú vß╗ü chuß╗ùi sß║ích
           //   };
 
-          //   // --- 2. TÁCH DỮ LIỆU ẢNH (QUÁ TRÌNH NGƯỢC LẠI) ---
+          //   // --- 2. T├îM Dß╗« LIß╗åU ß║óNH (QU├ëT Mß╗îI NG├ôC NG├üCH) ---
           //   let rawAnh = null;
 
-          //   // Cách 1: Tìm trong HO_SO (Cấu trúc thường gặp)
+          //   // C├ích 1: T├¼m trong HO_SO (Cß║Ñu tr├║c chuß║⌐n th╞░ß╗¥ng gß║╖p)
           //   if (hocvien.HO_SO) {
           //     let hoSoNode = Array.isArray(hocvien.HO_SO)
           //       ? hocvien.HO_SO[0]
           //       : hocvien.HO_SO;
-          //     // Danh sách các tên trường ảnh có thể xuất hiện
+          //     // Danh s├ích c├íc t├¬n tr╞░ß╗¥ng ß║únh c├│ thß╗â xuß║Ñt hiß╗çn
           //     const possibleKeys = [
           //       "ANH_CHAN_DUNG",
           //       "anh_chan_dung",
@@ -774,14 +760,14 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
           //       if (hoSoNode[key]) {
           //         rawAnh = getCleanText(hoSoNode[key]);
           //         if (rawAnh) {
-          //           console.log(`✅ Tìm thấy ảnh trong HO_SO.${key}`);
+          //           console.log(`Γ£à T├¼m thß║Ñy ß║únh trong HO_SO.${key}`);
           //           break;
           //         }
           //       }
           //     }
           //   }
 
-          //   // Cách 2: Tìm trực tiếp bên ngoài (nếu không có HO_SO)
+          //   // C├ích 2: T├¼m trß╗▒c tiß║┐p b├¬n ngo├ái (nß║┐u kh├┤ng c├│ HO_SO)
           //   if (!rawAnh) {
           //     const directKeys = [
           //       "ANH_CHAN_DUNG",
@@ -793,30 +779,30 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
           //       if (hocvien[key]) {
           //         rawAnh = getCleanText(hocvien[key]);
           //         if (rawAnh) {
-          //           console.log(`✅ Tìm thấy ảnh trực tiếp ở key: ${key}`);
+          //           console.log(`Γ£à T├¼m thß║Ñy ß║únh trß╗▒c tiß║┐p ß╗ƒ key: ${key}`);
           //           break;
           //         }
           //       }
           //     }
           //   }
 
-          //   // --- 3. XỬ LÝ CHUỖI BASE64 ---
+          //   // --- 3. Xß╗¼ L├¥ CHUß╗ûI BASE64 ---
           //   let anhFinal = null;
           //   if (rawAnh && rawAnh.length > 100) {
-          //     // Ảnh phải có dữ liệu dài dài chất
-          //     // Quan trọng: Xóa hết dấu cách, xuống dòng (\n) thì ảnh mới hiển thị được
+          //     // ß║ónh phß║úi c├│ dß╗» liß╗çu d├ái d├ái ch├║t
+          //     // Quan trß╗ìng: X├│a hß║┐t dß║Ñu c├ích, xuß╗æng d├▓ng (\n) th├¼ ß║únh mß╗¢i hiß╗ân thß╗ï ─æ╞░ß╗úc
           //     anhFinal = rawAnh.replace(/\s+/g, "");
-          //     console.log(`🔍 Kích thước ảnh: ${anhFinal.length} ký tự`);
+          //     console.log(`≡ƒô╕ K├¡ch th╞░ß╗¢c ß║únh: ${anhFinal.length} k├╜ tß╗▒.`);
           //   } else {
           //     console.log(
-          //       `⚠️ CẢNH BÁO: Không tìm thấy ảnh hoặc dữ liệu quá ngắn! (Set NULL)`
+          //       `ΓÜá∩╕Å Cß║óNH B├üO: Kh├┤ng t├¼m thß║Ñy ß║únh hoß║╖c dß╗» liß╗çu qu├í ngß║»n! (Set NULL)`
           //     );
-          //     // Debug: in ra các key hiện có để soi lỗi
-          //     // console.log("Các trường dữ liệu đang có:", Object.keys(hocvien));
+          //     // Debug: in ra c├íc key hiß╗çn c├│ ─æß╗â soi lß╗ùi
+          //     // console.log("C├íc tr╞░ß╗¥ng dß╗» liß╗çu ─æang c├│:", Object.keys(hocvien));
           //   }
 
-          //   // --- 4. LƯU VÀO DATABASE ---
-          //   // Lấy các thông tin khác
+          //   // --- 4. L╞»U V├ÇO DATABASE ---
+          //   // Lß║Ñy c├íc th├┤ng tin kh├íc
           //   const ngaySinh = getCleanText(hocvien.NGAY_SINH);
           //   const hangGplx =
           //     getCleanText(hocvien.HANG_GPLX) ||
@@ -825,7 +811,7 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
           //   const soCmt = getCleanText(hocvien.SO_CMT) || "";
 
           //   try {
-          //     // Câu lệnh SQL insert
+          //     // C├óu lß╗çnh SQL insert
           //     const [result] = await conn.query(sqlstudent, [
           //       studentName,
           //       ngaySinh,
@@ -833,13 +819,13 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
           //       soCmt,
           //       getCleanText(khoa.MA_KHOA_HOC) || "",
           //       "chua thi",
-          //       anhFinal, // Truyền chuỗi ảnh đã xử lý sạch vào đây
+          //       anhFinal, // Truyß╗ün chuß╗ùi ß║únh ─æ├ú xß╗¡ l├╜ sß║ích v├áo ─æ├óy
           //     ]);
-          //     console.log(`🔍 Đã lưu thành công ID: ${result.insertId}`);
+          //     console.log(`≡ƒÆ╛ ─É├ú l╞░u th├ánh c├┤ng ID: ${result.insertId}`);
           //   } catch (insertErr) {
-          //     // Nếu lỗi do ảnh quá lớn (Packet too large) -> set ảnh null để lưu thông tin khác
+          //     // Nß║┐u lß╗ùi do ß║únh qu├í lß╗¢n (Packet too large) -> set ß║únh null ─æß╗â l╞░u th├┤ng tin kh├íc
           //     console.error(
-          //       `❌ Lỗi lưu DB cho ${studentName}:`,
+          //       `Γ¥î Lß╗ùi l╞░u DB cho ${studentName}:`,
           //       insertErr.message
           //     );
           //     if (
@@ -847,7 +833,7 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
           //       insertErr.message.includes("packet")
           //     ) {
           //       console.log(
-          //         "⚠️ Ảnh quá lớn so với cấu hình MySQL (max_allowed_packet). Đang lưu lại học viên không kèm ảnh..."
+          //         "ΓÜá∩╕Å ß║ónh qu├í lß╗¢n, ─æang l╞░u lß║íi hß╗ìc vi├¬n kh├┤ng k├¿m ß║únh..."
           //       );
           //       await conn.query(sqlstudent, [
           //         studentName,
@@ -862,21 +848,21 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
           //   }
           // }
           console.log(
-            `\n🔍 Bắt đầu xử lý ${hocvienList.length} học viên (Chỉ tóm tắt quá trình)...`
+            `\n≡ƒôï Bß║»t ─æß║ºu xß╗¡ l├╜ ${hocvienList.length} hß╗ìc vi├¬n (Chß║┐ ─æß╗Ö qu├⌐t s├óu)...`
           );
 
-          // --- HÀM TÁCH ẢNH ĐỔ QUY (QUÁ TRÌNH NGƯỢC LẠI) ---
+          // --- H├ÇM T├îM ß║óNH ─Éß╗å QUY (QU├ëT Mß╗îI NG├ôC NG├üCH) ---
           const findLongString = (obj, depth = 0) => {
-            if (!obj || depth > 5) return null; // Tránh lặp vô hạn, chỉ quét sâu 5 cấp
+            if (!obj || depth > 5) return null; // Tr├ính lß║╖p v├┤ hß║ín, chß╗ë qu├⌐t s├óu 5 cß║Ñp
 
-            // Nếu bản thân nó là chuỗi dài > 1000 ký tự -> Khả năng cao là ảnh
+            // Nß║┐u bß║ún th├ón n├│ l├á chuß╗ùi d├ái > 1000 k├╜ tß╗▒ -> Khß║ú n─âng cao l├á ß║únh
             if (typeof obj === "string" && obj.length > 1000) {
               return obj;
             }
 
-            // Nếu là Mảng hoặc Object, đệ quy tìm bên trong
+            // Nß║┐u l├á Mß║úng hoß║╖c Object, ─æß╗ç quy t├¼m b├¬n trong
             if (typeof obj === "object") {
-              // Ưu tiên tìm trong key có chứa "ANH" hoặc "IMAGE" trước
+              // ╞»u ti├¬n t├¼m trong key c├│ chß╗» "ANH" hoß║╖c "IMAGE" tr╞░ß╗¢c
               const keys = Object.keys(obj);
               const priorityKeys = keys.filter(
                 (k) =>
@@ -889,9 +875,9 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
                   !k.toUpperCase().includes("IMG")
               );
 
-              // Quét key ưu tiên trước
+              // Qu├⌐t key ╞░u ti├¬n tr╞░ß╗¢c
               for (const key of [...priorityKeys, ...otherKeys]) {
-                // Bỏ qua các key hệ thống của xml2js
+                // Bß╗Å qua c├íc key hß╗ç thß╗æng cß╗ºa xml2js
                 if (key === "$") continue;
 
                 const result = findLongString(obj[key], depth + 1);
@@ -900,18 +886,18 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
             }
             return null;
           };
-          // --- HÀM LẤY TEXT NGẮN (GIÚP AN TOÀN) ---
+          // --- H├ÇM Lß║ñY TEXT NGß║«N (GIß╗« NGUY├èN) ---
           const getText = (node) => {
             if (!node) return "";
             if (Array.isArray(node)) return getText(node[0]);
             if (typeof node === "object") return node._ || "";
             return String(node).trim();
           };
-          // vòng lặp chính
+          // v├▓ng lß║╖p ch├¡nh
           for (let i = 0; i < hocvienList.length; i++) {
             const hocvien = hocvienList[i];
 
-            // Lấy tên (xử lý an toàn)
+            // Lß║Ñy t├¬n (xß╗¡ l├╜ an to├án)
             let studentName = "Unknown";
             if (hocvien.HO_VA_TEN)
               studentName = Array.isArray(hocvien.HO_VA_TEN)
@@ -919,31 +905,31 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
                 : hocvien.HO_VA_TEN;
 
             console.log(
-              `\n--- [${i + 1}] Đang quét dữ liệu của: ${studentName} ---`
+              `\n--- [${i + 1}] ─Éang qu├⌐t dß╗» liß╗çu cß╗ºa: ${studentName} ---`
             );
 
-            // 1. GỌI HÀM QUÉT ẢNH
+            // 1. Gß╗îI H├ÇM QU├ëT ß║óNH
             let rawAnh = findLongString(hocvien);
             let anhFinal = null;
 
             if (rawAnh) {
               try {
-                // 1. Làm sạch chuỗi
+                // 1. L├ám sß║ích chuß╗ùi
                 let cleanString = rawAnh.replace(/\s+/g, "");
                 if (cleanString.includes(","))
                   cleanString = cleanString.split(",")[1];
 
-                // 2. Tạo Buffer
+                // 2. Tß║ío Buffer
                 const imageBuffer = Buffer.from(cleanString, "base64");
 
-                // 3. Kiểm tra xem có phải JPEG 2000 không (Magic bytes: 00 00 00 0C 6A 50)
+                // 3. Kiß╗âm tra xem c├│ phß║úi JPEG 2000 kh├┤ng (Magic bytes: 00 00 00 0C 6A 50)
                 const isJP2 = imageBuffer
                   .toString("hex", 0, 12)
                   .includes("0000000c6a50");
 
                 if (isJP2) {
                   console.log(
-                    `⚠️ Phát hiện JPEG 2000 (${studentName}). Đang gọi ImageMagick...`
+                    `ΓÜá∩╕Å Ph├ít hiß╗çn JPEG 2000 (${studentName}). ─Éang gß╗ìi ImageMagick...`
                   );
 
                   const tempDir = path.join(__dirname, "temp_images");
@@ -955,53 +941,53 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
                   const inputPath = path.join(tempDir, `${tempFileName}.jp2`);
                   const outputPath = path.join(tempDir, `${tempFileName}.jpg`);
 
-                  // Ghi file tạm
+                  // Ghi file tß║ím
                   fs.writeFileSync(inputPath, imageBuffer);
 
-                  // 🔍🔍🔍 SỬA ĐƯỜNG DẪN NÀY NẾU MÁY BẠN KHÁC 🔍🔍🔍
-                  // Lưu ý: Dùng 2 dấu gạch chéo "\\"
+                  // ≡ƒæç≡ƒæç≡ƒæç Sß╗¼A ─É╞»ß╗£NG Dß║¬N N├ÇY Nß║╛U M├üY Bß║áN C├ÇI KH├üC ≡ƒæç≡ƒæç≡ƒæç
+                  // L╞░u ├╜: D├╣ng 2 dß║Ñu gß║ích ch├⌐o "\\"
 
-                  const magickPath = "magick"; // Trên Linux chỉ cần gọi tên lệnh là được
-                  // 🔍🔍🔍
+                  const magickPath = "magick"; // Tr├¬n Linux chß╗ë cß║ºn gß╗ìi t├¬n lß╗çnh l├á ─æ╞░ß╗úc
+                  // ≡ƒæå≡ƒæå≡ƒæå
 
                   try {
-                    // Kiểm tra file exe có tồn tại không trước khi chạy
+                    // Kiß╗âm tra file exe c├│ tß╗ôn tß║íi kh├┤ng tr╞░ß╗¢c khi chß║íy
                     // if (!fs.existsSync(magickPath)) {
                     //   throw new Error(
-                    //     `Không tìm thấy file magick.exe tại: ${magickPath}`
+                    //     `Kh├┤ng t├¼m thß║Ñy file magick.exe tß║íi: ${magickPath}`
                     //   );
                     // }
 
-                    // Gọi lệnh trực tiếp vào file exe
+                    // Gß╗ìi lß╗çnh trß╗▒c tiß║┐p v├áo file exe
                     execSync(
                       `"${magickPath}" "${inputPath}" -quality 90 "${outputPath}"`
                     );
 
-                    // Đọc lại file JPG
+                    // ─Éß╗ìc lß║íi file JPG
                     if (fs.existsSync(outputPath)) {
                       const jpgData = fs.readFileSync(outputPath);
                       anhFinal = `data:image/jpeg;base64,${jpgData.toString(
                         "base64"
                       )}`;
                       console.log(
-                        `✅ ImageMagick convert thành công! (Size: ${anhFinal.length})`
+                        `Γ£à ImageMagick convert th├ánh c├┤ng! (Size: ${anhFinal.length})`
                       );
                     } else {
                       throw new Error(
-                        "Convert xong nhưng không thấy file output jpg"
+                        "Convert xong nh╞░ng kh├┤ng thß║Ñy file output jpg"
                       );
                     }
                   } catch (exeErr) {
-                    console.error(`❌ Lỗi chạy ImageMagick: ${exeErr.message}`);
-                    // Fallback: Lưu ảnh gốc (không hiển thị nhưng không mất dữ liệu)
+                    console.error(`Γ¥î Lß╗ùi chß║íy ImageMagick: ${exeErr.message}`);
+                    // Fallback: L╞░u ß║únh gß╗æc (d├╣ kh├┤ng hiß╗çn nh╞░ng kh├┤ng mß║Ñt dß╗» liß╗çu)
                     anhFinal = `data:image/jp2;base64,${cleanString}`;
                   } finally {
-                    // Dọn rác
+                    // Dß╗ìn r├íc
                     if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
                     if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
                   }
                 } else {
-                  // --- Ảnh thường (JPG/PNG) ---
+                  // --- ß║ónh th╞░ß╗¥ng (JPG/PNG) ---
                   const jpegBuffer = await sharp(imageBuffer)
                     .toFormat("jpeg")
                     .jpeg({ quality: 90 })
@@ -1009,17 +995,17 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
                   anhFinal = `data:image/jpeg;base64,${jpegBuffer.toString(
                     "base64"
                   )}`;
-                  console.log(`✅ Sharp convert thành công!`);
+                  console.log(`Γ£à Sharp convert th├ánh c├┤ng!`);
                 }
               } catch (convertErr) {
-                console.error(`❌ Lỗi xử lý ảnh chung: ${convertErr.message}`);
-                anhFinal = rawAnh; // Lưu tạm cái cũ
+                console.error(`Γ¥î Lß╗ùi xß╗¡ l├╜ ß║únh chung: ${convertErr.message}`);
+                anhFinal = rawAnh; // L╞░u tß║ím c├íi c┼⌐
               }
             } else {
-              console.log(`❌ KHÔNG CÓ DỮ LIỆU ẢNH`);
+              console.log(`Γ¥î KH├öNG C├ô Dß╗« LIß╗åU ß║óNH`);
             }
 
-            // 2. LẤY CÁC THÔNG TIN KHÁC (Hàm hỗ trợ lấy text ngắn)
+            // 2. Lß║ñY C├üC TH├öNG TIN KH├üC (H├ám hß╗ù trß╗ú lß║Ñy text ngß║»n)
             const getText = (node) => {
               if (!node) return "";
               if (Array.isArray(node)) return getText(node[0]);
@@ -1032,7 +1018,7 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
               getText(hocvien.HANG_GPLX) || getText(khoa.HANG_GPLX) || "";
             const soCmt = getText(hocvien.SO_CMT) || "";
 
-            // 3. LƯU VÀO DB
+            // 3. L╞»U V├ÇO DB
             try {
               const [result] = await conn.query(sqlstudent, [
                 studentName,
@@ -1041,28 +1027,28 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
                 soCmt,
                 getText(khoa.MA_KHOA_HOC) || "",
                 "chua thi",
-                anhFinal, // Truyền ảnh vào
+                anhFinal, // Truyß╗ün ß║únh v├áo
               ]);
-              console.log(`🔍 Saved ID: ${result.insertId}`);
+              console.log(`≡ƒÆ╛ Saved ID: ${result.insertId}`);
             } catch (insertErr) {
-              console.error(`❌ Lỗi Insert DB:`, insertErr.message);
-              // Nếu lỗi do gói tin quá lớn
+              console.error(`Γ¥î Lß╗ùi Insert DB:`, insertErr.message);
+              // Nß║┐u lß╗ùi do g├│i tin qu├í lß╗¢n
               if (
                 insertErr.message.includes("packet") ||
                 insertErr.message.includes("large")
               ) {
                 console.log(
-                  "⚠️ Lỗi: Ảnh quá lớn so với cấu hình MySQL (max_allowed_packet)."
+                  "ΓÜá∩╕Å  Lß╗ûI: ß║ónh qu├í lß╗¢n so vß╗¢i cß║Ñu h├¼nh MySQL (max_allowed_packet)."
                 );
                 console.log(
-                  "🔍 Bạn cần chạy lệnh SQL: SET GLOBAL max_allowed_packet = 1073741824;"
+                  "≡ƒæë Bß║ín cß║ºn chß║íy lß╗çnh SQL: SET GLOBAL max_allowed_packet = 1073741824;"
                 );
               }
             }
           }
           await conn.commit();
           console.log(
-            `\n✅ Hoàn thành! Đã thêm ${hocvienList.length} học viên vào database.\n`
+            `\nΓ£à Ho├án th├ánh! ─É├ú th├¬m ${hocvienList.length} hß╗ìc vi├¬n v├áo database.\n`
           );
           res.json({ success: true });
         } catch (err) {
@@ -1071,30 +1057,30 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
           if (err.code === "ER_DUP_ENTRY") {
             return res
               .status(409)
-              .json({ message: "Khóa học hoặc học viên đã tồn tại!" });
+              .json({ message: "Kh├│a hß╗ìc hoß║╖c hß╗ìc vi├¬n ─æ├ú tß╗ôn tß║íi!" });
           }
-          return res.status(500).json({ message: "Lỗi DB", err });
+          return res.status(500).json({ message: "Lß╗ùi DB", err });
         } finally {
           if (conn) conn.release();
         }
       } catch (e) {
-        res.status(400).json({ message: "Sai cấu trúc XML", error: e });
+        res.status(400).json({ message: "Sai cß║Ñu tr├║c XML", error: e });
       }
     });
   });
 });
-//xóa học viên
+//xo├í hß╗ìc vi├¬n
 app.delete("/api/students/:id", async (req, res) => {
   const id = req.params.id;
   try {
     await pool.query("DELETE FROM students WHERE id = ?", [id]);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ message: "Lỗi xóa học viên", error: err });
+    res.status(500).json({ message: "Lß╗ùi x├│a hß╗ìc vi├¬n", error: err });
   }
 });
 
-// sửa học viên
+// sß╗¡a hß╗ìc vi├¬n
 app.put("/api/students/:id", async (req, res) => {
   const { id } = req.params;
   const {
@@ -1103,7 +1089,7 @@ app.put("/api/students/:id", async (req, res) => {
     hang_gplx,
     so_cmt,
     ma_khoa_hoc,
-
+    
   } = req.body;
 
   const formatDateToMySQL = (dateInput) => {
@@ -1120,7 +1106,7 @@ app.put("/api/students/:id", async (req, res) => {
   const sql = `
     UPDATE students SET
       ho_va_ten = ?, ngay_sinh = ?, hang_gplx = ?, so_cmt = ?, ma_khoa_hoc = ?,
-
+      
     WHERE id = ?
   `;
   try {
@@ -1130,21 +1116,21 @@ app.put("/api/students/:id", async (req, res) => {
       hang_gplx,
       so_cmt,
       ma_khoa_hoc,
-
+      
       id,
     ]);
     res.json({ success: true });
   } catch (err) {
     console.error("PUT /api/students/:id error:", err);
     res.status(500).json({
-      message: "Lỗi khi cập nhật",
+      message: "Lß╗ùi khi cß║¡p nhß║¡t",
       error: err.message,
       code: err.code,
     });
   }
 });
 
-// thêm học viên
+// th├¬m hß╗ìc vi├¬n
 app.post("/api/students", async (req, res) => {
   const {
     ho_va_ten,
@@ -1152,11 +1138,11 @@ app.post("/api/students", async (req, res) => {
     hang_gplx,
     so_cmt,
     ma_khoa_hoc,
-
+    
   } = req.body;
   try {
     await pool.query(
-      `INSERT INTO students
+      `INSERT INTO students 
        (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -1165,7 +1151,7 @@ app.post("/api/students", async (req, res) => {
         hang_gplx,
         so_cmt,
         ma_khoa_hoc,
-
+        
       ]
     );
     res.json({ success: true });
@@ -1174,7 +1160,7 @@ app.post("/api/students", async (req, res) => {
   }
 });
 
-// xóa khóa học
+// xo├í kho├í hß╗ìc
 app.delete("/api/courses/:id", async (req, res) => {
   const courseId = req.params.id;
   try {
@@ -1183,18 +1169,18 @@ app.delete("/api/courses/:id", async (req, res) => {
       [courseId]
     );
     if (!result || result.length === 0) {
-      return res.status(404).json({ message: "Không tìm thấy khóa học" });
+      return res.status(404).json({ message: "Kh├┤ng t├¼m thß║Ñy kho├í hß╗ìc" });
     }
     const maKhoaHoc = result[0].ma_khoa_hoc;
     await pool.query("DELETE FROM students WHERE ma_khoa_hoc = ?", [maKhoaHoc]);
     await pool.query("DELETE FROM courses WHERE id = ?", [courseId]);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ message: "Lỗi xóa khóa học", error: err });
+    res.status(500).json({ message: "Lß╗ùi xo├í kho├í hß╗ìc", error: err });
   }
 });
 
-// sửa khóa học
+// sß╗¡a kho├í hß╗ìc
 app.put("/api/courses/:id", async (req, res) => {
   const { id } = req.params;
   const {
@@ -1205,7 +1191,7 @@ app.put("/api/courses/:id", async (req, res) => {
     so_ngay_hoc,
     so_hoc_sinh,
   } = req.body;
-  console.log("[PUT /courses/:id] Dữ liệu nhận:", req.body);
+  console.log("[PUT /courses/:id] Dß╗» liß╗çu nhß║¡n:", req.body);
   console.log("[PUT /courses/:id] so_ngay_hoc type:", typeof so_ngay_hoc, "value:", so_ngay_hoc);
 
   const sql = `
@@ -1227,7 +1213,7 @@ app.put("/api/courses/:id", async (req, res) => {
 
     console.log("[PUT /courses/:id] Update result:", result);
 
-    // Lấy lại bản ghi mới nhất để trả về cho FE
+    // Lß║Ñy lß║íi bß║ún ghi mß╗¢i nhß║Ñt ─æß╗â trß║ú vß╗ü cho FE
     const [rows] = await pool.query("SELECT * FROM courses WHERE id = ?", [id]);
     console.log("[PUT /courses/:id] Updated course:", rows[0]);
 
@@ -1236,11 +1222,11 @@ app.put("/api/courses/:id", async (req, res) => {
     console.error("[PUT /courses/:id] Error:", err);
     console.error("[PUT /courses/:id] Error code:", err.code);
     console.error("[PUT /courses/:id] Error message:", err.message);
-    res.status(500).json({ message: "Lỗi khi cập nhật", error: err.message, code: err.code });
+    res.status(500).json({ message: "Lß╗ùi khi cß║¡p nhß║¡t", error: err.message, code: err.code });
   }
 });
 
-// API: Tìm kiếm học viên
+// API: T├¼m kiß║┐m hß╗ìc vi├¬n
 app.get("/api/students", async (req, res) => {
   const { name, cccd, status, ma_khoa_hoc } = req.query;
   let sql = `
@@ -1278,7 +1264,7 @@ app.get("/api/students", async (req, res) => {
   }
 });
 
-//// Cập nhật trạng thái học viên
+//// Cß║¡p nhß║¡t trß║íng th├íi hß╗ìc vi├¬n
 app.post("/api/students/update-status", async (req, res) => {
   const { id, field, value } = req.body;
   const allowedFields = [
@@ -1289,11 +1275,11 @@ app.post("/api/students/update-status", async (req, res) => {
     "status",
   ];
   if (!id || !field || !allowedFields.includes(field)) {
-    return res.status(400).json({ error: "Thiếu hoặc sai thông tin update" });
+    return res.status(400).json({ error: "Thiß║┐u hoß║╖c sai th├┤ng tin update" });
   }
   const validStatuses = ["thi", "vang", "rot", "dat", "chua thi"];
   if (!validStatuses.includes(value)) {
-    return res.status(400).json({ error: "Trạng thái không hợp lệ" });
+    return res.status(400).json({ error: "Trß║íng th├íi kh├┤ng hß╗úp lß╗ç" });
   }
   const sql = `UPDATE students SET ${field} = ? WHERE id = ?`;
   try {
@@ -1304,16 +1290,16 @@ app.post("/api/students/update-status", async (req, res) => {
   }
 });
 
-// API: Thống kê học tập (thay thế thống kê thi cũ)
+// API: Thß╗æng k├¬ hß╗ìc tß║¡p (thay thß║┐ thß╗æng k├¬ thi c┼⌐)
 app.get("/api/learning-stats", async (req, res) => {
   try {
-    // 1. Thống kê tổng quan
+    // 1. Thß╗æng k├¬ tß╗òng quan
     const [[{ total_students }]] = await pool.query("SELECT COUNT(*) as total_students FROM students");
     const [[{ total_courses }]] = await pool.query("SELECT COUNT(*) as total_courses FROM courses");
     const [[{ total_subjects }]] = await pool.query("SELECT COUNT(*) as total_subjects FROM subjects");
     const [[{ total_lessons }]] = await pool.query("SELECT COUNT(*) as total_lessons FROM lessons");
 
-    // 2. Thống kê tiến độ học viên
+    // 2. Thß╗æng k├¬ tiß║┐n ─æß╗Ö hß╗ìc vi├¬n
     const [studentProgress] = await pool.query(`
       SELECT
         s.id,
@@ -1330,7 +1316,7 @@ app.get("/api/learning-stats", async (req, res) => {
       LIMIT 20
     `);
 
-    // 3. Thống kê tiến độ môn học
+    // 3. Thß╗æng k├¬ tiß║┐n ─æß╗Ö m├┤n hß╗ìc
     const [subjectProgress] = await pool.query(`
       SELECT
         sub.id,
@@ -1352,7 +1338,7 @@ app.get("/api/learning-stats", async (req, res) => {
       ORDER BY total_learned_hours DESC
     `);
 
-    // 4. Thống kê khóa học
+    // 4. Thß╗æng k├¬ kho├í hß╗ìc
     const [courseStats] = await pool.query(`
       SELECT
         c.id,
@@ -1388,88 +1374,55 @@ app.get("/api/learning-stats", async (req, res) => {
 });
 
 
-// Middleware kiểm tra admin và department
+// Middleware kiß╗âm tra admin
 const checkAdmin = async (req, res, next) => {
   console.log("[DEBUG] ID from token:", req.user?.id);
   try {
-    const [rows] = await pool.query("SELECT is_admin, role FROM users WHERE id = ?", [
+    const [rows] = await pool.query("SELECT is_admin FROM users WHERE id = ?", [
       req.user.id,
     ]);
-    const userRow = rows[0];
-    const isAdmin = userRow?.is_admin === 1 || userRow?.role === 'admin' || userRow?.role === 'administrator';
-    const isDepartment = userRow?.role === 'department' || userRow?.role === 'sogtvt';
-    const hasAccess = isAdmin || isDepartment;
-
-    if (rows.length === 0 || !hasAccess) {
-      return res.status(403).json({ message: "Không có quyền truy cập" });
+    if (rows.length === 0 || !rows[0].is_admin) {
+      return res.status(403).json({ message: "Kh├┤ng c├│ quyß╗ün truy cß║¡p" });
     }
     next();
   } catch (error) {
-    return res.status(500).json({ message: "Lỗi hệ thống" });
+    return res.status(500).json({ message: "Lß╗ùi hß╗ç thß╗æng" });
   }
 };
 
-// Route lấy danh sách người dùng
+// Route lß║Ñy danh s├ích ng╞░ß╗¥i d├╣ng
 app.get("/api/users", authenticateToken, checkAdmin, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, username, email, phone, role FROM users"
+      "SELECT id, username, email, phone FROM users"
     );
     res.json(rows);
   } catch (err) {
-    console.error("Lỗi truy vấn users:", err);
-    res.status(500).json({ message: "Lỗi truy vấn database" });
+    console.error("Lß╗ùi truy vß║Ñn users:", err);
+    res.status(500).json({ message: "Lß╗ùi truy vß║Ñn database" });
   }
 });
 
 app.post("/api/users", authenticateToken, checkAdmin, async (req, res) => {
-  const { username, email, phone, password, role } = req.body;
+  const { username, email, phone, password } = req.body;
   const hashedPassword = await bcrypt.hash(password, 10);
-  try {
-    const [[dup]] = await pool.query(
-      "SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1",
-      [username, email]
-    );
-    if (dup) return res.status(409).json({ message: "Tên đăng nhập hoặc email đã tồn tại" });
-
-    await pool.query(
-      "INSERT INTO users (username, email, phone, password, role) VALUES (?, ?, ?, ?, ?)",
-      [username, email, phone, hashedPassword, role || "employee"]
-    );
-    res.json({ message: "Thêm người dùng thành công!" });
-  } catch (err) {
-    if (err?.code === "ER_DUP_ENTRY")
-      return res.status(409).json({ message: "Tên đăng nhập hoặc email đã tồn tại" });
-    console.error("Lỗi tạo user:", err);
-    res.status(500).json({ message: "Lỗi server khi thêm user" });
-  }
+  await pool.query(
+    "INSERT INTO users (username, email, phone, password) VALUES (?, ?, ?, ?)",
+    [username, email, phone, hashedPassword]
+  );
+  res.json({ message: "Th├¬m ng╞░ß╗¥i d├╣ng th├ánh c├┤ng!" });
 });
 
 app.put("/api/users/:id", authenticateToken, checkAdmin, async (req, res) => {
   const { id } = req.params;
-  const { username, email, phone, role } = req.body;
-  try {
-    const [[dup]] = await pool.query(
-      "SELECT id FROM users WHERE (username = ? OR email = ?) AND id <> ? LIMIT 1",
-      [username, email, id]
-    );
-    if (dup) return res.status(409).json({ message: "Tên đăng nhập hoặc email đã tồn tại" });
-
-    const [[existing]] = await pool.query("SELECT role FROM users WHERE id = ? LIMIT 1", [id]);
-    const finalRole = role || existing?.role || "employee";
-
-    await pool.query(
-      "UPDATE users SET username = ?, email = ?, phone = ?, role = ? WHERE id = ?",
-      [username, email, phone, finalRole, id]
-    );
-    res.json({ message: "Cập nhật thành công!" });
-  } catch (err) {
-    if (err?.code === "ER_DUP_ENTRY")
-      return res.status(409).json({ message: "Tên đăng nhập hoặc email đã tồn tại" });
-    console.error("Lỗi cập nhật user:", err);
-    res.status(500).json({ message: "Lỗi server khi cập nhật user" });
-  }
+  const { username, email, phone } = req.body;
+  await pool.query(
+    "UPDATE users SET username = ?, email = ?, phone = ? WHERE id = ?",
+    [username, email, phone, id]
+  );
+  res.json({ message: "Cß║¡p nhß║¡t th├ánh c├┤ng!" });
 });
+
 app.delete(
   "/api/users/:id",
   authenticateToken,
@@ -1477,11 +1430,11 @@ app.delete(
   async (req, res) => {
     const { id } = req.params;
     await pool.query("DELETE FROM users WHERE id = ?", [id]);
-    res.json({ message: "Xóa thành công!" });
+    res.json({ message: "X├│a th├ánh c├┤ng!" });
   }
 );
 
-// Thêm vào file app.js (BE)
+// Th├¬m v├áo file app.js (BE)
 app.get("/api/quick-stats", async (req, res) => {
   try {
     const [[{ count: studentCount }]] = await pool.query(
@@ -1495,16 +1448,16 @@ app.get("/api/quick-stats", async (req, res) => {
       courses: courseCount,
     });
   } catch (err) {
-    res.status(500).json({ message: "Lỗi lấy thống kê nhanh!" });
+    res.status(500).json({ message: "Lß╗ùi lß║Ñy thß╗æng k├¬ nhanh!" });
   }
 });
 
 
 
-// đăng ký lịch học
+// ─æ─âng k├╜ l├¡ch hß╗ìc
 // ...existing code...
 
-// Tạo lịch mới (admin)
+// Tß║ío lß╗ïch mß╗¢i (admin)
 app.post("/api/schedules", authenticateToken, checkAdmin, async (req, res) => {
   try {
     const { course_id, start_time, end_time, capacity, location, notes } =
@@ -1527,7 +1480,7 @@ app.post("/api/schedules", authenticateToken, checkAdmin, async (req, res) => {
   }
 });
 
-// Lấy danh sách lịch (optionally filter by course_id)
+// Lß║Ñy danh s├ích lß╗ïch (optionally filter by course_id)
 app.get("/api/schedules", async (req, res) => {
   try {
     const { course_id } = req.query;
@@ -1547,7 +1500,7 @@ app.get("/api/schedules", async (req, res) => {
   }
 });
 
-// Chi tiết lịch kèm số đăng ký
+// Chi tiß║┐t lß╗ïch k├¿m sß╗æ ─æ├ú ─æ─âng k├╜
 app.get("/api/schedules/:id", async (req, res) => {
   try {
     const id = req.params.id;
@@ -1568,12 +1521,12 @@ app.get("/api/schedules/:id", async (req, res) => {
   }
 });
 
-// Đăng ký học viên vào 1 lịch (authenticated users)
+// ─É─âng k├╜ hß╗ìc vi├¬n v├áo 1 lß╗ïch (authenticated users)
 app.post("/api/schedules/:id/register", authenticateToken, async (req, res) => {
   try {
     const scheduleId = req.params.id;
     const { student_id } = req.body;
-    // kiểm tra schedule
+    // kiß╗âm tra schedule
     const [sRows] = await pool.query(
       "SELECT capacity FROM schedules WHERE id = ?",
       [scheduleId]
@@ -1581,7 +1534,7 @@ app.post("/api/schedules/:id/register", authenticateToken, async (req, res) => {
     if (!sRows.length)
       return res.status(404).json({ error: "Schedule not found" });
     const capacity = sRows[0].capacity || 0;
-    // đếm đăng ký
+    // ─æß║┐m ─æ├ú ─æ─âng k├╜
     const [cRows] = await pool.query(
       "SELECT COUNT(*) AS cnt FROM registrations WHERE schedule_id = ?",
       [scheduleId]
@@ -1589,7 +1542,7 @@ app.post("/api/schedules/:id/register", authenticateToken, async (req, res) => {
     const registered = cRows[0].cnt || 0;
     if (capacity > 0 && registered >= capacity)
       return res.status(400).json({ error: "Schedule is full" });
-    // tạo đăng ký
+    // tß║ío ─æ─âng k├╜
     await pool.query(
       "INSERT INTO registrations (schedule_id, student_id) VALUES (?, ?)",
       [scheduleId, student_id]
@@ -1603,7 +1556,7 @@ app.post("/api/schedules/:id/register", authenticateToken, async (req, res) => {
   }
 });
 
-// Hủy đăng ký
+// Hß╗ºy ─æ─âng k├╜
 app.delete(
   "/api/schedules/:id/register/:studentId",
   authenticateToken,
@@ -1622,7 +1575,7 @@ app.delete(
   }
 );
 
-// Lấy danh sách học viên đăng ký cho 1 lịch
+// Lß║Ñy danh s├ích hß╗ìc vi├¬n ─æ├ú ─æ─âng k├╜ cho 1 lß╗ïch
 app.get(
   "/api/schedules/:id/registrations",
   authenticateToken,
@@ -1646,7 +1599,7 @@ app.get(
   }
 );
 
-// API: Lấy danh sách tất cả đăng ký lịch học (cho trang quản lý)
+// API: Lß║Ñy danh s├ích tß║Ñt cß║ú ─æ─âng k├╜ lß╗ïch hß╗ìc (cho trang quß║ún l├╜)
 app.get(
   "/api/schedule-registrations",
   authenticateToken,
@@ -1706,20 +1659,20 @@ app.get(
     } catch (err) {
       console.error("Error fetching schedule registrations:", err);
       res.status(500).json({
-        message: "Lỗi lấy danh sách đăng ký lịch học",
+        message: "Lß╗ùi lß║Ñy danh s├ích ─æ─âng k├╜ lß╗ïch hß╗ìc",
         error: err.message,
       });
     }
   }
 );
 
-// API: Lấy yêu cầu môn học theo subject_id
+// API: Lß║Ñy y├¬u cß║ºu m├┤n hß╗ìc theo subject_id
 app.get("/api/subject-requirements", async (req, res) => {
   try {
     const { subject_id } = req.query;
 
     if (!subject_id) {
-      return res.status(400).json({ message: "Thiếu subject_id" });
+      return res.status(400).json({ message: "Thiß║┐u subject_id" });
     }
 
     const [rows] = await pool.query(
@@ -1731,7 +1684,7 @@ app.get("/api/subject-requirements", async (req, res) => {
   } catch (err) {
     console.error("Error fetching subject requirements:", err);
     res.status(500).json({
-      message: "Lỗi lấy yêu cầu môn học",
+      message: "Lß╗ùi lß║Ñy y├¬u cß║ºu m├┤n hß╗ìc",
       error: err.message,
     });
   }
@@ -1742,7 +1695,7 @@ app.get("/api/subject-requirements", async (req, res) => {
 
 
 // ...existing code...
-// dành cho trang học viên
+// d├ánh cho trang hß╗ìc vi├¬n
 
 // be/app.js
 
@@ -1750,11 +1703,11 @@ app.post("/api/student/login", async (req, res) => {
   try {
     const { so_cmt } = req.body;
 
-    console.log("🔍 so_cmt nhận được:", so_cmt);
+    console.log("≡ƒæë so_cmt nhß║¡n ─æ╞░ß╗úc:", so_cmt);
 
     if (!so_cmt || so_cmt.trim() === "") {
       return res.status(400).json({
-        message: "CCCD rỗng hoặc không hợp lệ",
+        message: "CCCD rß╗ùng hoß║╖c kh├┤ng hß╗úp lß╗ç",
         body: req.body,
       });
     }
@@ -1770,7 +1723,7 @@ app.post("/api/student/login", async (req, res) => {
     );
 
     if (!student) {
-      return res.status(401).json({ message: "Không tìm thấy học viên" });
+      return res.status(401).json({ message: "Kh├┤ng t├¼m thß║Ñy hß╗ìc vi├¬n" });
     }
 
     // Debug log: show DB row returned for student
@@ -1805,7 +1758,7 @@ app.post("/api/student/login", async (req, res) => {
       token: token,
     });
   } catch (err) {
-    console.error("🔍 LOGIN ERROR:", err.message);
+    console.error("≡ƒöÑ LOGIN ERROR:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1881,9 +1834,9 @@ app.get("/api/student/:id", async (req, res) => {
 
 
 
-// --- API QUẢN LÝ BÀI GIẢNG ---
+// --- API QUß║óN L├¥ B├ÇI GIß║óNG ---
 
-// 1. Lấy danh sách tất cả môn học
+// 1. Lß║Ñy danh s├ích tß║Ñt cß║ú m├┤n hß╗ìc
 app.get("/api/subjects", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM subjects");
@@ -1893,7 +1846,7 @@ app.get("/api/subjects", async (req, res) => {
   }
 });
 
-// 2. Lấy danh sách bài giảng theo Môn học (Dùng cho cả Admin và Học viên)
+// 2. Lß║Ñy danh s├ích b├ái giß║úng theo M├┤n hß╗ìc (D├╣ng cho cß║ú Admin v├á Hß╗ìc vi├¬n)
 app.get("/api/lessons", async (req, res) => {
   const { subject_id } = req.query;
   try {
@@ -1911,20 +1864,20 @@ app.get("/api/lessons", async (req, res) => {
       // debug: count rows for this subject_id
       try {
         const [[countRow]] = await pool.query("SELECT COUNT(*) as c FROM lessons WHERE subject_id = ?", [sid]);
-        console.log(`🔍 API /api/lessons debug: subject_id=${sid} count=${countRow.c}`);
+        console.log(`≡ƒæë API /api/lessons debug: subject_id=${sid} count=${countRow.c}`);
       } catch (e) {
         console.warn("Could not run lessons count debug", e.message);
       }
     }
     const [rows] = await pool.query(sql, params);
-    console.log(`🔍 API /api/lessons query: subject_id=${subject_id}, trả về ${rows.length} lessons`);
+    console.log(`≡ƒæë API /api/lessons query: subject_id=${subject_id}, trß║ú vß╗ü ${rows.length} lessons`);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Debug: Xem tất cả lessons với subject_id
+// Debug: Xem tß║Ñt cß║ú lessons vß╗¢i subject_id
 app.get("/api/debug/lessons-all", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT id, title, subject_id FROM lessons ORDER BY subject_id, lesson_order");
@@ -1934,8 +1887,8 @@ app.get("/api/debug/lessons-all", async (req, res) => {
   }
 });
 
-// 3. Thêm bài giảng mới (Dành cho Admin)
-// API Thêm bài giảng (Đã sửa lại theo tham số chuẩn 100%)
+// 3. Th├¬m b├ái giß║úng mß╗¢i (D├ánh cho Admin)
+// API Th├¬m b├ái giß║úng (─É├ú sß╗¡a lß║íi thß╗⌐ tß╗▒ tham sß╗æ chuß║⌐n 100%)
 app.post("/api/lessons", async (req, res) => {
   const {
     subject_id,
@@ -1949,12 +1902,12 @@ app.post("/api/lessons", async (req, res) => {
   let { content } = req.body;
 
   try {
-    // Gọi hàm phụ trợ để lấy nội dung nếu cần
+    // Gß╗ìi h├ám phß╗Ñ trß╗ú ─æß╗â lß║Ñy nß╗Öi dung nß║┐u cß║ºn
     if (pdf_url && (!content || content.trim() === "")) {
       try {
-        // Xử lý đường dẫn an toàn hơn
+        // Xß╗¡ l├╜ ─æ╞░ß╗¥ng dß║½n an to├án h╞ín
         let cleanUrl = pdf_url.startsWith("/") ? pdf_url.substring(1) : pdf_url;
-        // Nếu chạy trên Windows, thay / thành \ cho đúng chuẩn
+        // Nß║┐u chß║íy tr├¬n Windows, thay / th├ánh \ cho ─æ├║ng chuß║⌐n
         cleanUrl = cleanUrl.replace(/\//g, path.sep);
 
         const absolutePath = path.resolve(__dirname, cleanUrl);
@@ -1966,12 +1919,12 @@ app.post("/api/lessons", async (req, res) => {
             content = pdfData.text.replace(/\n\s*\n/g, "\n").trim();
           }
         } else {
-          console.warn("⚠️ File PDF không tồn tại:", absolutePath);
-          // Không throw lỗi, vẫn cho lưu bài giảng nhưng content rỗng
+          console.warn("ΓÜá∩╕Å File PDF kh├┤ng tß╗ôn tß║íi:", absolutePath);
+          // Kh├┤ng throw lß╗ùi, vß║½n cho l╞░u b├ái giß║úng nh╞░ng content rß╗ùng
         }
       } catch (e) {
-        console.error("⚠️ Lỗi đọc PDF (Bỏ qua để lưu):", e.message);
-        // Bắt lỗi ở đây để code chạy tiếp xuống dưới
+        console.error("ΓÜá∩╕Å Lß╗ùi ─æß╗ìc PDF (Bß╗Å qua ─æß╗â l╞░u):", e.message);
+        // Bß║»t lß╗ùi ß╗ƒ ─æ├óy v├á KH├öNG l├ám g├¼ cß║ú ─æß╗â code chß║íy tiß║┐p xuß╗æng d╞░ß╗¢i
       }
     }
 
@@ -1985,8 +1938,8 @@ app.post("/api/lessons", async (req, res) => {
     }
 
     const sql = `
-      INSERT INTO lessons
-      (subject_id, title, lesson_code, video_url, pdf_url, lesson_order, duration_minutes, content)
+      INSERT INTO lessons 
+      (subject_id, title, lesson_code, video_url, pdf_url, lesson_order, duration_minutes, content) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
     await pool.query(sql, [
@@ -2000,21 +1953,21 @@ app.post("/api/lessons", async (req, res) => {
       content || "",
     ]);
 
-    res.json({ message: "Thêm thành công" });
+    res.json({ message: "Th├¬m th├ánh c├┤ng" });
   } catch (err) {
-    console.error("Lỗi POST:", err);
+    console.error("Lß╗ùi POST:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// 3.1. Lấy chi tiết bài giảng theo ID (Dành cho Học viên)
-// 🔍 THÊM API NÀY: Lấy chi tiết 1 bài giảng theo ID
+// 3.1. Lß║Ñy chi tiß║┐t b├ái giß║úng theo ID (D├ánh cho Hß╗ìc vi├¬n)
+// ≡ƒæç TH├èM API N├ÇY: Lß║Ñy chi tiß║┐t 1 b├ái giß║úng theo ID
 app.get("/api/lessons/:id", async (req, res) => {
   // const { id } = req.params;
   try {
   const [rows] = await pool.query("SELECT * FROM lessons WHERE id = ?", [req.params.id]);
     if (rows.length === 0) {
-      return res.status(404).json({ message: "Không tìm thấy bài giảng" });
+      return res.status(404).json({ message: "Kh├┤ng t├¼m thß║Ñy b├ái giß║úng" });
     }
     res.json(rows[0]);
   } catch (err) {
@@ -2022,17 +1975,17 @@ app.get("/api/lessons/:id", async (req, res) => {
   }
 });
 
-// 4. Xóa bài giảng
+// 4. X├│a b├ái giß║úng
 app.delete("/api/lessons/:id", async (req, res) => {
   try {
     await pool.query("DELETE FROM lessons WHERE id = ?", [req.params.id]);
-    res.json({ message: "Đã xóa bài giảng" });
+    res.json({ message: "─É├ú x├│a b├ái giß║úng" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-// 5. Sửa bài giảng (Thêm đoạn này vào be/app.js)
-// --- API SỬA BÀI GIẢNG (PUT) ---
+// 5. Sß╗¡a b├ái giß║úng (Th├¬m ─æoß║ín n├áy v├áo be/app.js)
+// --- API Sß╗¼A B├ÇI GIß║óNG (PUT) ---
 app.put("/api/lessons/:id", async (req, res) => {
   const { id } = req.params;
   const {
@@ -2047,15 +2000,15 @@ app.put("/api/lessons/:id", async (req, res) => {
   let { content } = req.body;
 
   try {
-    // Gọi hàm phụ trợ khi sửa
+    // Gß╗ìi h├ám phß╗Ñ trß╗ú khi sß╗¡a
     if (pdf_url && (!content || content.trim() === "")) {
       const extracted = await extractPdfText(pdf_url);
-      if (extracted) content = extracted; // Chỉ cập nhật nếu đã được
+      if (extracted) content = extracted; // Chß╗ë cß║¡p nhß║¡t nß║┐u ─æß╗ìc ─æ╞░ß╗úc
     }
 
     const sql = `
-      UPDATE lessons SET
-        subject_id = ?, title = ?, lesson_code = ?, video_url = ?, pdf_url = ?,
+      UPDATE lessons SET 
+        subject_id = ?, title = ?, lesson_code = ?, video_url = ?, pdf_url = ?, 
         lesson_order = ?, duration_minutes = ?, content = ?
       WHERE id = ?
     `;
@@ -2071,36 +2024,36 @@ app.put("/api/lessons/:id", async (req, res) => {
       id,
     ]);
 
-    res.json({ message: "Cập nhật thành công" });
+    res.json({ message: "Cß║¡p nhß║¡t th├ánh c├┤ng" });
   } catch (err) {
-    console.error("Lỗi PUT:", err);
+    console.error("Lß╗ùi PUT:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
 
-// API tạo dữ liệu mẫu môn học
+// API tß║ío dß╗» liß╗çu mß║½u m├┤n hß╗ìc
 app.get("/api/init-subjects", async (req, res) => {
   const subjects = [
-    { name: "Pháp luật giao thông đường bộ", code: "PL", hours: 90 },
-    { name: "Đạo đức người lái xe", code: "DD", hours: 15 },
-    { name: "Cấu tạo và sửa chữa thường xuyên", code: "CT", hours: 10 },
-    { name: "Kỹ thuật lái xe", code: "KT", hours: 20 },
-    { name: "Tình huống mô phỏng", code: "MP", hours: 4 },
+    { name: "Ph├íp luß║¡t giao th├┤ng ─æ╞░ß╗¥ng bß╗Ö", code: "PL", hours: 90 },
+    { name: "─Éß║ío ─æß╗⌐c ng╞░ß╗¥i l├íi xe", code: "DD", hours: 15 },
+    { name: "Cß║Ñu tß║ío v├á sß╗¡a chß╗»a th├┤ng th╞░ß╗¥ng", code: "CT", hours: 10 },
+    { name: "Kß╗╣ thuß║¡t l├íi xe", code: "KT", hours: 20 },
+    { name: "T├¼nh huß╗æng m├┤ phß╗Ång", code: "MP", hours: 4 },
   ];
 
   try {
-    // 1. Đảm bảo bảng có cột
+    // 1. ─Éß║úm bß║úo bß║úng c├│ ─æß╗º cß╗Öt
     try {
       await pool.query("ALTER TABLE subjects ADD COLUMN code VARCHAR(50) NULL");
       await pool.query(
         "ALTER TABLE subjects ADD COLUMN total_hours INT DEFAULT 0"
       );
     } catch (e) {
-      // Bỏ qua nếu cột đã tồn tại
+      // Bß╗Å qua nß║┐u cß╗Öt ─æ├ú tß╗ôn tß║íi
     }
 
-    // 2. Xóa cũ thêm mới
+    // 2. X├│a c┼⌐ th├¬m mß╗¢i
     await pool.query("DELETE FROM subjects");
 
     for (const sub of subjects) {
@@ -2109,54 +2062,54 @@ app.get("/api/init-subjects", async (req, res) => {
         [sub.name, sub.code, sub.hours]
       );
     }
-    res.send("✅ Đã tạo thành công 5 môn học!");
+    res.send("Γ£à ─É├ú tß║ío th├ánh c├┤ng 5 m├┤n hß╗ìc!");
   } catch (err) {
-    res.status(500).send("Lỗi: " + err.message);
+    res.status(500).send("Lß╗ùi: " + err.message);
   }
 });
 
-// tiến độ môn học - CẬP NHẬT: Hỗ trợ cả lessons và simulations
+// tiß║┐n ─æß╗Ö m├┤n hß╗ìc - Cß║¼P NHß║¼T: Hß╗ù trß╗ú cß║ú lessons v├á simulations
 app.post("/api/student/lesson-progress", async (req, res) => {
   const { student_id, lesson_id, watched_seconds, duration_minutes, subject_id } = req.body;
 
   if (!student_id || !watched_seconds || !duration_minutes) {
-    return res.status(400).json({ message: "Thiếu dữ liệu" });
+    return res.status(400).json({ message: "Thiß║┐u dß╗» liß╗çu" });
   }
 
   try {
-    // Tính số phút học, tối thiểu 1 phút nếu học >= 30 giây
+    // T├¡nh sß╗æ ph├║t hß╗ìc, tß╗æi thiß╗âu 1 ph├║t nß║┐u hß╗ìc >= 30 gi├óy
     const minutesLearned = watched_seconds >= 30 ? Math.max(1, Math.round(watched_seconds / 60)) : 0;
 
-    // Nếu học dưới 30 giây thì bỏ qua (tránh spam)
+    // Nß║┐u hß╗ìc d╞░ß╗¢i 30 gi├óy th├¼ bß╗Å qua (tr├ính spam)
     if (watched_seconds < 30) {
       return res.json({
         success: false,
-        message: "Thời gian học quá ngắn",
+        message: "Thß╗¥i gian hß╗ìc qu├í ngß║»n",
       });
     }
 
     let subjectId;
 
-    // Nếu có subject_id trực tiếp (cho simulations), dùng luôn
+    // Nß║┐u c├│ subject_id trß╗▒c tiß║┐p (cho simulations), d├╣ng lu├┤n
     if (subject_id) {
       subjectId = subject_id;
     } else if (lesson_id) {
-      // Lấy thông tin bài học để biết subject_id (cho lessons)
+      // Lß║Ñy th├┤ng tin b├ái hß╗ìc ─æß╗â biß║┐t subject_id (cho lessons)
       const [lessonRows] = await pool.query(
         "SELECT subject_id FROM lessons WHERE id = ?",
         [lesson_id]
       );
 
       if (lessonRows.length === 0) {
-        return res.status(404).json({ message: "Không tìm thấy bài học" });
+        return res.status(404).json({ message: "Kh├┤ng t├¼m thß║Ñy b├ái hß╗ìc" });
       }
 
       subjectId = lessonRows[0].subject_id;
     } else {
-      return res.status(400).json({ message: "Thiếu lesson_id hoặc subject_id" });
+      return res.status(400).json({ message: "Thiß║┐u lesson_id hoß║╖c subject_id" });
     }
 
-    // Cộng dồn thời gian vào learning_history
+    // Cß╗Öng dß╗ôn thß╗¥i gian v├áo learning_history
     await pool.query(
       `
       INSERT INTO learning_history (student_id, subject_id, minutes)
@@ -2167,8 +2120,8 @@ app.post("/api/student/lesson-progress", async (req, res) => {
       [student_id, subjectId, minutesLearned]
     );
 
-    // Chỉ lưu vào student_lesson_progress nếu là lesson thật (không phải simulation)
-    // Simulations dùng fake lesson_id negative nên không cần student_lesson_progress
+    // Chß╗ë l╞░u v├áo student_lesson_progress nß║┐u l├á lesson thß║¡t (kh├┤ng phß║úi simulation)
+    // Simulations d├╣ng fake lesson_id negative n├¬n kh├┤ng cß║ºn student_lesson_progress
     let isCompleted = false;
     if (lesson_id && lesson_id > 0) {
       const percentWatched = watched_seconds / (duration_minutes * 60);
@@ -2195,7 +2148,7 @@ app.post("/api/student/lesson-progress", async (req, res) => {
     console.error("lesson-progress error:", err);
     console.error("Error details:", err.message);
     console.error("Stack:", err.stack);
-    res.status(500).json({ message: "Lỗi lưu tiến độ học", error: err.message });
+    res.status(500).json({ message: "Lß╗ùi l╞░u tiß║┐n ─æß╗Ö hß╗ìc", error: err.message });
   }
 });
 
@@ -2204,7 +2157,7 @@ app.get("/api/student/dashboard/:id", async (req, res) => {
   try {
     const studentId = req.params.id;
 
-    // Lấy hạng GPLX của học viên để chọn requirement phù hợp.
+    // Lß║Ñy hß║íng GPLX cß╗ºa hß╗ìc vi├¬n ─æß╗â chß╗ë lß║Ñy requirement ph├╣ hß╗úp.
     const [[studentRow]] = await pool.query(
       `SELECT hang_gplx FROM students WHERE id = ? LIMIT 1`,
       [studentId]
@@ -2220,8 +2173,8 @@ app.get("/api/student/dashboard/:id", async (req, res) => {
         sr.required_hours,
         COALESCE(SUM(lh.minutes), 0) / 60 AS learned_hours,
         CASE
-          WHEN COALESCE(SUM(lh.minutes), 0) / 60 >= sr.required_hours THEN 'Hoàn thành'
-          ELSE 'Chưa hoàn thành'
+          WHEN COALESCE(SUM(lh.minutes), 0) / 60 >= sr.required_hours THEN 'Ho├án th├ánh'
+          ELSE 'Ch╞░a ho├án th├ánh'
         END AS status
       FROM subjects sub
       LEFT JOIN subject_requirements sr
@@ -2235,7 +2188,7 @@ app.get("/api/student/dashboard/:id", async (req, res) => {
 
     res.json(rows || []);
   } catch (err) {
-    console.error("🔍 DASHBOARD ERROR", err);
+    console.error("≡ƒöÑ DASHBOARD ERROR", err);
     console.error("SQL Message:", err.sqlMessage || err.message);
     res.status(500).json({ error: err.sqlMessage || err.message });
   }
@@ -2244,13 +2197,13 @@ app.get("/api/student/dashboard/:id", async (req, res) => {
 
 
 // =======================================
-// API: Lấy tổng giờ học + tổng giờ quy định
+// API: Lß║Ñy tß╗òng giß╗¥ hß╗ìc + tß╗òng giß╗¥ quy ─æß╗ïnh
 // =======================================
 app.get("/api/student/summary/:id", async (req, res) => {
   try {
     const studentId = req.params.id;
 
-    // Lấy thông tin học viên trước
+    // Lß║Ñy th├┤ng tin hß╗ìc vi├¬n tr╞░ß╗¢c
     const [[studentInfo]] = await pool.query(
       "SELECT hang_gplx FROM students WHERE id = ?",
       [studentId]
@@ -2262,14 +2215,14 @@ app.get("/api/student/summary/:id", async (req, res) => {
 
     const hangGplx = studentInfo.hang_gplx;
 
-    // Lấy tổng giờ đã học
+    // Lß║Ñy tß╗òng giß╗¥ ─æ├ú hß╗ìc
     const [[learnedRow]] = await pool.query(`
       SELECT COALESCE(SUM(minutes), 0) / 60 AS learned_hours
       FROM learning_history
       WHERE student_id = ?
     `, [studentId]);
 
-    // Lấy tổng giờ yêu cầu cho hạng GPLX (normalize license class)
+    // Lß║Ñy tß╗òng giß╗¥ y├¬u cß║ºu cho hß║íng GPLX (normalize license class)
     const normalizedHangGplx = hangGplx.replace('.', ''); // B.01 -> B01, B1 -> B1
     const [[requiredRow]] = await pool.query(`
       SELECT COALESCE(SUM(required_hours), 0) AS required_hours
@@ -2289,17 +2242,17 @@ app.get("/api/student/summary/:id", async (req, res) => {
       hang_gplx: hangGplx,
     });
   } catch (err) {
-    console.error("🔍 SUMMARY ERROR", err);
+    console.error("≡ƒöÑ SUMMARY ERROR", err);
     console.error("SQL Message:", err.sqlMessage || err.message);
     res.status(500).json({ error: err.sqlMessage || err.message });
   }
 });
 
-// Lưu tiến độ bài học (Dùng tên cột learned_seconds)
+// L╞░u tiß║┐n ─æß╗Ö b├ái hß╗ìc (D├╣ng t├¬n cß╗Öt learned_seconds)
 app.post("/api/progress/save", authenticateToken, async (req, res) => {
     const { lesson_id, learned_seconds } = req.body;
     const student_id = req.user.id;
-      console.log(`🔍 Saving: Student ${student_id} | Lesson ${lesson_id} | Seconds: ${learned_seconds}`);
+      console.log(`≡ƒÆ╛ Saving: Student ${student_id} | Lesson ${lesson_id} | Seconds: ${learned_seconds}`);
 
     try {
         const sql = `
@@ -2309,12 +2262,12 @@ app.post("/api/progress/save", authenticateToken, async (req, res) => {
         `;
         await pool.query(sql, [student_id, lesson_id, learned_seconds, learned_seconds]);
         res.json({ success: true });
-    } catch (err) {
-          console.error("Lỗi Save:", err);
+    } catch (err) { 
+          console.error("Lß╗ùi Save:", err);
 res.status(500).json({ error: err.message }); }
 });
 
-// Lấy tiến độ 1 bài
+// Lß║Ñy tiß║┐n ─æß╗Ö 1 b├ái
 app.get("/api/progress/:lessonId", authenticateToken, async (req, res) => {
     const studentId = req.user.id;
     const lessonId = req.params.lessonId;
@@ -2324,7 +2277,7 @@ app.get("/api/progress/:lessonId", authenticateToken, async (req, res) => {
          [studentId, lessonId]
         );
         const time = rows.length > 0 ? rows[0].learned_seconds : 0;
-            console.log(`🔍 Load: Bài ${lessonId} - Giây: ${time}`);
+            console.log(`≡ƒôñ Load: B├ái ${lessonId} - Gi├óy: ${time}`);
 
          res.json({ learned_seconds: time });
   } catch (err) {
@@ -2356,14 +2309,14 @@ app.get("/api/debug/data-check", async (req, res) => {
   }
 });
 
-// --- API MÔ PHỎNG 120 TÌNH HUỐNG ---
+// --- API M├ö PHß╗ÄNG 120 T├îNH HUß╗ÉNG ---
 app.get("/api/simulations", async (req, res) => {
   try {
-    // Lấy toàn bộ 120 câu, sắp xếp theo số thứ tự
+    // Lß║Ñy to├án bß╗Ö 120 c├óu, sß║»p xß║┐p theo sß╗æ thß╗⌐ tß╗▒
     const [rows] = await pool.query("SELECT * FROM simulations ORDER BY stt ASC");
     res.json(rows);
   } catch (err) {
-    console.error("Lỗi lấy simulation:", err);
+    console.error("Lß╗ùi lß║Ñy simulation:", err);
     res.status(500).json({ error: err.message });
   }
 });
