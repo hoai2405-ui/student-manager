@@ -14,9 +14,7 @@ const UsersPage = () => {
   const hasUsersPermission = !!(
     currentUser?.is_admin ||
     currentUser?.isAdmin ||
-    currentUser?.role === "admin" ||
-    currentUser?.role === "department" ||
-    currentUser?.role === "sogtvt"
+    currentUser?.role === "admin"
   );
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -48,7 +46,7 @@ const UsersPage = () => {
   const fetchUsers = async () => {
     const headers = getAuthHeaders();
     if (!headers) {
-      message.warning("Ban chua dang nhap. Vui long dang nhap lai.");
+      message.warning("Bạn chưa đăng nhập. Vui lòng đăng nhập lại.");
       navigate("/admin/login");
       return;
     }
@@ -59,12 +57,12 @@ const UsersPage = () => {
     } catch (error) {
       console.error("Chi tiet loi lay user:", error);
       if (error?.response?.status === 401) {
-        message.error("Phien dang nhap het han, dang nhap lai.");
+        message.error("Phiên đăng nhập hết hạn, đăng nhập lại.");
         logout();
         navigate("/admin/login");
         return;
       }
-      message.error("Loi lay danh sach nguoi dung!");
+      message.error("Lỗi lấy danh sách người dùng!");
     } finally {
       setLoading(false);
     }
@@ -78,20 +76,20 @@ const UsersPage = () => {
   const handleDelete = async (id) => {
     if (!hasUsersPermission) return;
     const headers = getAuthHeaders();
-    if (!headers) return message.error("Ban chua dang nhap.");
+    if (!headers) return message.error("Bạn chưa đăng nhập.");
     try {
       await axios.delete(`/api/users/${id}`, { headers });
-      message.success("Xoa thanh cong!");
+      message.success("Xóa thành công!");
       fetchUsers();
     } catch (error) {
-      console.error("Loi xoa nguoi dung:", error);
+      console.error("Lỗi xóa người dùng:", error);
       if (error?.response?.status === 401) {
-        message.error("Phien dang nhap het han.");
+        message.error("Phiên đăng nhập hết hạn.");
         logout();
         navigate("/admin/login");
         return;
       }
-      message.error("Xoa that bai!");
+      message.error("Xóa thất bại!");
     }
   };
 
@@ -113,7 +111,7 @@ const UsersPage = () => {
   const handleOk = () => {
     if (!hasUsersPermission) return;
     const headers = getAuthHeaders();
-    if (!headers) return message.error("Ban chua dang nhap.");
+    if (!headers) return message.error("Bạn chưa đăng nhập.");
 
     form.validateFields().then(async (values) => {
       try {
@@ -124,36 +122,36 @@ const UsersPage = () => {
         };
         if (editingUser) {
           await axios.put(`/api/users/${editingUser.id}`, payload, config);
-          message.success("Cap nhat thanh cong!");
+          message.success("Cập nhật thành công!");
         } else {
           await axios.post("/api/users", payload, config);
-          message.success("Them nguoi dung thanh cong!");
+          message.success("Thêm người dùng thành công!");
         }
         fetchUsers();
         setIsModalVisible(false);
       } catch (error) {
-        console.error("Loi PUT / POST /users:", error);
+        console.error("Lỗi PUT / POST /users:", error);
         if (error?.response?.status === 401) {
-          message.error("Phien dang nhap het han.");
+          message.error("Phiên đăng nhập hết hạn.");
           logout();
           navigate("/admin/login");
           return;
         }
-        message.error("Co loi xay ra!");
+        message.error("Có lỗi xảy ra!");
       }
     });
   };
 
   const columns = [
     {
-      title: "Ten dang nhap",
+      title: "Tên đăng nhập",
       dataIndex: "username",
       key: "username",
       width: screens.xs ? 130 : 180,
       render: (text) => <b style={{ color: "#1565c0", fontWeight: 600 }}>{text}</b>,
     },
     {
-      title: "Vai tro",
+      title: "Vai trò",
       dataIndex: "role",
       key: "role",
       width: screens.xs ? 100 : 120,
@@ -166,7 +164,7 @@ const UsersPage = () => {
             icon={isAdminRole ? <CrownOutlined /> : <UserOutlined />}
             style={{ fontWeight: 600 }}
           >
-            {isAdminRole ? "Quan tri vien" : isDepartment ? "So GTVT" : "Nhan vien"}
+            {isAdminRole ? "Quản trị viên" : isDepartment ? "Sở GTVT" : "Nhân viên"}
           </Tag>
         );
       },
@@ -179,25 +177,25 @@ const UsersPage = () => {
       render: (val) => <span style={{ color: "#009688", fontSize: screens.xs ? 12 : 15 }}>{val}</span>,
     },
     {
-      title: "Dien thoai",
+      title: "Điện thoại",
       dataIndex: "phone",
       key: "phone",
       responsive: ["md"],
       render: (val) => <span style={{ color: "#606060", fontSize: screens.xs ? 12 : 15 }}>{val}</span>,
     },
     {
-      title: "Thao tac",
+      title: "Thao tác",
       key: "actions",
       align: "center",
       width: screens.xs ? 120 : 160,
       render: (_, record) => (
         <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
           <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} size={screens.xs ? "small" : "middle"} disabled={!hasUsersPermission}>
-            {!screens.xs && "Sua"}
+            {!screens.xs && "Sửa"}
           </Button>
-          <Popconfirm title="Ban chac chan muon xoa?" onConfirm={() => handleDelete(record.id)} okText="Co" cancelText="Khong" disabled={!hasUsersPermission}>
+          <Popconfirm title="Bạn chắc chắn muốn xóa?" onConfirm={() => handleDelete(record.id)} okText="Có" cancelText="Không" disabled={!hasUsersPermission}>
             <Button danger icon={<DeleteOutlined />} size={screens.xs ? "small" : "middle"} disabled={!hasUsersPermission}>
-              {!screens.xs && "Xoa"}
+              {!screens.xs && "Xóa"}
             </Button>
           </Popconfirm>
         </div>
@@ -207,7 +205,7 @@ const UsersPage = () => {
 
   return (
     <Card
-      title={<span style={{ fontSize: screens.xs ? 20 : 24, fontWeight: 700 }}> Danh sach nguoi dung</span>}
+      title={<span style={{ fontSize: screens.xs ? 20 : 24, fontWeight: 700 }}> Danh sách người dùng</span>}
       style={{
         maxWidth: 900,
         margin: screens.xs ? "8px 2px" : "28px auto",
@@ -218,22 +216,22 @@ const UsersPage = () => {
       }}
       extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} size={screens.xs ? "small" : "middle"} disabled={!hasUsersPermission}>
-          Them
+          Thêm
         </Button>
       }
     >
       <Table dataSource={users} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 5 }} scroll={{ x: 400 }} />
-      <Modal title={editingUser ? "Sua nguoi dung" : "Them nguoi dung"} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={
+      <Modal title={editingUser ? "Sửa người dùng" : "Thêm người dùng"} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <Button onClick={() => setIsModalVisible(false)}>Huy</Button>
-          <Button type="primary" onClick={handleOk} disabled={!hasUsersPermission}>Luu</Button>
+          <Button onClick={() => setIsModalVisible(false)}>Hủy</Button>
+          <Button type="primary" onClick={handleOk} disabled={!hasUsersPermission}>Lưu</Button>
         </div>
       }>
         <Form layout="vertical" form={form}>
-          <Form.Item name="username" label="Ten dang nhap" rules={[{ required: true, message: "Nhap ten dang nhap!" }]}>
+          <Form.Item name="username" label="Tên đăng nhập" rules={[{ required: true, message: "Nhập tên đăng nhập!" }]}>
             <Input disabled={!hasUsersPermission} />
           </Form.Item>
-          {!editingUser && <Form.Item name="password" label="Mat khau" rules={[{ required: true, message: "Nhap mat khau!" }]}><Input.Password disabled={!hasUsersPermission} /></Form.Item>}
+          {!editingUser && <Form.Item name="password" label="Mật khẩu" rules={[{ required: true, message: "Nhập mật khẩu!" }]}><Input.Password disabled={!hasUsersPermission} /></Form.Item>}
           <Form.Item name="email" label="Email" rules={[{ required: true, type: "email", message: "Email khong hop le!" }]}><Input disabled={!hasUsersPermission} /></Form.Item>
           <Form.Item name="phone" label="Dien thoai" rules={[{ required: true, pattern: /^[0-9]{9,11}$/, message: "Dien thoai khong hop le!" }]}><Input disabled={!hasUsersPermission} /></Form.Item>
           <Form.Item
@@ -243,7 +241,7 @@ const UsersPage = () => {
             initialValue="employee"
           >
             <Select
-              placeholder="Chon vai tro"
+              placeholder="Chọn vai trò"
               disabled={!hasUsersPermission}
               style={{ width: '100%' }}
               options={[
@@ -252,7 +250,7 @@ const UsersPage = () => {
                   label: (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <CrownOutlined style={{ color: '#faad14' }} />
-                      <span>Quan tri vien</span>
+                      <span>Quản trị viên</span>
                     </div>
                   )
                 },
@@ -261,7 +259,7 @@ const UsersPage = () => {
                   label: (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <UserOutlined style={{ color: '#1890ff' }} />
-                      <span>Nhan vien</span>
+                      <span>Nhân viên</span>
                     </div>
                   )
                 },
@@ -270,16 +268,7 @@ const UsersPage = () => {
                   label: (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <UserOutlined style={{ color: '#52c41a' }} />
-                      <span>Sở GTVT (department)</span>
-                    </div>
-                  )
-                },
-                {
-                  value: "sogtvt",
-                  label: (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <UserOutlined style={{ color: '#52c41a' }} />
-                      <span>Sở GTVT (sogtvt)</span>
+                      <span>Sở GTVT</span>
                     </div>
                   )
                 }

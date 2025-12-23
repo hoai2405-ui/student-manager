@@ -26,7 +26,7 @@ export function AuthProvider({ children }) {
         console.log("AuthContext: Loaded user and token", {
           user: normalizeUser(obj.user),
           hasToken: !!obj.token,
-          isAdmin: !!(obj.user && (obj.user.is_admin || obj.user.isAdmin || obj.user.role === 'admin'))
+          isAdmin: !!(obj.user && (obj.user.is_admin || obj.user.isAdmin || obj.user.role === 'admin' || obj.user.role === 'department' || obj.user.role === 'sogtvt' || obj.user.role === 'employee'))
         });
       } else {
         console.log("AuthContext: No auth data in localStorage");
@@ -50,7 +50,11 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     console.log("AuthContext: Logging out");
     const isAdmin = Boolean(
-      user?.is_admin ?? user?.isAdmin ?? user?.user?.is_admin ?? user?.user?.isAdmin ?? false
+      (user?.is_admin ?? user?.isAdmin) ||
+      (user?.role === 'admin' || user?.role === 'department' || user?.role === 'sogtvt' || user?.role === 'employee') ||
+      (user?.user?.is_admin ?? user?.user?.isAdmin) ||
+      (user?.user?.role === 'admin' || user?.user?.role === 'department' || user?.user?.role === 'sogtvt' || user?.user?.role === 'employee') ||
+      false
     );
     setUser(null);
     setToken(null);
@@ -64,7 +68,7 @@ export function AuthProvider({ children }) {
     user,
     token,
     initialized,
-    isAdmin: !!(user && (user.is_admin || user.isAdmin || user.role === 'admin')),
+    isAdmin: !!(user && (user.is_admin || user.isAdmin || user.role === 'admin' || user.role === 'department' || user.role === 'sogtvt' || user.role === 'employee')),
     login,
     logout,
   }), [user, token, initialized, login, logout]);

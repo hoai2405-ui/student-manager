@@ -22,14 +22,22 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      const effectiveRole = user.role || (user.is_admin ? "admin" : "employee");
       const isBackOffice = Boolean(
-        user.is_admin ??
-        user.isAdmin ??
-        (['admin', 'employee', 'department', 'sogtvt'].includes(effectiveRole) ||
-        isAdminLoginPage) // login từ /admin/login thì ưu tiên vào admin
+        (user.is_admin ?? user.isAdmin) ||
+        user.role === 'admin' ||
+        user.role === 'department' ||
+        user.role === 'sogtvt' ||
+        user.role === 'employee' ||
+        isAdminLoginPage // login từ /admin/login thì ưu tiên vào admin
       );
       const redirectPath = isBackOffice ? "/admin" : "/student";
+      console.log("LoginPage redirect check:", {
+        userRole: user.role,
+        isAdmin: user.is_admin,
+        isBackOffice,
+        redirectPath,
+        isAdminLoginPage
+      });
       navigate(redirectPath);
     }
   }, [user, navigate]);
