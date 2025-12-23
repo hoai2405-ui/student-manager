@@ -97,7 +97,7 @@ const Students = () => {
       setData(res.data || []);
     } catch (err) {
       console.error("Fetch error:", err);
-      setData([]);
+      fetchData();
     } finally {
       setLoading(false);
     }
@@ -112,7 +112,7 @@ const Students = () => {
       fetchData();
     } else if (!selectedCourse && !name.trim() && !cccd.trim()) {
       // Reset data khi không chọn khóa học và không tìm kiếm
-      setData([]);
+      fetchData();
     }
   }, [selectedCourse, tableParams.pagination.current]);
 

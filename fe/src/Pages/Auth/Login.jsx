@@ -14,6 +14,7 @@ import {
 export default function LoginPage() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const isAdminLoginPage = window.location.pathname.includes("/admin/login");
   const [loading, setLoading] = useState(false);
   const [isHover, setIsHover] = useState(false);
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
@@ -21,10 +22,14 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      const isAdmin = Boolean(
-        user.is_admin ?? user.isAdmin ?? user.role === 'admin'
+      const effectiveRole = user.role || (user.is_admin ? "admin" : "employee");
+      const isBackOffice = Boolean(
+        user.is_admin ??
+        user.isAdmin ??
+        (['admin', 'employee', 'department', 'sogtvt'].includes(effectiveRole) ||
+        isAdminLoginPage) // login từ /admin/login thì ưu tiên vào admin
       );
-      const redirectPath = isAdmin ? "/admin" : "/student";
+      const redirectPath = isBackOffice ? "/admin" : "/student";
       navigate(redirectPath);
     }
   }, [user, navigate]);
@@ -42,13 +47,21 @@ export default function LoginPage() {
         throw new Error("Response login không hợp lệ");
       }
 
-      login(userData, token);
+      const normalizedUser = {
+        ...userData,
+        role: userData.role || (userData.is_admin ? "admin" : "employee"),
+      };
 
-      const isAdmin = Boolean(
-        userData.is_admin ?? userData.isAdmin ?? userData.role === "admin"
+      login(normalizedUser, token);
+
+      const isBackOffice = Boolean(
+        normalizedUser.is_admin ??
+        normalizedUser.isAdmin ??
+        (["admin", "employee", "department", "sogtvt"].includes(normalizedUser.role) ||
+        isAdminLoginPage) // ưu tiên vào admin nếu login từ trang admin
       );
 
-      navigate(isAdmin ? "/admin" : "/student");
+      navigate(isBackOffice ? "/admin" : "/student");
     } catch (err) {
       setError(err.response?.data?.message || "Sai tài khoản hoặc mật khẩu");
     } finally {

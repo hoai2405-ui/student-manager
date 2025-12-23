@@ -7,16 +7,24 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [initialized, setInitialized] = useState(false);
 
+  const normalizeUser = (u) => {
+    if (!u) return null;
+    const role =
+      u.role ||
+      (u.is_admin || u.isAdmin ? "admin" : "employee");
+    return { ...u, role };
+  };
+
   useEffect(() => {
     console.log("AuthContext: Loading from localStorage...");
     try {
       const raw = localStorage.getItem("auth");
       if (raw) {
         const obj = JSON.parse(raw);
-        setUser(obj.user ?? null);
+        setUser(normalizeUser(obj.user ?? null));
         setToken(obj.token ?? null);
         console.log("AuthContext: Loaded user and token", {
-          user: obj.user,
+          user: normalizeUser(obj.user),
           hasToken: !!obj.token,
           isAdmin: !!(obj.user && (obj.user.is_admin || obj.user.isAdmin || obj.user.role === 'admin'))
         });
@@ -33,9 +41,10 @@ export function AuthProvider({ children }) {
 
   const login = useCallback((userData, authToken) => {
     console.log("AuthContext: Logging in", { user: userData, hasToken: !!authToken });
-    setUser(userData);
+    const normalized = normalizeUser(userData);
+    setUser(normalized);
     setToken(authToken);
-    localStorage.setItem("auth", JSON.stringify({ user: userData, token: authToken }));
+    localStorage.setItem("auth", JSON.stringify({ user: normalized, token: authToken }));
   }, []);
 
   const logout = useCallback(() => {

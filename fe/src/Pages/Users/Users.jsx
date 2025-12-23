@@ -1,17 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
-  Table,
-  Button,
-  Modal,
-  Form,
-  Input,
-  message,
-  Card,
-  Popconfirm,
-  Grid,
-  Select,
-  Tag,
-} from "antd";
+import { Table, Button, Modal, Form, Input, message, Card, Popconfirm, Grid, Select, Tag } from "antd";
 import axios from "../../Common/axios";
 import { PlusOutlined, EditOutlined, DeleteOutlined, CrownOutlined, UserOutlined } from "@ant-design/icons";
 import { useAuth } from "../../contexts/AuthContext";
@@ -20,8 +8,16 @@ import { useNavigate } from "react-router-dom";
 const { useBreakpoint } = Grid;
 
 const UsersPage = () => {
-  const { token: ctxToken, logout } = useAuth();
+  const { token: ctxToken, logout, user } = useAuth();
   const navigate = useNavigate();
+  const currentUser = user?.user ?? user;
+  const hasUsersPermission = !!(
+    currentUser?.is_admin ||
+    currentUser?.isAdmin ||
+    currentUser?.role === "admin" ||
+    currentUser?.role === "department" ||
+    currentUser?.role === "sogtvt"
+  );
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -52,8 +48,8 @@ const UsersPage = () => {
   const fetchUsers = async () => {
     const headers = getAuthHeaders();
     if (!headers) {
-      message.warning("Bạn chưa đăng nhập. Vui lòng đăng nhập lại.");
-      navigate("/login");
+      message.warning("Ban chua dang nhap. Vui long dang nhap lai.");
+      navigate("/admin/login");
       return;
     }
     setLoading(true);
@@ -61,14 +57,14 @@ const UsersPage = () => {
       const res = await axios.get("/api/users", { headers });
       setUsers(res.data);
     } catch (error) {
-      console.error("Chi tiết lỗi lấy user:", error);
+      console.error("Chi tiet loi lay user:", error);
       if (error?.response?.status === 401) {
-        message.error("Phiên đăng nhập hết hạn, đăng nhập lại.");
+        message.error("Phien dang nhap het han, dang nhap lai.");
         logout();
-        navigate("/login");
+        navigate("/admin/login");
         return;
       }
-      message.error("Lỗi lấy danh sách người dùng!");
+      message.error("Loi lay danh sach nguoi dung!");
     } finally {
       setLoading(false);
     }
@@ -80,87 +76,97 @@ const UsersPage = () => {
   }, []);
 
   const handleDelete = async (id) => {
+    if (!hasUsersPermission) return;
     const headers = getAuthHeaders();
-    if (!headers) return message.error("Bạn chưa đăng nhập.");
+    if (!headers) return message.error("Ban chua dang nhap.");
     try {
       await axios.delete(`/api/users/${id}`, { headers });
-      message.success("Xóa thành công!");
+      message.success("Xoa thanh cong!");
       fetchUsers();
     } catch (error) {
-      console.error("Lỗi xóa người dùng:", error);
+      console.error("Loi xoa nguoi dung:", error);
       if (error?.response?.status === 401) {
-        message.error("Phiên đăng nhập hết hạn.");
+        message.error("Phien dang nhap het han.");
         logout();
-        navigate("/login");
+        navigate("/admin/login");
         return;
       }
-      message.error("Xóa thất bại!");
+      message.error("Xoa that bai!");
     }
   };
 
   const handleEdit = (user) => {
-    setEditingUser(user);
-    form.setFieldsValue(user);
+    if (!hasUsersPermission) return;
+    const normalized = { ...user, role: user.role || "employee" };
+    setEditingUser(normalized);
+    form.setFieldsValue(normalized);
     setIsModalVisible(true);
   };
 
   const handleAdd = () => {
+    if (!hasUsersPermission) return;
     setEditingUser(null);
     form.resetFields();
     setIsModalVisible(true);
   };
 
   const handleOk = () => {
+    if (!hasUsersPermission) return;
     const headers = getAuthHeaders();
-    if (!headers) return message.error("Bạn chưa đăng nhập.");
+    if (!headers) return message.error("Ban chua dang nhap.");
 
     form.validateFields().then(async (values) => {
       try {
         const config = { headers };
+        const payload = {
+          ...values,
+          role: values.role || editingUser?.role || "employee",
+        };
         if (editingUser) {
-          await axios.put(`/api/users/${editingUser.id}`, values, config);
-          message.success("Cập nhật thành công!");
+          await axios.put(`/api/users/${editingUser.id}`, payload, config);
+          message.success("Cap nhat thanh cong!");
         } else {
-          await axios.post("/api/users", values, config);
-          message.success("Thêm người dùng thành công!");
+          await axios.post("/api/users", payload, config);
+          message.success("Them nguoi dung thanh cong!");
         }
         fetchUsers();
         setIsModalVisible(false);
       } catch (error) {
-        console.error("Lỗi PUT / POST /users:", error);
+        console.error("Loi PUT / POST /users:", error);
         if (error?.response?.status === 401) {
-          message.error("Phiên đăng nhập hết hạn.");
+          message.error("Phien dang nhap het han.");
           logout();
-          navigate("/login");
+          navigate("/admin/login");
           return;
         }
-        message.error("Có lỗi xảy ra!");
+        message.error("Co loi xay ra!");
       }
     });
   };
 
   const columns = [
     {
-      title: "Tên đăng nhập",
+      title: "Ten dang nhap",
       dataIndex: "username",
       key: "username",
       width: screens.xs ? 130 : 180,
       render: (text) => <b style={{ color: "#1565c0", fontWeight: 600 }}>{text}</b>,
     },
     {
-      title: "Vai trò",
+      title: "Vai tro",
       dataIndex: "role",
       key: "role",
       width: screens.xs ? 100 : 120,
       render: (role) => {
-        const isAdmin = role === 'admin' || role === 'administrator';
+        const isAdminRole = role === "admin" || role === "administrator";
+        const isDepartment = role === "department" || role === "sogtvt";
         return (
           <Tag
-            color={isAdmin ? 'gold' : 'blue'}
-            icon={isAdmin ? <CrownOutlined /> : <UserOutlined />}
+            color={isAdminRole ? "gold" : isDepartment ? "green" : "blue"}
+            icon={isAdminRole ? <CrownOutlined /> : <UserOutlined />}
             style={{ fontWeight: 600 }}
           >
-            {isAdmin ? 'Quản trị viên' : 'Nhân viên'}
+            {isAdminRole ? "Quan tri vien" : isDepartment ? "So GTVT" : "Nhan vien"}
           </Tag>
         );
       },
@@ -173,25 +179,25 @@ const UsersPage = () => {
       render: (val) => <span style={{ color: "#009688", fontSize: screens.xs ? 12 : 15 }}>{val}</span>,
     },
     {
-      title: "Điện thoại",
+      title: "Dien thoai",
       dataIndex: "phone",
       key: "phone",
       responsive: ["md"],
       render: (val) => <span style={{ color: "#606060", fontSize: screens.xs ? 12 : 15 }}>{val}</span>,
     },
     {
-      title: "Thao tác",
+      title: "Thao tac",
       key: "actions",
       align: "center",
       width: screens.xs ? 120 : 160,
       render: (_, record) => (
         <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
-          <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} size={screens.xs ? "small" : "middle"}>
-            {!screens.xs && "Sửa"}
+          <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} size={screens.xs ? "small" : "middle"} disabled={!hasUsersPermission}>
+            {!screens.xs && "Sua"}
           </Button>
-          <Popconfirm title="Bạn chắc chắn muốn xóa?" onConfirm={() => handleDelete(record.id)} okText="Có" cancelText="Không">
-            <Button danger icon={<DeleteOutlined />} size={screens.xs ? "small" : "middle"}>
-              {!screens.xs && "Xóa"}
+          <Popconfirm title="Ban chac chan muon xoa?" onConfirm={() => handleDelete(record.id)} okText="Co" cancelText="Khong" disabled={!hasUsersPermission}>
+            <Button danger icon={<DeleteOutlined />} size={screens.xs ? "small" : "middle"} disabled={!hasUsersPermission}>
+              {!screens.xs && "Xoa"}
             </Button>
           </Popconfirm>
         </div>
@@ -201,7 +207,7 @@ const UsersPage = () => {
 
   return (
     <Card
-      title={<span style={{ fontSize: screens.xs ? 20 : 24, fontWeight: 700 }}> Danh sách người dùng</span>}
+      title={<span style={{ fontSize: screens.xs ? 20 : 24, fontWeight: 700 }}> Danh sach nguoi dung</span>}
       style={{
         maxWidth: 900,
         margin: screens.xs ? "8px 2px" : "28px auto",
@@ -211,45 +217,74 @@ const UsersPage = () => {
         padding: screens.xs ? 8 : 20,
       }}
       extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} size={screens.xs ? "small" : "middle"}>
-          Thêm
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} size={screens.xs ? "small" : "middle"} disabled={!hasUsersPermission}>
+          Them
         </Button>
       }
     >
       <Table dataSource={users} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 5 }} scroll={{ x: 400 }} />
-      <Modal title={editingUser ? "Sửa người dùng" : "Thêm người dùng"} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={
+      <Modal title={editingUser ? "Sua nguoi dung" : "Them nguoi dung"} open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <Button onClick={() => setIsModalVisible(false)}>Huỷ</Button>
-          <Button type="primary" onClick={handleOk}>Lưu</Button>
+          <Button onClick={() => setIsModalVisible(false)}>Huy</Button>
+          <Button type="primary" onClick={handleOk} disabled={!hasUsersPermission}>Luu</Button>
         </div>
       }>
         <Form layout="vertical" form={form}>
-          <Form.Item name="username" label="Tên đăng nhập" rules={[{ required: true, message: "Nhập tên đăng nhập!" }]}>
-            <Input />
+          <Form.Item name="username" label="Ten dang nhap" rules={[{ required: true, message: "Nhap ten dang nhap!" }]}>
+            <Input disabled={!hasUsersPermission} />
           </Form.Item>
-          {!editingUser && <Form.Item name="password" label="Mật khẩu" rules={[{ required: true, message: "Nhập mật khẩu!" }]}><Input.Password /></Form.Item>}
-          <Form.Item name="email" label="Email" rules={[{ required: true, type: "email", message: "Email không hợp lệ!" }]}><Input /></Form.Item>
-          <Form.Item name="phone" label="Điện thoại" rules={[{ required: true, pattern: /^[0-9]{9,11}$/, message: "Điện thoại không hợp lệ!" }]}><Input /></Form.Item>
+          {!editingUser && <Form.Item name="password" label="Mat khau" rules={[{ required: true, message: "Nhap mat khau!" }]}><Input.Password disabled={!hasUsersPermission} /></Form.Item>}
+          <Form.Item name="email" label="Email" rules={[{ required: true, type: "email", message: "Email khong hop le!" }]}><Input disabled={!hasUsersPermission} /></Form.Item>
+          <Form.Item name="phone" label="Dien thoai" rules={[{ required: true, pattern: /^[0-9]{9,11}$/, message: "Dien thoai khong hop le!" }]}><Input disabled={!hasUsersPermission} /></Form.Item>
           <Form.Item
             name="role"
-            label="Vai trò"
-            rules={[{ required: true, message: "Chọn vai trò!" }]}
+            label="Vai tro"
+            rules={[{ required: true, message: "Chon vai tro!" }]}
             initialValue="employee"
           >
-            <Select placeholder="Chọn vai trò">
-              <Select.Option value="admin">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CrownOutlined style={{ color: '#faad14' }} />
-                  <span>Quản trị viên</span>
-                </div>
-              </Select.Option>
-              <Select.Option value="employee">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <UserOutlined style={{ color: '#1890ff' }} />
-                  <span>Nhân viên</span>
-                </div>
-              </Select.Option>
-            </Select>
+            <Select
+              placeholder="Chon vai tro"
+              disabled={!hasUsersPermission}
+              style={{ width: '100%' }}
+              options={[
+                {
+                  value: "admin",
+                  label: (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <CrownOutlined style={{ color: '#faad14' }} />
+                      <span>Quan tri vien</span>
+                    </div>
+                  )
+                },
+                {
+                  value: "employee",
+                  label: (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <UserOutlined style={{ color: '#1890ff' }} />
+                      <span>Nhan vien</span>
+                    </div>
+                  )
+                },
+                {
+                  value: "department",
+                  label: (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <UserOutlined style={{ color: '#52c41a' }} />
+                      <span>Sở GTVT (department)</span>
+                    </div>
+                  )
+                },
+                {
+                  value: "sogtvt",
+                  label: (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <UserOutlined style={{ color: '#52c41a' }} />
+                      <span>Sở GTVT (sogtvt)</span>
+                    </div>
+                  )
+                }
+                ]}
+                />
           </Form.Item>
         </Form>
       </Modal>

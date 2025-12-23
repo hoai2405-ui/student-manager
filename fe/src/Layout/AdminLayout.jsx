@@ -23,6 +23,8 @@ const AdminLayout = () => {
   const { user, logout } = useAuth();
   // fallback: nếu AuthContext lưu trực tiếp user hoặc lưu trong user.user
   const userInfo = user?.user ?? user;
+  const role = userInfo?.role;
+  const isAdmin = !!(userInfo?.is_admin || userInfo?.isAdmin || role === "admin");
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -79,7 +81,7 @@ const AdminLayout = () => {
     },
     { key: ROUTES_PATH.ADMIN_STATS, icon: <BarChartOutlined />, label: "Thống kê" },
     { key: ROUTES_PATH.ADMIN_SCHEDULES, icon: <CalendarOutlined />, label: "Lịch học" },
-    ...(userInfo?.is_admin
+    ...(isAdmin
       ? [
           {
             key: ROUTES_PATH.ADMIN_REGISTERED_SCHEDULES,
@@ -320,7 +322,7 @@ const AdminLayout = () => {
                     lineHeight: 1.2,
                   }}
                 >
-                  {userInfo?.is_admin ? "Administrator" : "User"}
+                  {isAdmin ? "Administrator" : "User"}
                 </span>
               </div>
             </span>

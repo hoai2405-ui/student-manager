@@ -50,12 +50,21 @@ export default function PrivateRoute({ children, adminOnly = false }) {
     return <Navigate to={loginPath} state={{ from: location }} replace />;
   }
 
-  const isAdmin = Boolean(
-    user?.is_admin ?? user?.isAdmin ?? user?.user?.is_admin ?? user?.user?.isAdmin ?? false
+  const hasAdminAccess = Boolean(
+    user?.is_admin ||
+      user?.isAdmin ||
+      user?.role === 'admin' ||
+      user?.role === 'department' ||
+      user?.role === 'sogtvt' ||
+      user?.user?.is_admin ||
+      user?.user?.isAdmin ||
+      user?.user?.role === 'admin' ||
+      user?.user?.role === 'department' ||
+      user?.user?.role === 'sogtvt'
   );
 
-  if (adminOnly && !isAdmin) {
-    return <Navigate to="/" replace />;
+  if (adminOnly && !hasAdminAccess) {
+    return <Navigate to="/admin" replace />;
   }
 
   return children;

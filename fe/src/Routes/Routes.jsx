@@ -116,9 +116,9 @@ export default function Router() {
         {/* =========================================
             PHẦN 3: ĐIỀU HƯỚNG MẶC ĐỊNH
            ========================================= */}
-        <Route path="/" element={<Navigate to="/student/login" />} />
+        <Route path="/" element={<Navigate to="/admin/login" />} />
         {/* Các đường dẫn lạ thì đẩy về trang chủ Admin hoặc Student tuỳ ý */}
-        <Route path="*" element={<Navigate to="/student/login" />} />
+        <Route path="*" element={<Navigate to="/admin/login" />} />
       </Routes>
     </BrowserRouter>
   );
