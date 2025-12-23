@@ -562,12 +562,15 @@ app.post("/api/login", async (req, res) => {
     const isAdminValue = user.is_admin === 1 || username === 'admin' || user.role === 'admin' || user.role === 'administrator';
     const role = user.role || (isAdminValue ? 'admin' : 'employee');
 
+    // Preserve department/sogtvt roles for back-office access with limited permissions
+    const finalRole = user.role && ['department', 'sogtvt', 'employee'].includes(user.role) ? user.role : role;
+
     const token = jwt.sign(
       {
         id: user.id,
         username: user.username,
         is_admin: isAdminValue ? 1 : 0,
-        role,
+        role: finalRole,
       },
       JWT_SECRET,
       { expiresIn: "7d" }
@@ -579,7 +582,7 @@ app.post("/api/login", async (req, res) => {
         id: user.id,
         username: user.username,
         is_admin: isAdminValue,
-        role,
+        role: finalRole,
       },
     });
   } catch (err) {
@@ -1388,7 +1391,7 @@ app.get("/api/learning-stats", async (req, res) => {
 });
 
 
-// Middleware kiểm tra admin và department
+// Middleware kiểm tra admin (chỉ admin mới có quyền quản lý users)
 const checkAdmin = async (req, res, next) => {
   console.log("[DEBUG] ID from token:", req.user?.id);
   try {
@@ -1397,7 +1400,26 @@ const checkAdmin = async (req, res, next) => {
     ]);
     const userRow = rows[0];
     const isAdmin = userRow?.is_admin === 1 || userRow?.role === 'admin' || userRow?.role === 'administrator';
-    const isDepartment = userRow?.role === 'department' || userRow?.role === 'sogtvt';
+
+    if (rows.length === 0 || !isAdmin) {
+      return res.status(403).json({ message: "Không có quyền truy cập" });
+    }
+    next();
+  } catch (error) {
+    return res.status(500).json({ message: "Lỗi hệ thống" });
+  }
+};
+
+// Middleware kiểm tra admin hoặc department (cho các chức năng khác)
+const checkAdminOrDepartment = async (req, res, next) => {
+  console.log("[DEBUG] ID from token:", req.user?.id);
+  try {
+    const [rows] = await pool.query("SELECT is_admin, role FROM users WHERE id = ?", [
+      req.user.id,
+    ]);
+    const userRow = rows[0];
+    const isAdmin = userRow?.is_admin === 1 || userRow?.role === 'admin' || userRow?.role === 'administrator';
+    const isDepartment = userRow?.role === 'department' || userRow?.role === 'sogtvt' || userRow?.role === 'employee';
     const hasAccess = isAdmin || isDepartment;
 
     if (rows.length === 0 || !hasAccess) {

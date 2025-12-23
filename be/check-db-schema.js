@@ -80,6 +80,46 @@ async function checkAndFixDatabase() {
       console.log(`  ${idx + 1}. ${row.ho_va_ten}: ${row.anh_status}`);
     });
 
+    // Kiểm tra cấu trúc bảng users
+    console.log("\n📋 Kiểm tra cấu trúc bảng users...");
+    try {
+      const [userColumns] = await connection.query(`
+        SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users'
+        ORDER BY ORDINAL_POSITION
+      `, [process.env.DB_NAME]);
+
+      if (userColumns.length === 0) {
+        console.log("❌ Bảng users không tồn tại!");
+      } else {
+        console.log("\nCác cột trong bảng users:");
+        userColumns.forEach(col => {
+          console.log(`  - ${col.COLUMN_NAME}: ${col.DATA_TYPE}${col.CHARACTER_MAXIMUM_LENGTH ? `(${col.CHARACTER_MAXIMUM_LENGTH})` : ''} ${col.IS_NULLABLE === 'YES' ? 'NULL' : 'NOT NULL'}`);
+        });
+
+        // Kiểm tra cột role
+        const roleColumn = userColumns.find(col => col.COLUMN_NAME === 'role');
+        if (!roleColumn) {
+          console.log("\n❌ Không tìm thấy cột role!");
+          console.log("🔧 Đang thêm cột role...");
+          try {
+            await connection.query(`
+              ALTER TABLE users
+              ADD COLUMN role VARCHAR(50) DEFAULT 'employee'
+            `);
+            console.log("✅ Đã thêm cột role vào bảng users");
+          } catch (alterErr) {
+            console.error("❌ Lỗi khi thêm cột role:", alterErr.message);
+          }
+        } else {
+          console.log("✅ Cột role đã tồn tại");
+        }
+      }
+    } catch (err) {
+      console.log("❌ Lỗi kiểm tra bảng users:", err.message);
+    }
+
     console.log("\n✅ Hoàn thành kiểm tra!");
 
   } catch (error) {
@@ -93,4 +133,3 @@ async function checkAndFixDatabase() {
 }
 
 checkAndFixDatabase();
-
