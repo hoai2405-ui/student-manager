@@ -9,6 +9,7 @@ import {
   LogoutOutlined,
   UserSwitchOutlined,
   CalendarOutlined, // <-- thêm icon
+  FormOutlined,
 } from "@ant-design/icons";
 import "../assets/main.css";
 
@@ -67,6 +68,9 @@ const AdminLayout = () => {
     else if (path.startsWith(ROUTES_PATH.ADMIN_USERS)) {
       setSelectedKey(ROUTES_PATH.ADMIN_USERS);
     }
+    else if (path.startsWith(ROUTES_PATH.ADMIN_ASSESSMENT)) {
+      setSelectedKey(ROUTES_PATH.ADMIN_ASSESSMENT);
+    }
     // Mặc định không set gì hoặc giữ nguyên
   }, [location.pathname]);
 
@@ -92,6 +96,11 @@ const AdminLayout = () => {
             key: ROUTES_PATH.ADMIN_USERS,
             icon: <UserSwitchOutlined />,
             label: "Users",
+          },
+          {
+            key: ROUTES_PATH.ADMIN_ASSESSMENT,
+            icon: <FormOutlined />,
+            label: "Thi thử",
           },
         ]
       : []),

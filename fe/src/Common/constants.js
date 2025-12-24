@@ -10,6 +10,7 @@ export const ROUTES_PATH = {
   ADMIN_USERS: "/admin/users",
   ADMIN_SCHEDULES: "/admin/schedules",
   ADMIN_REGISTERED_SCHEDULES: "/admin/registered-schedules",
+  ADMIN_ASSESSMENT: "/admin/assessment",
 
   // Student routes
   STUDENT_LOGIN: "/student/login",

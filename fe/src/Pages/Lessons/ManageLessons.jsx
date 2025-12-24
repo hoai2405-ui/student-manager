@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Table, Button, Modal, Form, Input, Select, message, Upload, Card, Row, Col, Tag, Popconfirm } from "antd";
+import { Table, Button, Modal, Form, Input, Select, message, Upload, Card, Row, Col, Tag, Popconfirm, Space } from "antd";
 import { PlusOutlined, DeleteOutlined, FilePdfOutlined, UploadOutlined, VideoCameraOutlined, EditOutlined } from "@ant-design/icons";
 import axios from "axios";
 
@@ -85,6 +85,7 @@ const ManageLessons = () => {
         licenseTypes = JSON.parse(record.license_types || "[]");
     } catch (e) {}
 
+    // duration_overrides từ DB hiện chưa được load theo API, giữ trống khi edit
     form.setFieldsValue({
       lesson_code: record.lesson_code,
       title: record.title,
@@ -92,7 +93,8 @@ const ManageLessons = () => {
       duration_minutes: record.duration_minutes || 45,
       content: record.content,
       video_url: (!fileType && record.video_url) ? record.video_url : "",
-      license_types: licenseTypes, // Set giá trị cho ô chọn hạng
+      license_types: licenseTypes,
+      duration_overrides: [],
     });
 
     setIsModalOpen(true);
@@ -111,6 +113,13 @@ const ManageLessons = () => {
       const finalSubjectId = editingLesson?.subject_id || selectedSubject;
       if (!finalSubjectId) { message.error("Lỗi: Không xác định được môn học!"); return; }
 
+      const duration_overrides = (values.duration_overrides || [])
+        .filter((o) => o && o.license_class && o.duration_minutes !== undefined && o.duration_minutes !== null)
+        .map((o) => ({
+          license_class: o.license_class,
+          duration_minutes: Number(o.duration_minutes),
+        }));
+
       const payload = {
         subject_id: finalSubjectId,
         title: values.title,
@@ -120,7 +129,8 @@ const ManageLessons = () => {
         content: values.content,
         video_url: videoUrl,
         pdf_url: pdfUrl,
-        license_types: values.license_types, // 👇 GỬI MẢNG HẠNG LÊN SERVER
+        license_types: values.license_types,
+        duration_overrides,
       };
 
       if (editingLesson) {
@@ -242,20 +252,58 @@ const ManageLessons = () => {
             <Input placeholder="Nhập tên bài..." />
           </Form.Item>
 
-          {/* 👇 Ô CHỌN HẠNG BẰNG MỚI THÊM */}
+          {/* 👇 Ô CHỌN HẠNG BẰNG */}
           <Form.Item label="Áp dụng cho hạng (Để trống = Tất cả)" name="license_types">
              <Select 
                 mode="multiple" 
                 placeholder="Chọn các hạng..." 
                 options={[
-                    {label: 'Hạng B1', value: 'B1'},
-                    {label: 'Hạng B2', value: 'B2'},
-                    {label: 'Hạng C', value: 'C'},
-                    {label: 'Nâng D', value: 'D'},
-                    {label: 'Nâng E', value: 'E'},
-                    {label: 'Nâng F', value: 'F'},
+                    { label: 'B.01', value: 'B.01' },
+                    { label: 'B', value: 'B' },
+                    { label: 'C1', value: 'C1' },
+                    { label: 'B-C1', value: 'B-C1' },
+                    { label: 'C1-Cm', value: 'C1-Cm' },
                 ]}
              />
+          </Form.Item>
+
+          <Form.Item label="Thời lượng theo hạng (tuỳ chọn)">
+            <Form.List name="duration_overrides">
+              {(fields, { add, remove }) => (
+                <div>
+                  {fields.map(({ key, name, ...restField }) => (
+                    <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'license_class']}
+                        rules={[{ required: true, message: 'Chọn hạng' }]}
+                      >
+                        <Select
+                          placeholder="Hạng"
+                          style={{ width: 160 }}
+                          options={[
+                            { label: 'B.01', value: 'B.01' },
+                            { label: 'B', value: 'B' },
+                            { label: 'C1', value: 'C1' },
+                            { label: 'B-C1', value: 'B-C1' },
+                            { label: 'C1-Cm', value: 'C1-Cm' },
+                          ]}
+                        />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'duration_minutes']}
+                        rules={[{ required: true, message: 'Nhập phút' }]}
+                      >
+                        <Input type="number" placeholder="Phút" style={{ width: 120 }} />
+                      </Form.Item>
+                      <Button danger onClick={() => remove(name)}>Xóa</Button>
+                    </Space>
+                  ))}
+                  <Button onClick={() => add()} block>+ Thêm thời lượng theo hạng</Button>
+                </div>
+              )}
+            </Form.List>
           </Form.Item>
 
           <Form.Item label="Tài liệu (PDF/Video)">

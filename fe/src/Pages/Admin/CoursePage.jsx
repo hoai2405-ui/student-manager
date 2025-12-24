@@ -37,13 +37,15 @@ import {
 } from "@ant-design/icons";
 import moment from "moment";
 import axios from "../../Common/axios";
-import { AuthContext } from "../../contexts/AuthContext";
+import { useAuth } from "../../contexts/AuthContext";
 
 const { useBreakpoint } = Grid;
 
 export default function CoursePage() {
   const screens = useBreakpoint();
-  // const { isAdmin } = useContext(AuthContext); // Tạm bỏ check quyền để hiện nút xóa
+  const { user } = useAuth();
+  const currentUser = user?.user ?? user;
+  const isAdmin = !!(currentUser?.is_admin || currentUser?.isAdmin || currentUser?.role === "admin");
 
   const [courses, setCourses] = useState([]);
   const [filteredCourses, setFilteredCourses] = useState([]);
@@ -196,7 +198,7 @@ export default function CoursePage() {
       )
     },
     {
-      title: "Thời lượng", 
+      title: "Thời lượng",
       dataIndex: "so_ngay_hoc",
       width: 100, align: 'center',
       render: (val) => val ? <span className="text-blue-600 font-bold">{val} ngày</span> : <span className="text-gray-400">---</span>
@@ -205,22 +207,21 @@ export default function CoursePage() {
       title: "Học viên", dataIndex: "so_hoc_sinh", width: 90, align: 'center',
       render: (val) => <Badge count={val} showZero color={val > 0 ? "#52c41a" : "#d9d9d9"} />
     },
-    {
+    ...(isAdmin ? [{
       title: "Thao tác", key: "actions", width: 120, fixed: screens.md ? 'right' : false, align: "center",
       render: (_, record) => (
         <Space>
           <Tooltip title="Sửa">
             <Button type="primary" ghost size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
           </Tooltip>
-          
-          {/* 👇 ĐÃ XÓA CHECK isAdmin - LUÔN HIỆN NÚT XÓA */}
+
           <Popconfirm title="Xóa khóa học này?" onConfirm={() => handleDelete(record.id)} okText="Xoá" cancelText="Huỷ">
             <Button danger size="small" icon={<DeleteOutlined />} />
           </Popconfirm>
-          
+
         </Space>
       ),
-    },
+    }] : []),
   ];
 
   return (
@@ -236,14 +237,18 @@ export default function CoursePage() {
          </div>
          
          <Space wrap className="w-full md:w-auto justify-start md:justify-end">
-             <Upload customRequest={customRequestUpload} showUploadList={false} accept=".xml,.xlsx">
-                <Button icon={<UploadOutlined />} className="bg-white border-blue-500 text-blue-500">
-                   {screens.xs ? "Import" : "Import XML"}
+             {isAdmin && (
+                <Upload customRequest={customRequestUpload} showUploadList={false} accept=".xml,.xlsx">
+                   <Button icon={<UploadOutlined />} className="bg-white border-blue-500 text-blue-500">
+                      {screens.xs ? "Import" : "Import XML"}
+                   </Button>
+                </Upload>
+             )}
+             {isAdmin && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate} className="shadow-md">
+                   {screens.xs ? "Tạo mới" : "Tạo khóa mới"}
                 </Button>
-             </Upload>
-             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate} className="shadow-md">
-                {screens.xs ? "Tạo mới" : "Tạo khóa mới"}
-             </Button>
+             )}
          </Space>
       </div>
 
@@ -335,14 +340,15 @@ export default function CoursePage() {
                                     <div><TeamOutlined /> {course.so_hoc_sinh || 0} học viên</div>
                                     <div><FileTextOutlined /> {course.so_ngay_hoc ? `${course.so_ngay_hoc} ngày` : '---'}</div>
                                 </div>
-                                <div className="flex gap-2 pt-4 border-t border-gray-100 mt-auto">
-                                    <Button type="primary" block ghost icon={<EditOutlined />} onClick={() => handleEdit(course)}>Sửa</Button>
-                                    
-                                    {/* 👇 NÚT XÓA Ở CARD VIEW (ĐÃ BỎ CHECK isAdmin) */}
-                                    <Popconfirm title="Xóa?" onConfirm={() => handleDelete(course.id)}>
-                                        <Button danger block icon={<DeleteOutlined />} />
-                                    </Popconfirm>
-                                </div>
+                                {isAdmin && (
+                                    <div className="flex gap-2 pt-4 border-t border-gray-100 mt-auto">
+                                        <Button type="primary" block ghost icon={<EditOutlined />} onClick={() => handleEdit(course)}>Sửa</Button>
+
+                                        <Popconfirm title="Xóa?" onConfirm={() => handleDelete(course.id)}>
+                                            <Button danger block icon={<DeleteOutlined />} />
+                                        </Popconfirm>
+                                    </div>
+                                )}
                             </div>
                         </Card>
                     </Col>
@@ -406,12 +412,12 @@ export default function CoursePage() {
       </Modal>
       
       {/* Nút nổi (Mobile) */}
-      {screens.xs && (
-         <FloatButton 
-            icon={<PlusOutlined />} 
-            type="primary" 
+      {screens.xs && isAdmin && (
+         <FloatButton
+            icon={<PlusOutlined />}
+            type="primary"
             style={{ right: 24, bottom: 24, width: 50, height: 50 }}
-            onClick={handleCreate} 
+            onClick={handleCreate}
          />
       )}
 

@@ -1,19 +1,18 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "../../Common/axios"; // Dùng axios đã cấu hình Interceptor
-import { Spin, message, Button, Result, Typography, Tag, Empty, Tooltip, Modal } from "antd";
+import { Spin, Button, Result, Typography, Empty, Tooltip, Modal } from "antd";
 import { 
   ArrowLeftOutlined, 
-  SoundOutlined, 
   PauseCircleOutlined, 
   PlayCircleOutlined, 
   ReloadOutlined, 
-  FilePdfOutlined, 
   SaveOutlined,
-  ClockCircleOutlined,
-  VideoCameraOutlined
+  ClockCircleOutlined
 } from "@ant-design/icons";
 import { useAuth } from "../../contexts/AuthContext";
+import VideoPlayer from "../../Components/Student/VideoPlayer";
+import PdfViewer from "../../Components/Student/PdfViewer";
 
 const API_URL = "http://localhost:3001";
 const { Text } = Typography;
@@ -26,8 +25,10 @@ export default function Learning() {
   // --- REFS ---
   const timerRef = useRef(null);
   const saveRef = useRef(null);
-  const secondsValueRef = useRef(0); // Lưu giá trị giây thực tế
-  
+  const secondsValueRef = useRef(0);
+
+  const videoRefTime = useRef(0);
+
   const synthRef = useRef(window.speechSynthesis);
   const utteranceRef = useRef(null);
 
@@ -36,6 +37,9 @@ export default function Learning() {
   const [learnedSeconds, setLearnedSeconds] = useState(0);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState(null);
+
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const [isActuallyPlaying, setIsActuallyPlaying] = useState(false);
 
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -85,7 +89,14 @@ export default function Learning() {
 
         try {
             // A. Lấy bài học (QUAN TRỌNG NHẤT)
-            const lessonRes = await axios.get(`${API_URL}/api/lessons/${lessonId}`);
+            const studentInfoRaw = localStorage.getItem("studentInfo");
+            let hangGplx = "";
+            try {
+              hangGplx = studentInfoRaw ? JSON.parse(studentInfoRaw)?.hang_gplx || "" : "";
+            } catch {
+              hangGplx = "";
+            }
+            const lessonRes = await axios.get(`${API_URL}/api/lessons/${lessonId}?hang_gplx=${encodeURIComponent(hangGplx)}`);
             setLesson(lessonRes.data);
 
             // B. Kiểm tra khóa học có hết hạn không
@@ -164,8 +175,8 @@ export default function Learning() {
             learned_seconds: currentTime, 
         });
         // console.log("Saved:", currentTime);
-    } catch (err) { 
-        // console.error("Save error", err); 
+    } catch {
+      // ignore
     }
   };
 
@@ -173,22 +184,40 @@ export default function Learning() {
   useEffect(() => {
     if (!lesson || courseExpired) return;
 
-    // Chạy đồng hồ
+    const isVideo = Boolean(lesson.video_url);
+
     timerRef.current = setInterval(() => {
+      // Chỉ tính giờ khi đang phát video thật sự (hoặc không phải video thì fallback như cũ)
+      if (isVideo) {
+        if (!isVideoReady || !isActuallyPlaying) return;
+        // Nếu video không chạy (tab bị pause), không cộng
+        const drift = Math.abs((videoRefTime.current || 0) - (secondsValueRef.current || 0));
+        if (drift > 20) {
+          // nếu user tua mạnh, đồng bộ theo video time
+          secondsValueRef.current = Math.floor(videoRefTime.current || 0);
+        } else {
+          // đồng bộ nhẹ: lấy max giữa video time và timer
+          secondsValueRef.current = Math.max(
+            secondsValueRef.current + 1,
+            Math.floor(videoRefTime.current || 0)
+          );
+        }
+      } else {
         secondsValueRef.current += 1;
-        setLearnedSeconds(secondsValueRef.current);
+      }
+
+      setLearnedSeconds(secondsValueRef.current);
     }, 1000);
 
-    // Auto Save mỗi 5 giây
     saveRef.current = setInterval(() => {
-        saveProgress(secondsValueRef.current);
+      saveProgress(secondsValueRef.current);
     }, 5000);
 
     return () => {
-        clearInterval(timerRef.current);
-        clearInterval(saveRef.current);
+      clearInterval(timerRef.current);
+      clearInterval(saveRef.current);
     };
-  }, [lesson, courseExpired]);
+  }, [lesson, courseExpired, isVideoReady, isActuallyPlaying]);
 
   const handleEndSession = async () => {
     // Lưu vị trí hiện tại để resume
@@ -212,11 +241,21 @@ export default function Learning() {
   };
 
   // --- 5. LOGIC AUDIO & VIDEO ---
-  const handleVideoLoaded = (e) => {
-      const vid = e.target;
-      if (secondsValueRef.current > 0 && vid.currentTime < 1) {
-          vid.currentTime = secondsValueRef.current;
-      }
+  const handleVideoTime = (t) => {
+    videoRefTime.current = Number.isFinite(t) ? t : 0;
+  };
+
+  const handleVideoReady = () => {
+    setIsVideoReady(true);
+  };
+
+  const handleVideoEnded = async () => {
+    setIsActuallyPlaying(false);
+    await handleEndSession();
+  };
+
+  const handleVideoPlayingState = (isPlaying) => {
+    setIsActuallyPlaying(Boolean(isPlaying));
   };
 
   const handleSpeak = () => {
@@ -259,7 +298,7 @@ export default function Learning() {
       </div>
   );
 
-  const totalSeconds = (lesson.duration_minutes || 45) * 60;
+  const totalSeconds = (lesson.effective_duration_minutes || lesson.duration_minutes || 45) * 60;
   
   return (
     <div className="flex flex-col h-screen bg-[#f0f2f5]">
@@ -300,16 +339,32 @@ export default function Learning() {
       <div className="flex-1 p-4 overflow-hidden relative">
         <div className="w-full h-full bg-white shadow rounded-lg overflow-hidden border relative flex justify-center items-center bg-gray-50">
            {lesson.video_url ? (
-               lesson.video_url.startsWith('/uploads') ? 
-               <video src={`${API_URL}${lesson.video_url}`} controls autoPlay className="w-full h-full object-contain" onLoadedMetadata={handleVideoLoaded} /> :
+             lesson.video_url.startsWith('/uploads') ? (
+               <VideoPlayer
+                 src={`${API_URL}${lesson.video_url}`}
+                 initialTime={secondsValueRef.current}
+                 onReady={() => {
+                   handleVideoReady();
+                   handleVideoPlayingState(true);
+                 }}
+                 onTime={(t) => {
+                   handleVideoTime(t);
+                 }}
+                 onEnded={handleVideoEnded}
+                 className="w-full h-full"
+               />
+             ) : (
                <iframe src={lesson.video_url} className="w-full h-full border-none" allowFullScreen />
+             )
            ) : lesson.pdf_url ? (
-               <iframe src={`${API_URL}${lesson.pdf_url}#toolbar=0`} className="w-full h-full border-none" />
+             <PdfViewer src={`${API_URL}${lesson.pdf_url}`} className="w-full h-full" />
            ) : lesson.content ? (
-               <div className="p-8 w-full h-full overflow-y-auto prose">
-                   <div dangerouslySetInnerHTML={{ __html: processContent(lesson.content) }} />
-               </div>
-           ) : <Empty description="Chưa có nội dung" />}
+             <div className="p-8 w-full h-full overflow-y-auto prose">
+               <div dangerouslySetInnerHTML={{ __html: processContent(lesson.content) }} />
+             </div>
+           ) : (
+             <Empty description="Chưa có nội dung" />
+           )}
         </div>
       </div>
 

@@ -3,11 +3,13 @@ import { useEffect, useState, useMemo } from "react";
 import {
   HomeOutlined,
   PlayCircleOutlined,
+  ReadOutlined,
   HistoryOutlined,
   UserOutlined,
   LogoutOutlined,
   RobotOutlined,
   BarChartOutlined,
+  FormOutlined,
 } from "@ant-design/icons";
 
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -63,15 +65,12 @@ const StudentLayout = () => {
 
   // --- HÀM XỬ LÝ ẢNH (QUAN TRỌNG) ---
   const getAvatarSrc = (imgData) => {
-    if (!imgData) return null; // Nếu không có dữ liệu -> Trả về null để hiện Icon
-
-    console.log("🔍 Avatar data:", imgData.substring(0, 100) + "..."); // Debug
+    if (!imgData) return null;
 
     // 1. Nếu là đường dẫn file (http... hoặc /uploads...) -> Trả về y nguyên
     if (imgData.includes("/") && !imgData.includes("base64")) {
-        // Nếu là path tương đối thì thêm domain vào
-        if (imgData.startsWith("/uploads")) return `http://localhost:3001${imgData}`;
-        return imgData;
+      if (imgData.startsWith("/uploads")) return `${import.meta.env.VITE_API_URL || "http://localhost:3001"}${imgData}`;
+      return imgData;
     }
 
     // 2. Xử lý ảnh Base64 (Từ XML hoặc database)
@@ -108,9 +107,19 @@ const StudentLayout = () => {
       label: "Môn học của tôi",
     },
     {
+      key: "/student/practice",
+      icon: <ReadOutlined />,
+      label: "Ôn tập",
+    },
+    {
       key: "/student/progress",
       icon: <BarChartOutlined />,
       label: "Tiến độ học tập",
+    },
+    {
+      key: "/student/exams",
+      icon: <FormOutlined />,
+      label: "Thi thử",
     },
     {
       key: "/student/history",

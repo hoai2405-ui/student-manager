@@ -39,6 +39,7 @@ import axios from "../../Common/axios";
 import moment from "moment";
 import * as XLSX from 'xlsx';
 import { TableSkeleton } from '../../Components/Loading';
+import { useAuth } from "../../contexts/AuthContext";
 
 const { useBreakpoint } = Grid;
 const { Title, Text } = Typography;
@@ -59,12 +60,15 @@ const getAvatarSrc = (imgData) => {
 const Students = () => {
   const screens = useBreakpoint();
   const navigate = useNavigate();
-  
+  const { user } = useAuth();
+  const currentUser = user?.user ?? user;
+  const isAdmin = !!(currentUser?.is_admin || currentUser?.isAdmin || currentUser?.role === "admin");
+
   // State
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [tableParams, setTableParams] = useState({ pagination: { current: 1, pageSize: 10 } });
-  
+
   // Filter State
   const [name, setName] = useState("");
   const [cccd, setCccd] = useState("");
@@ -171,21 +175,21 @@ const Students = () => {
 
   // --- COLUMNS (TỐI ƯU HIỂN THỊ) ---
   const columns = [
-    { 
-      title: "STT", 
-      width: 60, 
-      align: 'center', 
-      render: (_, __, i) => <span className="text-gray-500 font-medium">{i + 1}</span> 
+    {
+      title: "STT",
+      width: 60,
+      align: 'center',
+      render: (_, __, i) => <span className="text-gray-500 font-medium">{i + 1}</span>
     },
     {
       title: "Thông tin Học viên",
       width: 300,
       render: (_, record) => (
         <div className="flex items-center gap-4 py-1">
-           <Avatar 
-              size={52} 
-              src={getAvatarSrc(record.anh_chan_dung)} 
-              icon={<UserOutlined />} 
+           <Avatar
+              size={52}
+              src={getAvatarSrc(record.anh_chan_dung)}
+              icon={<UserOutlined />}
               className="border-2 border-white shadow-md flex-shrink-0 bg-gray-200"
            />
            <div className="flex flex-col">
@@ -221,12 +225,12 @@ const Students = () => {
         responsive: ["md"],
         render: (d) => (
             <div className="text-gray-600 flex items-center gap-2">
-                <CalendarOutlined /> 
+                <CalendarOutlined />
                 {d ? moment(d).format("DD/MM/YYYY") : "--"}
             </div>
         )
     },
-    {
+    ...(isAdmin ? [{
       title: "Hành động",
       width: 100,
       fixed: "right",
@@ -234,23 +238,23 @@ const Students = () => {
       render: (_, record) => (
         <Space size="small">
             <Tooltip title="Chỉnh sửa">
-                <Button 
-                    type="text" 
-                    className="text-blue-600 hover:bg-blue-50" 
-                    icon={<EditOutlined />} 
-                    onClick={() => handleEdit(record)} 
+                <Button
+                    type="text"
+                    className="text-blue-600 hover:bg-blue-50"
+                    icon={<EditOutlined />}
+                    onClick={() => handleEdit(record)}
                 />
             </Tooltip>
             <Popconfirm title="Xóa học viên này?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
-                <Button 
-                    type="text" 
-                    className="text-red-500 hover:bg-red-50" 
-                    icon={<DeleteOutlined />} 
+                <Button
+                    type="text"
+                    className="text-red-500 hover:bg-red-50"
+                    icon={<DeleteOutlined />}
                 />
             </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ];
 
   return (
@@ -263,19 +267,21 @@ const Students = () => {
             <Text type="secondary">Danh sách học viên và hồ sơ đào tạo</Text>
          </div>
          <Space wrap>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => {
-                console.log("Button clicked!");
-                console.log("ROUTES_PATH.ADMIN_STUDENTS_NEW:", ROUTES_PATH.ADMIN_STUDENTS_NEW);
-                console.log("navigate function:", typeof navigate);
-                try {
-                    navigate(ROUTES_PATH.ADMIN_STUDENTS_NEW);
-                    console.log("Navigation called successfully");
-                } catch (error) {
-                    console.error("Navigation error:", error);
-                }
-            }} size="large" className="shadow-sm">
-                Thêm mới
-            </Button>
+            {isAdmin && (
+               <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+                   console.log("Button clicked!");
+                   console.log("ROUTES_PATH.ADMIN_STUDENTS_NEW:", ROUTES_PATH.ADMIN_STUDENTS_NEW);
+                   console.log("navigate function:", typeof navigate);
+                   try {
+                       navigate(ROUTES_PATH.ADMIN_STUDENTS_NEW);
+                       console.log("Navigation called successfully");
+                   } catch (error) {
+                       console.error("Navigation error:", error);
+                   }
+               }} size="large" className="shadow-sm">
+                   Thêm mới
+               </Button>
+            )}
             <Button icon={<DownloadOutlined />} onClick={handleExportExcel} size="large">Xuất Excel</Button>
          </Space>
       </div>

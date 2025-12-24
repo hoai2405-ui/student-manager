@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Row, Col, Spin, message } from "antd";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import axios from "../../Common/axios";
 import {
   ReadOutlined,
   CarOutlined,
@@ -22,20 +22,28 @@ const StudentMyCourses = () => {
     const loadSubjectsData = async () => {
       try {
         // 1. Lấy danh sách subjects
-        const subjectsRes = await axios.get("http://localhost:3001/api/subjects");
+        const subjectsRes = await axios.get("/api/subjects");
         const subjectsData = subjectsRes.data;
 
         // 2. Lấy số bài giảng thực tế cho mỗi subject
         const subjectsWithLessonCount = await Promise.all(
           subjectsData.map(async (subject) => {
             try {
-              const lessonsRes = await axios.get(`http://localhost:3001/api/lessons?subject_id=${subject.id}`);
+              const studentInfoRaw = localStorage.getItem("studentInfo");
+              let hangGplx = "";
+              try {
+                hangGplx = studentInfoRaw ? JSON.parse(studentInfoRaw)?.hang_gplx || "" : "";
+              } catch {
+                hangGplx = "";
+              }
+
+              const lessonsRes = await axios.get(`/api/lessons?subject_id=${subject.id}&hang_gplx=${encodeURIComponent(hangGplx)}`);
               const lessonCount = lessonsRes.data.length;
 
               // 3. Lấy thời lượng yêu cầu từ subject_requirements (nếu có)
               let requiredHours = subject.total_hours || 0; // Default từ subjects table
               try {
-                const reqRes = await axios.get(`http://localhost:3001/api/subject-requirements?subject_id=${subject.id}`);
+                const reqRes = await axios.get(`/api/subject-requirements?subject_id=${subject.id}`);
                 if (reqRes.data && reqRes.data.length > 0) {
                   // Lấy thời lượng yêu cầu cao nhất (cho các hạng GPLX khác nhau)
                   requiredHours = Math.max(...reqRes.data.map(req => req.required_hours));

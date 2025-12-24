@@ -12,6 +12,7 @@ import Students from "../Pages/Admin/index";
 import CreateStudent from "../Pages/Admin/createStudent";
 import UsersPage from "../Pages/Users/Users";
 import ManageLessons from "../Pages/Lessons/ManageLessons"; // Kiểm tra lại đường dẫn này xem đúng file chưa nhé
+import AdminAssessment from "../Pages/Admin/Assessment";
 import PrivateRoute from "../Components/PrivateRoute";
 import LoginPage from "../Pages/Auth/Login";
 import AdminLayout from "../Layout/AdminLayout"; // Import Layout Admin
@@ -26,6 +27,8 @@ import StudentMyCourses from "../Pages/Student/StudentMyCourse";
 import StudentCourseDetail from "../Pages/Student/StudentCourseDetail";
 import SimulationPage from "../Pages/Student/SimulationPage";
 import StudentProgress from "../Pages/Student/Progress";
+import StudentExams from "../Pages/Student/Exams";
+import StudentPractice from "../Pages/Student/Practice";
 
 
 // 3. ROUTER CHÍNH
@@ -57,6 +60,12 @@ export default function Router() {
 
           {/* 5. Trang tiến độ học tập */}
           <Route path="progress" element={<StudentProgress />} />
+
+          {/* 6. Ôn tập */}
+          <Route path="practice" element={<StudentPractice />} />
+
+          {/* 7. Thi thử */}
+          <Route path="exams" element={<StudentExams />} />
 
           <Route path="simulation" element={<SimulationPage />} />
           <Route
@@ -111,14 +120,23 @@ export default function Router() {
               </PrivateRoute>
             }
           />
+
+          <Route
+            path="assessment"
+            element={
+              <PrivateRoute adminOnly={true}>
+                <AdminAssessment />
+              </PrivateRoute>
+            }
+          />
         </Route>
 
         {/* =========================================
             PHẦN 3: ĐIỀU HƯỚNG MẶC ĐỊNH
            ========================================= */}
-        <Route path="/" element={<Navigate to="/admin/login" />} />
-        {/* Các đường dẫn lạ thì đẩy về trang chủ Admin hoặc Student tuỳ ý */}
-        <Route path="*" element={<Navigate to="/admin/login" />} />
+        <Route path="/" element={<Navigate to="/student/login" />} />
+        {/* Các đường dẫn lạ thì đẩy về trang đăng nhập phù hợp */}
+        <Route path="*" element={<Navigate to="/student/login" />} />
       </Routes>
     </BrowserRouter>
   );

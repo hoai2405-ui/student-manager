@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Table, Card, Button, Typography, Breadcrumb, Tag, Spin, message } from "antd";
 import { PlayCircleOutlined, BookOutlined, HomeOutlined, FilePdfOutlined, VideoCameraOutlined, CheckCircleOutlined } from "@ant-design/icons";
-import axios from "axios";
+import axios from "../../Common/axios";
 
 const { Title } = Typography;
 
@@ -20,7 +20,7 @@ const StudentCourseDetail = () => {
   useEffect(() => {
     setLoading(true);
 
-    axios.get("http://localhost:3001/api/subjects")
+    axios.get("/api/subjects")
       .then((res) => {
         const subjects = res.data;
         const currentSubject = subjects.find(s =>
@@ -46,7 +46,15 @@ const StudentCourseDetail = () => {
   const fetchLessons = async (subjectId) => {
     try {
       // 1. Load lessons
-      const lessonsRes = await axios.get(`http://localhost:3001/api/lessons?subject_id=${subjectId}`);
+      const studentInfoRaw = localStorage.getItem("studentInfo");
+      let hangGplx = "";
+      try {
+        hangGplx = studentInfoRaw ? JSON.parse(studentInfoRaw)?.hang_gplx || "" : "";
+      } catch {
+        hangGplx = "";
+      }
+
+      const lessonsRes = await axios.get(`/api/lessons?subject_id=${subjectId}&hang_gplx=${encodeURIComponent(hangGplx)}`);
       const lessonsData = lessonsRes.data || [];
       setLessons(lessonsData);
 
@@ -55,9 +63,7 @@ const StudentCourseDetail = () => {
       
       if (token && lessonsData.length > 0) {
         const progressPromises = lessonsData.map(lesson =>
-          axios.get(`http://localhost:3001/api/progress/${lesson.id}`, {
-             headers: { Authorization: `Bearer ${token}` } // Gửi token lên
-          })
+          axios.get(`/api/progress/${lesson.id}`)
             .then(res => ({ lessonId: lesson.id, progress: res.data.learned_seconds || 0 }))
             .catch(() => ({ lessonId: lesson.id, progress: 0 }))
         );
@@ -79,9 +85,10 @@ const StudentCourseDetail = () => {
 
   // Helper functions
   const getProgressPercent = (lesson) => {
-    const learned = progressData[lesson.id] || 0;
-    const total = (lesson.duration_minutes || 45) * 60;
-    return Math.min((learned / total) * 100, 100);
+  const learned = progressData[lesson.id] || 0;
+  const durationMinutes = lesson.effective_duration_minutes || lesson.duration_minutes || 45;
+  const total = durationMinutes * 60;
+  return Math.min((learned / total) * 100, 100);
   };
 
   const isCompleted = (lesson) => {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Row, Col, List, Card, Tabs, Typography, Spin, message } from "antd";
 import { PlayCircleOutlined } from "@ant-design/icons";
-import axios from "axios";
+import axios from "../../Common/axios";
 import SimulationPlayer from "../Student/SimulationPlayer"
 
 const { Title } = Typography;
@@ -12,7 +12,7 @@ const SimulationPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get("http://localhost:3001/api/simulations")
+    axios.get("/api/simulations")
       .then((res) => {
         setData(res.data);
         if (res.data.length > 0) setCurrentSim(res.data[0]);
