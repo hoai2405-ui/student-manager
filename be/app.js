@@ -193,6 +193,7 @@ async function createTables() {
         lesson_code VARCHAR(100),
         video_url TEXT,
         pdf_url TEXT,
+        license_types TEXT NULL,
         lesson_order INT DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -268,7 +269,7 @@ async function createTables() {
     `);
     console.log("✅ Đảm bảo table students tồn tại");
 
-    // Đảm bảo cột duration_minutes và content tồn tại
+    // Đảm bảo cột duration_minutes, content, license_types tồn tại
     try {
       await pool.query("ALTER TABLE lessons ADD COLUMN duration_minutes INT DEFAULT 45");
     } catch (e) {
@@ -276,6 +277,11 @@ async function createTables() {
     }
     try {
       await pool.query("ALTER TABLE lessons ADD COLUMN content LONGTEXT");
+    } catch (e) {
+      // Bỏ qua nếu cột đã tồn tại
+    }
+    try {
+      await pool.query("ALTER TABLE lessons ADD COLUMN license_types TEXT NULL");
     } catch (e) {
       // Bỏ qua nếu cột đã tồn tại
     }
@@ -291,6 +297,37 @@ async function createTables() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
     console.log("✅ Đảm bảo table subject_requirements tồn tại");
+
+    // Tạo bảng lesson_progress để lưu vị trí xem (giây) từng bài học
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lesson_progress (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        student_id INT NOT NULL,
+        lesson_id INT NOT NULL,
+        learned_seconds INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+        FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_student_lesson (student_id, lesson_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log("✅ Đảm bảo table lesson_progress tồn tại");
+
+    // Override thời lượng bài học theo hạng GPLX
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lesson_duration_overrides (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        lesson_id INT NOT NULL,
+        license_class VARCHAR(50) NOT NULL,
+        duration_minutes INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
+        UNIQUE KEY uq_lesson_license (lesson_id, license_class)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log("✅ Đảm bảo table lesson_duration_overrides tồn tại");
 
     // Tạo bảng student_lesson_progress để lưu tiến độ từng bài học
     await pool.query(`
@@ -1917,20 +1954,27 @@ app.get("/api/subjects", async (req, res) => {
 
 // 2. Lấy danh sách bài giảng theo Môn học (Dùng cho cả Admin và Học viên)
 app.get("/api/lessons", async (req, res) => {
-  const { subject_id } = req.query;
+  const { subject_id, hang_gplx } = req.query;
   try {
-    let sql = "SELECT * FROM lessons";
-    const params = [];
+    let sql = `
+      SELECT l.*, COALESCE(ldo.duration_minutes, l.duration_minutes) AS effective_duration_minutes
+      FROM lessons l
+      LEFT JOIN lesson_duration_overrides ldo
+        ON ldo.lesson_id = l.id
+        AND ldo.license_class = ?
+    `;
+
+    const params = [String(hang_gplx || '')];
+    const where = [];
+
     if (subject_id) {
-      // normalize subject_id to integer to avoid accidental mismatches
       const sid = Number(subject_id);
       if (Number.isNaN(sid)) {
         return res.status(400).json({ error: "subject_id must be a number" });
       }
-      sql += " WHERE subject_id = ? ORDER BY lesson_order ASC";
+      where.push("l.subject_id = ?");
       params.push(sid);
 
-      // debug: count rows for this subject_id
       try {
         const [[countRow]] = await pool.query("SELECT COUNT(*) as c FROM lessons WHERE subject_id = ?", [sid]);
         console.log(`🔍 API /api/lessons debug: subject_id=${sid} count=${countRow.c}`);
@@ -1938,8 +1982,19 @@ app.get("/api/lessons", async (req, res) => {
         console.warn("Could not run lessons count debug", e.message);
       }
     }
+
+    if (hang_gplx) {
+      where.push("(l.license_types IS NULL OR l.license_types = '' OR l.license_types = '[]' OR JSON_CONTAINS(l.license_types, JSON_QUOTE(?)))");
+      params.push(String(hang_gplx));
+    }
+
+    if (where.length) {
+      sql += " WHERE " + where.join(" AND ");
+    }
+    sql += " ORDER BY l.lesson_order ASC";
+
     const [rows] = await pool.query(sql, params);
-    console.log(`🔍 API /api/lessons query: subject_id=${subject_id}, trả về ${rows.length} lessons`);
+    console.log(`🔍 API /api/lessons query: subject_id=${subject_id}, hang_gplx=${hang_gplx || ''}, trả về ${rows.length} lessons`);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1967,6 +2022,8 @@ app.post("/api/lessons", async (req, res) => {
     pdf_url,
     lesson_order,
     duration_minutes,
+    license_types,
+    duration_overrides,
   } = req.body;
   let { content } = req.body;
 
@@ -2008,21 +2065,36 @@ app.post("/api/lessons", async (req, res) => {
 
     const sql = `
       INSERT INTO lessons
-      (subject_id, title, lesson_code, video_url, pdf_url, lesson_order, duration_minutes, content)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (subject_id, title, lesson_code, video_url, pdf_url, license_types, lesson_order, duration_minutes, content)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    await pool.query(sql, [
+    const [insertRes] = await pool.query(sql, [
       subject_id,
       title,
       lesson_code || "",
       video_url || "",
       pdf_url || "",
+      license_types ? JSON.stringify(license_types) : null,
       finalOrder,
       duration_minutes || 45,
       content || "",
     ]);
 
-    res.json({ message: "Thêm thành công" });
+    const lessonId = insertRes.insertId;
+
+    if (lessonId && Array.isArray(duration_overrides)) {
+      for (const o of duration_overrides) {
+        if (!o || !o.license_class || o.duration_minutes == null) continue;
+        await pool.query(
+          `INSERT INTO lesson_duration_overrides (lesson_id, license_class, duration_minutes)
+           VALUES (?, ?, ?)
+           ON DUPLICATE KEY UPDATE duration_minutes = VALUES(duration_minutes)`,
+          [lessonId, String(o.license_class), Number(o.duration_minutes)]
+        );
+      }
+    }
+
+    res.json({ message: "Thêm thành công", id: lessonId });
   } catch (err) {
     console.error("Lỗi POST:", err);
     res.status(500).json({ error: err.message });
@@ -2032,9 +2104,17 @@ app.post("/api/lessons", async (req, res) => {
 // 3.1. Lấy chi tiết bài giảng theo ID (Dành cho Học viên)
 // 🔍 THÊM API NÀY: Lấy chi tiết 1 bài giảng theo ID
 app.get("/api/lessons/:id", async (req, res) => {
-  // const { id } = req.params;
+  const { hang_gplx } = req.query;
   try {
-  const [rows] = await pool.query("SELECT * FROM lessons WHERE id = ?", [req.params.id]);
+    const [rows] = await pool.query(
+      `SELECT l.*, COALESCE(ldo.duration_minutes, l.duration_minutes) AS effective_duration_minutes
+       FROM lessons l
+       LEFT JOIN lesson_duration_overrides ldo
+         ON ldo.lesson_id = l.id
+         AND ldo.license_class = ?
+       WHERE l.id = ?`,
+      [String(hang_gplx || ''), req.params.id]
+    );
     if (rows.length === 0) {
       return res.status(404).json({ message: "Không tìm thấy bài giảng" });
     }
@@ -2065,6 +2145,8 @@ app.put("/api/lessons/:id", async (req, res) => {
     pdf_url,
     lesson_order,
     duration_minutes,
+    license_types,
+    duration_overrides,
   } = req.body;
   let { content } = req.body;
 
@@ -2077,7 +2159,7 @@ app.put("/api/lessons/:id", async (req, res) => {
 
     const sql = `
       UPDATE lessons SET
-        subject_id = ?, title = ?, lesson_code = ?, video_url = ?, pdf_url = ?,
+        subject_id = ?, title = ?, lesson_code = ?, video_url = ?, pdf_url = ?, license_types = ?,
         lesson_order = ?, duration_minutes = ?, content = ?
       WHERE id = ?
     `;
@@ -2087,11 +2169,24 @@ app.put("/api/lessons/:id", async (req, res) => {
       lesson_code,
       video_url,
       pdf_url,
+      license_types ? JSON.stringify(license_types) : null,
       lesson_order,
       duration_minutes,
       content,
       id,
     ]);
+
+    if (Array.isArray(duration_overrides)) {
+      for (const o of duration_overrides) {
+        if (!o || !o.license_class || o.duration_minutes == null) continue;
+        await pool.query(
+          `INSERT INTO lesson_duration_overrides (lesson_id, license_class, duration_minutes)
+           VALUES (?, ?, ?)
+           ON DUPLICATE KEY UPDATE duration_minutes = VALUES(duration_minutes)`,
+          [id, String(o.license_class), Number(o.duration_minutes)]
+        );
+      }
+    }
 
     res.json({ message: "Cập nhật thành công" });
   } catch (err) {
@@ -2292,12 +2387,12 @@ app.get("/api/student/summary/:id", async (req, res) => {
     `, [studentId]);
 
     // Lấy tổng giờ yêu cầu cho hạng GPLX (normalize license class)
-    const normalizedHangGplx = hangGplx.replace('.', ''); // B.01 -> B01, B1 -> B1
+    const normalizedHangGplx = String(hangGplx || '').replace(/\s+/g, '').replace('.', '');
     const [[requiredRow]] = await pool.query(`
       SELECT COALESCE(SUM(required_hours), 0) AS required_hours
       FROM subject_requirements
-      WHERE license_class = ? OR license_class = ?
-    `, [hangGplx, normalizedHangGplx]);
+      WHERE license_class IN (?, ?, ?)
+    `, [hangGplx, normalizedHangGplx, String(hangGplx || '').trim()]);
 
     // Normalize response to match frontend expectations
     const total_learned = Number(learnedRow?.learned_hours || 0);
@@ -2360,7 +2455,14 @@ app.get("/api/progress/:lessonId", authenticateToken, async (req, res) => {
 app.get("/api/debug/data-check", async (req, res) => {
   try {
     const [subjects] = await pool.query("SELECT id, name, code FROM subjects");
-    const [history] = await pool.query("SELECT student_id, subject_id, minutes FROM learning_history LIMIT 20");
+    const [history] = await pool.query(
+      `SELECT lh.student_id, s.ho_va_ten AS student_name, lh.subject_id, sub.name AS subject_name, lh.minutes
+       FROM learning_history lh
+       JOIN students s ON s.id = lh.student_id
+       JOIN subjects sub ON sub.id = lh.subject_id
+       ORDER BY lh.id DESC
+       LIMIT 20`
+    );
 
     const subjectIds = subjects.map(s => s.id);
     const historySubjectIds = [...new Set(history.map(h => h.subject_id))];
@@ -2389,4 +2491,339 @@ app.get("/api/simulations", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// --- ASSESSMENT APIs ---
+
+const requireAdminOrDepartment = async (req, res, next) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Thiếu token xác thực" });
+    const [[u]] = await pool.query("SELECT is_admin, role FROM users WHERE id = ? LIMIT 1", [userId]);
+    const ok = Boolean(
+      u &&
+        (u.is_admin === 1 || u.role === 'admin' || u.role === 'administrator' || u.role === 'department' || u.role === 'sogtvt')
+    );
+    if (!ok) return res.status(403).json({ message: "Không có quyền truy cập" });
+    next();
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi hệ thống" });
+  }
+};
+
+// Admin: CRUD Questions (MCQ + choices)
+app.get("/api/admin/questions", authenticateToken, requireAdminOrDepartment, async (req, res) => {
+  const { subject_id } = req.query;
+  try {
+    const params = [];
+    let where = "";
+    if (subject_id) {
+      where = "WHERE q.subject_id = ?";
+      params.push(Number(subject_id));
+    }
+
+    const [questions] = await pool.query(
+      `SELECT q.id, q.subject_id, q.type, q.content, q.explanation, q.difficulty, q.created_at, q.updated_at
+       FROM questions q
+       ${where}
+       ORDER BY q.id DESC`,
+      params
+    );
+
+    const ids = questions.map((q) => q.id);
+    let choicesByQid = {};
+    if (ids.length) {
+      const [choices] = await pool.query(
+        `SELECT id, question_id, label, content, is_correct
+         FROM question_choices
+         WHERE question_id IN (${ids.map(() => '?').join(',')})
+         ORDER BY id ASC`,
+        ids
+      );
+      for (const c of choices) {
+        if (!choicesByQid[c.question_id]) choicesByQid[c.question_id] = [];
+        choicesByQid[c.question_id].push(c);
+      }
+    }
+
+    res.json(questions.map((q) => ({ ...q, choices: choicesByQid[q.id] || [] })));
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi lấy câu hỏi", error: e.message });
+  }
+});
+
+app.post("/api/admin/questions", authenticateToken, requireAdminOrDepartment, async (req, res) => {
+  const { subject_id, type = 'mcq', content, explanation, difficulty, choices } = req.body;
+  if (!content) return res.status(400).json({ message: "Thiếu nội dung câu hỏi" });
+  try {
+    const [result] = await pool.query(
+      "INSERT INTO questions (subject_id, type, content, explanation, difficulty) VALUES (?, ?, ?, ?, ?)",
+      [subject_id ?? null, type, content, explanation ?? null, difficulty ?? null]
+    );
+    const questionId = result.insertId;
+
+    if (type === 'mcq' && Array.isArray(choices) && choices.length) {
+      for (const ch of choices) {
+        await pool.query(
+          "INSERT INTO question_choices (question_id, label, content, is_correct) VALUES (?, ?, ?, ?)",
+          [questionId, ch.label ?? null, ch.content, ch.is_correct ? 1 : 0]
+        );
+      }
+    }
+
+    res.json({ success: true, id: questionId });
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi tạo câu hỏi", error: e.message });
+  }
+});
+
+app.put("/api/admin/questions/:id", authenticateToken, requireAdminOrDepartment, async (req, res) => {
+  const { id } = req.params;
+  const { subject_id, type, content, explanation, difficulty, choices } = req.body;
+  if (!content) return res.status(400).json({ message: "Thiếu nội dung câu hỏi" });
+  try {
+    await pool.query(
+      "UPDATE questions SET subject_id = ?, type = ?, content = ?, explanation = ?, difficulty = ? WHERE id = ?",
+      [subject_id ?? null, type, content, explanation ?? null, difficulty ?? null, id]
+    );
+
+    if (type === 'mcq') {
+      await pool.query("DELETE FROM question_choices WHERE question_id = ?", [id]);
+      if (Array.isArray(choices)) {
+        for (const ch of choices) {
+          await pool.query(
+            "INSERT INTO question_choices (question_id, label, content, is_correct) VALUES (?, ?, ?, ?)",
+            [id, ch.label ?? null, ch.content, ch.is_correct ? 1 : 0]
+          );
+        }
+      }
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi cập nhật câu hỏi", error: e.message });
+  }
+});
+
+app.delete("/api/admin/questions/:id", authenticateToken, requireAdminOrDepartment, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query("DELETE FROM questions WHERE id = ?", [id]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi xóa câu hỏi", error: e.message });
+  }
+});
+
+// Admin: Exams (create + attach questions)
+app.get("/api/admin/exams", authenticateToken, requireAdminOrDepartment, async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM exams ORDER BY id DESC");
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi lấy đề thi", error: e.message });
+  }
+});
+
+app.post("/api/admin/exams", authenticateToken, requireAdminOrDepartment, async (req, res) => {
+  const { subject_id, title, duration_minutes = 15, total_questions = 20, randomized = 1, passing_score = 80, question_ids } = req.body;
+  if (!title) return res.status(400).json({ message: "Thiếu tiêu đề đề thi" });
+  try {
+    const [result] = await pool.query(
+      "INSERT INTO exams (subject_id, title, duration_minutes, total_questions, randomized, passing_score) VALUES (?, ?, ?, ?, ?, ?)",
+      [subject_id ?? null, title, duration_minutes, total_questions, randomized ? 1 : 0, passing_score]
+    );
+    const examId = result.insertId;
+
+    if (Array.isArray(question_ids) && question_ids.length) {
+      let i = 1;
+      for (const qid of question_ids) {
+        await pool.query(
+          "INSERT INTO exam_questions (exam_id, question_id, question_order) VALUES (?, ?, ?)",
+          [examId, qid, i++]
+        );
+      }
+    }
+
+    res.json({ success: true, id: examId });
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi tạo đề thi", error: e.message });
+  }
+});
+
+// Student: question bank (for practice)
+app.get("/api/student/questions", authenticateToken, async (req, res) => {
+  const { subject_id, limit } = req.query;
+  try {
+    const params = [];
+    let where = "";
+    if (subject_id) {
+      where = "WHERE q.subject_id = ?";
+      params.push(Number(subject_id));
+    }
+    const max = Math.min(200, Math.max(1, Number(limit) || 50));
+
+    const [questions] = await pool.query(
+      `SELECT q.id, q.subject_id, q.type, q.content, q.explanation, q.difficulty
+       FROM questions q
+       ${where}
+       ORDER BY q.id DESC
+       LIMIT ${max}`,
+      params
+    );
+
+    const ids = questions.map((q) => q.id);
+    let choicesByQid = {};
+    if (ids.length) {
+      const [choices] = await pool.query(
+        `SELECT id, question_id, label, content
+         FROM question_choices
+         WHERE question_id IN (${ids.map(() => '?').join(',')})
+         ORDER BY id ASC`,
+        ids
+      );
+      for (const c of choices) {
+        if (!choicesByQid[c.question_id]) choicesByQid[c.question_id] = [];
+        choicesByQid[c.question_id].push(c);
+      }
+    }
+
+    res.json(questions.map((q) => ({ ...q, choices: choicesByQid[q.id] || [] })));
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi lấy ngân hàng câu hỏi", error: e.message });
+  }
+});
+
+// Student: list exams
+app.get("/api/student/exams", authenticateToken, async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, subject_id, title, duration_minutes, total_questions, passing_score FROM exams ORDER BY id DESC");
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi lấy danh sách đề thi", error: e.message });
+  }
+});
+
+// Student: start attempt -> returns questions (without answers)
+app.post("/api/student/exams/:examId/start", authenticateToken, async (req, res) => {
+  const { examId } = req.params;
+  const studentId = req.user.id;
+  try {
+    const [[exam]] = await pool.query("SELECT * FROM exams WHERE id = ? LIMIT 1", [examId]);
+    if (!exam) return res.status(404).json({ message: "Không tìm thấy đề thi" });
+
+    const [eqRows] = await pool.query(
+      "SELECT question_id FROM exam_questions WHERE exam_id = ? ORDER BY question_order ASC",
+      [examId]
+    );
+
+    let questionIds = eqRows.map((r) => r.question_id);
+    if (exam.randomized && questionIds.length) {
+      // simple shuffle
+      questionIds = questionIds.sort(() => Math.random() - 0.5);
+    }
+    questionIds = questionIds.slice(0, exam.total_questions);
+
+    const [attemptRes] = await pool.query(
+      "INSERT INTO exam_attempts (exam_id, student_id) VALUES (?, ?)",
+      [examId, studentId]
+    );
+    const attemptId = attemptRes.insertId;
+
+    if (!questionIds.length) return res.json({ attempt_id: attemptId, exam, questions: [] });
+
+    const [questions] = await pool.query(
+      `SELECT id, subject_id, type, content, explanation, difficulty FROM questions WHERE id IN (${questionIds
+        .map(() => '?')
+        .join(',')})`,
+      questionIds
+    );
+
+    const [choices] = await pool.query(
+      `SELECT id, question_id, label, content FROM question_choices WHERE question_id IN (${questionIds
+        .map(() => '?')
+        .join(',')})`,
+      questionIds
+    );
+
+    const choicesByQid = {};
+    for (const c of choices) {
+      if (!choicesByQid[c.question_id]) choicesByQid[c.question_id] = [];
+      choicesByQid[c.question_id].push(c);
+    }
+
+    const questionsById = {};
+    for (const q of questions) questionsById[q.id] = q;
+
+    res.json({
+      attempt_id: attemptId,
+      exam: {
+        id: exam.id,
+        title: exam.title,
+        duration_minutes: exam.duration_minutes,
+        passing_score: exam.passing_score,
+      },
+      questions: questionIds
+        .map((id) => questionsById[id])
+        .filter(Boolean)
+        .map((q) => ({ ...q, choices: choicesByQid[q.id] || [] })),
+    });
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi bắt đầu thi", error: e.message });
+  }
+});
+
+// Student: submit attempt answers
+app.post("/api/student/attempts/:attemptId/submit", authenticateToken, async (req, res) => {
+  const { attemptId } = req.params;
+  const studentId = req.user.id;
+  const { answers, time_spent_seconds = 0 } = req.body;
+
+  try {
+    const [[attempt]] = await pool.query(
+      "SELECT * FROM exam_attempts WHERE id = ? AND student_id = ? LIMIT 1",
+      [attemptId, studentId]
+    );
+    if (!attempt) return res.status(404).json({ message: "Không tìm thấy lượt thi" });
+
+    const [[exam]] = await pool.query("SELECT * FROM exams WHERE id = ? LIMIT 1", [attempt.exam_id]);
+    if (!exam) return res.status(404).json({ message: "Không tìm thấy đề thi" });
+
+    const a = Array.isArray(answers) ? answers : [];
+
+    let correct = 0;
+    let total = 0;
+
+    for (const item of a) {
+      if (!item?.question_id) continue;
+      total += 1;
+
+      let isCorrect = null;
+      if (item.choice_id) {
+        const [[row]] = await pool.query(
+          "SELECT is_correct FROM question_choices WHERE id = ? AND question_id = ? LIMIT 1",
+          [item.choice_id, item.question_id]
+        );
+        isCorrect = row ? row.is_correct === 1 : 0;
+        if (isCorrect) correct += 1;
+      }
+
+      await pool.query(
+        "INSERT INTO attempt_answers (attempt_id, question_id, choice_id, essay_answer, is_correct) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE choice_id = VALUES(choice_id), essay_answer = VALUES(essay_answer), is_correct = VALUES(is_correct)",
+        [attemptId, item.question_id, item.choice_id ?? null, item.essay_answer ?? null, isCorrect]
+      );
+    }
+
+    const score = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const passed = score >= (exam.passing_score || 80);
+
+    await pool.query(
+      "UPDATE exam_attempts SET submitted_at = NOW(), score = ?, passed = ?, time_spent_seconds = ? WHERE id = ?",
+      [score, passed ? 1 : 0, Number(time_spent_seconds) || 0, attemptId]
+    );
+
+    res.json({ success: true, score, passed });
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi nộp bài", error: e.message });
+  }
+});
+
 app.listen(3001, () => console.log("API running on http://localhost:3001"));

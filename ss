@@ -1,0 +1,133 @@
+[33mf76d29f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m update
+[33m24419a1[m update
+[33m50b5dca[m 9.12
+[33m7cbbe6d[m 9.12
+[33mfcdb64b[m 8.12.25
+[33m97a92b1[m update 5.12
+[33m29c560b[m update  5.12
+[33m834ebcd[m 3.12.25
+[33mb8d0cc7[m 3.12.25
+[33m5d66af3[m fe 2.12.25
+[33mdbd67fc[m 2.12.25
+[33md1a9c48[m night 1.12
+[33m2d79702[m update 1/12/2025
+[33mb9ab7b5[m  update 1.12
+[33m83488cd[m daa co aanh
+[33m35186ce[m update be
+[33mb382246[m update
+[33mf370106[m them lich học
+[33mc3b8777[m them lich hoc
+[33mfd00655[m fix be
+[33meeee051[m be
+[33ma17a0d3[m be
+[33mc060886[m fix be
+[33mfdd06ac[m fix be
+[33m4da0a46[m fix
+[33mfb0dd13[m fix BE
+[33ma2d8c61[m Fix
+[33mac60598[m fix: update Vercel config and vite config
+[33m14d9e2b[m fix: update Vercel config and vite config
+[33mbd0657d[m Routing redirect issues
+[33m525f1c1[m fix: update Vercel config and vite config
+[33mf23e67f[m fix: update Vercel config and vite config
+[33m0fc617b[m fix: update Vercel config and vite config
+[33m6e689cf[m Solved Vercel Error
+[33m7e3fc94[m Solved Vercel Error
+[33m3a6f6c0[m fix: update Vercel config and vite config
+[33me14ec44[m fix: update Vercel config and vite config
+[33mefe77f1[m Solved Vercel Error
+[33m20ac7e7[m Solved Vercel Error
+[33m32c2851[m Solved Vercel Error
+[33m661b7c6[m fix: update Vercel config and vite config 1
+[33m5b3b302[m fix: update Vercel config and vite config 1
+[33mb5bc2c8[m test
+[33maf3c6cb[m fix: update Vercel config and vite config
+[33m6292be8[m fix: update Vercel config and vite config
+[33m508f1fd[m fix: update Vercel config and vite config
+[33m9b7b7e3[m update git
+[33mdd34803[m fix: update Vercel config and vite config
+[33m11905b6[m fix: update Vercel config and vite config
+[33md36d007[m fix: update Vercel config and vite config
+[33m117d6eb[m fix: update Vercel config and vite config
+[33m6721275[m fix: update Vercel config and vite config
+[33m801c7a8[m fix: update Vercel config and vite config
+[33mc972d2b[m fix: update Vercel config and vite config
+[33me935ef3[m fix: update Vercel config and vite config
+[33m899cdf0[m fix: update Vercel config and vite config
+[33m5e0a6a2[m fix: update Vercel config and vite config
+[33m646585e[m fix: update Vercel config and vite config
+[33m09175aa[m fix: update Vercel config and vite config
+[33m78947b6[m fix: update Vercel config and vite config
+[33mb3d43a7[m fix: update Vercel config and vite config
+[33m896f24b[m fix: update Vercel config and vite config
+[33mb550823[m fix: update Vercel config and vite config
+[33m62ca014[m fix: update Vercel config and vite config
+[33m000abb5[m fix: update Vercel config and vite config
+[33mb781172[m fix: update Vercel config and vite config
+[33mdfac334[m fix: correct build and route paths for Vercel
+[33mea806ca[m Fix: use custom distDir for fe/
+[33m687dc90[m Fix: use custom distDir for fe/
+[33m132b910[m Fix: use custom distDir for fe/
+[33m11c382f[m Fix: use custom distDir for fe/
+[33m039009c[m Fix: move vercel.json into git repo to apply Vercel config
+[33m7b7d5bc[m Fix: clean up vercel.json to let Vercel auto-detect Vite
+[33m99c2882[m Fix: configure vercel rewrite for SPA
+[33m6ca4946[m Fix: correct rewrite for SPA routing
+[33maf09c3b[m Fix: update vercel.json and backend routing
+[33md0754dc[m Fix: update vercel.json and backend routing
+[33mdb2cb08[m Fix: update vercel.json and backend routing
+[33m5af64bc[m Fix: update vercel.json and backend routing
+[33m2c76066[m Fix: update vercel.json and backend routing
+[33mad18ffa[m Fix: update vercel.json and backend routing
+[33m76694c7[m Fix: update vercel.json and backend routing
+[33m611e0ae[m Fix: update vercel.json and backend routing
+[33m9847ec9[m Fix: update vercel.json and backend routing
+[33m1fe903a[m Fix: update vercel.json and backend routing
+[33m10d1dd9[m Fix: update vercel.json and backend routing
+[33m6492c94[m Fix: update vercel.json and backend routing
+[33m3a605d2[m Fix: add base path for Vite to support Vercel routing
+[33mbbc082e[m Fix: update vercel.json and backend routing
+[33m5349988[m ✅ Fix deploy: vite base + vercel rewrite
+[33m6900270[m Fix: correct index.html route path in vercel.json
+[33m3f28113[m Fix: correct index.html route path in vercel.json
+[33m8751b24[m Fix: update vercel.json and Vite base config
+[33mba4c64a[m Fix: update vercel.json and Vite base config
+[33mac38a7f[m Fix: update vercel.json and backend routing
+[33m4397a4f[m Fix: add base path for Vite to support Vercel routing
+[33m15333a2[m Fix: add base path for Vite to support Vercel routing
+[33mf743bed[m Fix: update vercel.json and Vite base config
+[33m7eb25d1[m Fix: update vercel.json and backend routing
+[33m1a85454[m Fix: update vercel.json and backend routing
+[33me708f32[m Fix: case-sensitive import + route cleanup
+[33mf9043a6[m Fix: case-sensitive import + route cleanup
+[33ma10f85a[m Fix: Ant Design Card warning, update to variant/styles.body
+[33ma8620bf[m Fix: case-sensitive import + route cleanup
+[33m990e13f[m Fix: case-sensitive import + route cleanup
+[33m4c4d21d[m Fix: case-sensitive import + route cleanup
+[33meda3801[m Fix: case-sensitive import + route cleanup
+[33m980afa5[m Fix: case-sensitive import + route cleanup
+[33m7ba1959[m Fix: case-sensitive import + route cleanup
+[33mb8e5d78[m Fix: case-sensitive import + route cleanup
+[33mf79048b[m Fix: case-sensitive import + route cleanup
+[33m50bc74e[m Fix: case-sensitive import + route cleanup
+[33m79c3612[m Fix: case-sensitive import + route cleanup
+[33m3d89b94[m Fix: case-sensitive import + route cleanup
+[33m17c664f[m Fix: case-sensitive import + route cleanup
+[33m8eff220[m Fix: case-sensitive import + route cleanup
+[33m171ffbe[m Fix: case-sensitive import + route cleanup
+[33m0e971b4[m Fix: case-sensitive import + route cleanup
+[33m3d662fc[m Fix: case-sensitive import + route cleanup
+[33m549152e[m Fix: case-sensitive import + route cleanup
+[33m532f13a[m Fix: case-sensitive import + route cleanup
+[33m7ea740e[m Fix: case-sensitive import + route cleanup
+[33m0e10a12[m Fix: case-sensitive import + route cleanup
+[33m67b1f4f[m Fix: case-sensitive import + route cleanup
+[33m80bb8c5[m Fix: case-sensitive import + route cleanup
+[33m667c117[m Fix: case-sensitive import + route cleanup
+[33m20c63bb[m Fix: case-sensitive import + route cleanup
+[33mea35f1c[m Add Vercel config for frontend
+[33m88c2e45[m Fix: add react-scripts for Vercel
+[33meba0ec9[m Add unified .gitignore
+[33me74bafa[m Add .gitignore
+[33m62920aa[m Initial commit
+[33m2808cf2[m Initial commit
