@@ -25,7 +25,7 @@ const StudentLayout = () => {
     try {
       const localStudent = JSON.parse(localStorage.getItem("studentInfo"));
       return user?.student || user || localStudent || null;
-    } catch (error) {
+    } catch {
       return user?.student || user || null;
     }
   }, [user]);
@@ -124,7 +124,7 @@ const StudentLayout = () => {
     {
       key: "/student/history",
       icon: <HistoryOutlined />,
-      label: "Lịch sử thi",
+      label: "Lịch sử học",
     },
     {
       key: "/student/chat-ai",

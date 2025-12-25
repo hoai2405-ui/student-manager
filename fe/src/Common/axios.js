@@ -59,7 +59,7 @@ instance.interceptors.response.use(
         const url = error.config?.url || '';
         console.log("🔍 API error for URL:", url, "Status:", error.response.status);
 
-        if (url.includes('/api/student/dashboard/') || url.includes('/api/student/summary/') || url.includes('/api/progress/')) {
+        if (url.includes('/api/student/dashboard/') || url.includes('/api/student/summary/') || url.includes('/api/progress/') || url.includes('/api/student/learning-history')) {
             console.warn("⚠️ Student API failed, but not redirecting:", url);
             return Promise.reject(error); // Let component handle it
         }

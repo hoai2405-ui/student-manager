@@ -26,6 +26,7 @@ import StudentMyCourses from "../Pages/Student/StudentMyCourse";
 import StudentCourseDetail from "../Pages/Student/StudentCourseDetail";
 import SimulationPage from "../Pages/Student/SimulationPage";
 import StudentProgress from "../Pages/Student/Progress";
+import LearningHistory from "../Pages/Student/LearningHistory";
 
 
 // 3. ROUTER CHÍNH
@@ -59,14 +60,7 @@ export default function Router() {
           <Route path="progress" element={<StudentProgress />} />
 
           <Route path="simulation" element={<SimulationPage />} />
-          <Route
-            path="history"
-            element={
-              <div className="p-4">
-                Chức năng Lịch sử thi đang phát triển...
-              </div>
-            }
-          />
+          <Route path="history" element={<LearningHistory />} />
           <Route
             path="chat-ai"
             element={
