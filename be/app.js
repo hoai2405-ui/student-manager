@@ -1871,6 +1871,10 @@ app.post("/api/student/login", async (req, res) => {
 
 // GET student full info (including course name) by id
 app.get("/api/student/:id", async (req, res) => {
+  // Prevent this route from swallowing other /api/student/* routes like /api/student/exams
+  if (!/^\d+$/.test(String(req.params.id || ''))) {
+    return res.status(404).json({ message: "Student not found" });
+  }
   try {
     const studentId = req.params.id;
     const [[student]] = await pool.query(
@@ -1983,9 +1987,10 @@ app.get("/api/lessons", async (req, res) => {
       }
     }
 
-    if (hang_gplx) {
+    const hangGplxNormalized = String(hang_gplx || '').trim();
+    if (hangGplxNormalized) {
       where.push("(l.license_types IS NULL OR l.license_types = '' OR l.license_types = '[]' OR JSON_CONTAINS(l.license_types, JSON_QUOTE(?)))");
-      params.push(String(hang_gplx));
+      params.push(hangGplxNormalized);
     }
 
     if (where.length) {
@@ -2699,6 +2704,45 @@ app.get("/api/student/exams", authenticateToken, async (req, res) => {
     res.json(rows);
   } catch (e) {
     res.status(500).json({ message: "Lỗi lấy danh sách đề thi", error: e.message });
+  }
+});
+
+// Student: learning history (resume-ready)
+app.get("/api/student/learning-history", authenticateToken, async (req, res) => {
+  const studentId = req.user.id;
+  try {
+    const [[studentInfo]] = await pool.query("SELECT hang_gplx FROM students WHERE id = ? LIMIT 1", [studentId]);
+    const hangGplx = studentInfo?.hang_gplx || "";
+
+    const [rows] = await pool.query(
+      `SELECT
+         lp.lesson_id,
+         lp.learned_seconds,
+         lp.updated_at AS last_activity_at,
+         l.title,
+         l.subject_id,
+         s.name AS subject_name,
+         COALESCE(ldo.duration_minutes, l.duration_minutes) AS duration_minutes,
+         CASE
+           WHEN COALESCE(lp.learned_seconds, 0) <= 0 THEN 'not_started'
+           WHEN COALESCE(lp.learned_seconds, 0) >= (COALESCE(ldo.duration_minutes, l.duration_minutes) * 60) THEN 'completed'
+           ELSE 'in_progress'
+         END AS status
+       FROM lesson_progress lp
+       JOIN lessons l ON l.id = lp.lesson_id
+       JOIN subjects s ON s.id = l.subject_id
+       LEFT JOIN lesson_duration_overrides ldo
+         ON ldo.lesson_id = l.id
+         AND ldo.license_class = ?
+       WHERE lp.student_id = ?
+       ORDER BY lp.updated_at DESC
+       LIMIT 200`,
+      [hangGplx, studentId]
+    );
+
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi lấy lịch sử học", error: e.message });
   }
 });
 
