@@ -142,15 +142,20 @@ const StudentCourseDetail = () => {
     },
     {
       title: 'Thao tác', key: 'action', width: 150, align: 'center',
-      render: (_, record) => (
-        <Button
-            type="primary" shape="round" icon={<PlayCircleOutlined />}
-            className={`${isCompleted(record) ? 'bg-green-600 hover:bg-green-500' : 'bg-blue-600 hover:bg-blue-500'}`}
+      render: (_, record) =>
+        isCompleted(record) ? (
+          <Tag color="green">Hoàn thành</Tag>
+        ) : (
+          <Button
+            type="primary"
+            shape="round"
+            icon={<PlayCircleOutlined />}
+            className="bg-blue-600 hover:bg-blue-500"
             onClick={() => navigate(`/student/learning/${record.id}`)}
-        >
-            {isCompleted(record) ? 'Học lại' : 'Vào học'}
-        </Button>
-      )
+          >
+            Vào học
+          </Button>
+        )
     }
   ];
 

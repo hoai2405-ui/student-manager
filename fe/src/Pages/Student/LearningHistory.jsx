@@ -57,8 +57,9 @@ export default function LearningHistory() {
       dataIndex: "status",
       width: 120,
       render: (s) => {
-        if (s === "completed") return <Tag color="green">Hoàn thành</Tag>;
+        if (s === "completed") return <Tag color="green">Đã học</Tag>;
         if (s === "in_progress") return <Tag color="blue">Đang học</Tag>;
+        if (s === "not_started") return <Tag>Chưa học</Tag>;
         return <Tag>Chưa học</Tag>;
       },
     },
@@ -77,15 +78,21 @@ export default function LearningHistory() {
       title: "Hành động",
       dataIndex: "lesson_id",
       width: 160,
-      render: (lessonId) => (
+      render: (lessonId, record) => (
         <Space>
-          <Button
-            type="primary"
-            icon={<PlayCircleOutlined />}
-            onClick={() => navigate(`/student/learning/${lessonId}`)}
-          >
-            Tiếp tục
-          </Button>
+          {record.status === "completed" ? (
+            <Tag color="green">Hoàn thành</Tag>
+          ) : record.status === "in_progress" ? (
+            <Button
+              type="primary"
+              icon={<PlayCircleOutlined />}
+              onClick={() => navigate(`/student/learning/${lessonId}`)}
+            >
+              Tiếp tục
+            </Button>
+          ) : (
+            <Tag>Chưa học</Tag>
+          )}
         </Space>
       ),
     },
