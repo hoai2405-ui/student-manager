@@ -13,6 +13,7 @@ import {
 } from "@ant-design/icons";
 import axios from "../../Common/axios";
 import { useAuth } from "../../contexts/AuthContext";
+import FaceVerifyModal from "../../Components/Student/FaceVerifyModal";
 
 const SimulationPlayer = ({ data, onNext }) => {
   const videoRef = useRef(null);
@@ -27,6 +28,12 @@ const SimulationPlayer = ({ data, onNext }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [learningTime, setLearningTime] = useState(0);
+
+  const [faceRequired, setFaceRequired] = useState(false);
+  const [faceRefImage, setFaceRefImage] = useState(null);
+  const [faceEnrolled, setFaceEnrolled] = useState(false);
+  const [faceVerifiedStart, setFaceVerifiedStart] = useState(false);
+  const [showFaceStart, setShowFaceStart] = useState(false);
 
   const SCORE_ZONE = 0.5;
   const navigate = useNavigate();
@@ -97,6 +104,42 @@ const SimulationPlayer = ({ data, onNext }) => {
     };
   }, [isPlaying]);
 
+  useEffect(() => {
+    const studentInfoRaw = localStorage.getItem("studentInfo");
+    let faceVerifyRequired = false;
+    let facePortrait = null;
+    try {
+      const info = studentInfoRaw ? JSON.parse(studentInfoRaw) : null;
+      faceVerifyRequired = Number(info?.face_verify_required ?? 1) === 1;
+      facePortrait = info?.anh_chan_dung || null;
+      setFaceEnrolled(Boolean(info?.face_enrolled_at));
+    } catch {
+      faceVerifyRequired = false;
+    }
+
+    setFaceRequired(faceVerifyRequired);
+    setFaceRefImage(facePortrait);
+
+    if (faceVerifyRequired) {
+      axios
+        .get("/api/student/face-status")
+        .then((res) => {
+          const mustEnroll = Boolean(res.data?.must_enroll);
+          const enrolled = Boolean(res.data?.enrolled);
+          setFaceEnrolled(enrolled);
+          setShowFaceStart(true);
+          if (!mustEnroll) {
+            setFaceEnrolled(true);
+          }
+        })
+        .catch(() => {
+          setShowFaceStart(true);
+        });
+    } else {
+      setFaceVerifiedStart(true);
+    }
+  }, []);
+
   // Cleanup khi component unmount
   useEffect(() => {
     return () => {
@@ -106,8 +149,9 @@ const SimulationPlayer = ({ data, onNext }) => {
   }, []);
 
   useEffect(() => {
+    if (faceRequired && !faceVerifiedStart) return;
     handleReplay();
-  }, [data]);
+  }, [data, faceRequired, faceVerifiedStart]);
 
   // Hàm xử lý Cắm cờ (Dùng chung cho cả Phím Space và Nút bấm Mobile)
   const handleFlag = () => {
@@ -139,6 +183,10 @@ const SimulationPlayer = ({ data, onNext }) => {
     setFlagTime(null);
     setScore(null);
     setShowResult(false);
+    if (faceRequired && !faceVerifiedStart) {
+      setIsPlaying(false);
+      return;
+    }
     setIsPlaying(true);
     setCurrentTime(0);
     if (videoRef.current) {
@@ -199,7 +247,41 @@ const SimulationPlayer = ({ data, onNext }) => {
 
   return (
     <div className="flex flex-col h-full bg-[#1a1a1a] border border-gray-600 rounded-lg overflow-hidden select-none w-full shadow-2xl">
-      
+      <FaceVerifyModal
+        open={showFaceStart}
+        title={faceEnrolled ? "Xác thực khuôn mặt để vào mô phỏng" : "Chụp ảnh mẫu trước khi vào mô phỏng"}
+        mode={faceEnrolled ? "verify" : "enroll"}
+        referenceImage={faceRefImage}
+        threshold={0.55}
+        onCancel={() => {
+          setShowFaceStart(false);
+          navigate(-1);
+        }}
+        onVerified={async (payload) => {
+          try {
+            if (!faceEnrolled) {
+              await axios.post(`/api/student/face-enroll`, {
+                descriptor: payload?.descriptor,
+              });
+              setFaceEnrolled(true);
+              return;
+            }
+
+            const verifyRes = await axios.post(`/api/student/face-verify`, {
+              descriptor: payload?.descriptor,
+              threshold: 0.55,
+            });
+
+            if (verifyRes.data?.success) {
+              setFaceVerifiedStart(true);
+              setShowFaceStart(false);
+            }
+          } catch {
+            // keep modal open; FaceVerifyModal shows errors
+          }
+        }}
+      />
+
      {/* 1. KHUNG VIDEO – GIỮ TỶ LỆ 16:9 */}
 <div className="relative w-full bg-black 
 aspect-video sm:aspect-video 
@@ -217,7 +299,7 @@ sm:min-h-[400px]
     onEnded={handleVideoEnd}
     onTimeUpdate={handleTimeUpdate}
     onLoadedMetadata={handleLoadedMetadata}
-    autoPlay
+    autoPlay={!faceRequired || faceVerifiedStart}
     playsInline
     controls={false}
     onClick={togglePlay}

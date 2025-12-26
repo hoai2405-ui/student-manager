@@ -52,7 +52,7 @@ export default function FaceVerifyModal({
 
   const canVerify = useMemo(() => {
     if (mode === "enroll") return true;
-    return Boolean(referenceImage && referenceDescriptor);
+    return referenceImage ? Boolean(referenceDescriptor) : true;
   }, [mode, referenceImage, referenceDescriptor]);
 
   const stopCamera = () => {
@@ -106,7 +106,7 @@ export default function FaceVerifyModal({
 
         if (mode !== "enroll") {
           if (!referenceImage) {
-            setError("Thiếu ảnh chân dung mẫu.");
+            setReferenceDescriptor(null);
             return;
           }
 
@@ -132,7 +132,7 @@ export default function FaceVerifyModal({
     return () => {
       cancelled = true;
     };
-  }, [open, referenceImage]);
+  }, [open, referenceImage, mode]);
 
   useEffect(() => {
     if (!open) return;
@@ -148,8 +148,6 @@ export default function FaceVerifyModal({
 
   const handleVerify = async () => {
     if (!videoRef.current) return;
-    if (mode !== "enroll" && !referenceDescriptor) return;
-
     setVerifying(true);
     setError(null);
 
@@ -168,7 +166,7 @@ export default function FaceVerifyModal({
         const liveDesc = await videoToDescriptor(v);
         if (!liveDesc) continue;
 
-        if (mode === "enroll") {
+        if (mode === "enroll" || !referenceDescriptor) {
           bestLiveDesc = liveDesc;
           break;
         }
@@ -187,6 +185,11 @@ export default function FaceVerifyModal({
 
       if (mode === "enroll") {
         message.success("Đã chụp ảnh mẫu");
+        onVerified?.({ descriptor: Array.from(bestLiveDesc) });
+        return;
+      }
+
+      if (!referenceDescriptor) {
         onVerified?.({ descriptor: Array.from(bestLiveDesc) });
         return;
       }

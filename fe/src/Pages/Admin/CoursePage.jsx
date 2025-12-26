@@ -19,7 +19,8 @@ import {
   Badge,
   Empty,
   Spin,
-  FloatButton
+  FloatButton,
+  Select
 } from "antd";
 import {
   EditOutlined,
@@ -373,7 +374,19 @@ export default function CoursePage() {
                 </Col>
                 <Col span={8}>
                     <Form.Item label="Hạng bằng">
-                        <Input value={editingCourse?.hang_gplx} onChange={(e) => setEditingCourse({...editingCourse, hang_gplx: e.target.value})} placeholder="B1, B2..." />
+                        <Select
+                            value={editingCourse?.hang_gplx}
+                            onChange={(value) => setEditingCourse({ ...editingCourse, hang_gplx: value })}
+                            placeholder="Chọn hạng"
+                            allowClear
+                            options={[
+                                { label: "B.01", value: "B.01" },
+                                { label: "B", value: "B" },
+                                { label: "C1", value: "C1" },
+                                { label: "B-C1", value: "B-C1" },
+                                { label: "C1-Cm", value: "C1-Cm" },
+                            ]}
+                        />
                     </Form.Item>
                 </Col>
             </Row>

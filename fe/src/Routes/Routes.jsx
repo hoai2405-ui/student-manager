@@ -70,12 +70,6 @@ export default function Router() {
 
           <Route path="simulation" element={<SimulationPage />} />
           <Route path="history" element={<LearningHistory />} />
-          <Route
-            path="chat-ai"
-            element={
-              <div className="p-4">Chức năng Trợ lý AI đang phát triển...</div>
-            }
-          />
         </Route>
 
         {/* =========================================

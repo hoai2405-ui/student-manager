@@ -27,18 +27,20 @@ export default function LearningHistory() {
   }, []);
 
   const data = useMemo(() => {
-    return (rows || []).map((r, idx) => {
-      const durationMinutes = Number(r.duration_minutes || 45);
-      const learnedSeconds = Number(r.learned_seconds || 0);
-      const percent = durationMinutes > 0 ? Math.min(100, Math.round((learnedSeconds / (durationMinutes * 60)) * 100)) : 0;
-      return {
-        key: r.lesson_id || idx,
-        ...r,
-        durationMinutes,
-        learnedSeconds,
-        percent,
-      };
-    });
+    return (rows || [])
+      .filter((r) => r.status === "completed" || r.status === "in_progress")
+      .map((r, idx) => {
+        const durationMinutes = Number(r.duration_minutes || 45);
+        const learnedSeconds = Number(r.learned_seconds || 0);
+        const percent = durationMinutes > 0 ? Math.min(100, Math.round((learnedSeconds / (durationMinutes * 60)) * 100)) : 0;
+        return {
+          key: r.lesson_id || idx,
+          ...r,
+          durationMinutes,
+          learnedSeconds,
+          percent,
+        };
+      });
   }, [rows]);
 
   const columns = [

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Table, Card, Button, Typography, Breadcrumb, Tag, Spin, message } from "antd";
+import { Table, Card, Button, Typography, Breadcrumb, Tag, Spin, message, Modal } from "antd";
 import { PlayCircleOutlined, BookOutlined, HomeOutlined, FilePdfOutlined, VideoCameraOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import axios from "../../Common/axios";
 
@@ -95,6 +95,35 @@ const StudentCourseDetail = () => {
     return getProgressPercent(lesson) >= 80;
   };
 
+  const showIncompleteWarning = (record) => {
+    if (record.lesson_order <= 1) {
+      navigate(`/student/learning/${record.id}`);
+      return;
+    }
+
+    const previous = lessons.find(
+      (lesson) => lesson.lesson_order === record.lesson_order - 1
+    );
+    if (!previous) {
+      navigate(`/student/learning/${record.id}`);
+      return;
+    }
+
+    const prevPercent = getProgressPercent(previous);
+    if (prevPercent >= 80) {
+      navigate(`/student/learning/${record.id}`);
+      return;
+    }
+
+    Modal.confirm({
+      title: "Bài trước chưa hoàn thành",
+      content: "Bạn có muốn tiếp tục học bài này không?",
+      okText: "Vẫn học",
+      cancelText: "Quay lại",
+      onOk: () => navigate(`/student/learning/${record.id}`),
+    });
+  };
+
   const columns = [
     {
       title: 'STT', dataIndex: 'lesson_order', width: 70, align: 'center',
@@ -151,7 +180,7 @@ const StudentCourseDetail = () => {
             shape="round"
             icon={<PlayCircleOutlined />}
             className="bg-blue-600 hover:bg-blue-500"
-            onClick={() => navigate(`/student/learning/${record.id}`)}
+            onClick={() => showIncompleteWarning(record)}
           >
             Vào học
           </Button>

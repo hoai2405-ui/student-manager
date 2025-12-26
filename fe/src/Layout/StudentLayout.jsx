@@ -126,11 +126,6 @@ const StudentLayout = () => {
       icon: <HistoryOutlined />,
       label: "Lịch sử học",
     },
-    {
-      key: "/student/chat-ai",
-      icon: <RobotOutlined />,
-      label: "Trợ lý AI",
-    },
   ];
 
   const profileMenu = [

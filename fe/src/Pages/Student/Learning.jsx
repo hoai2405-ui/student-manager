@@ -33,6 +33,7 @@ export default function Learning() {
   const { lessonId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const currentUser = user || JSON.parse(localStorage.getItem("studentInfo"));
 
   // --- REFS ---
   const timerRef = useRef(null);
@@ -277,6 +278,14 @@ export default function Learning() {
     timerRef.current = setInterval(() => {
       // Đếm đúng theo thời lượng quy định. Hết giờ là dừng ngay.
       if (secondsValueRef.current >= maxSeconds) {
+        if (faceRequired && !faceVerifiedEnd) {
+          clearInterval(timerRef.current);
+          clearInterval(saveRef.current);
+          setPendingEndAction(true);
+          setShowFaceEnd(true);
+          return;
+        }
+
         secondsValueRef.current = maxSeconds;
         setLearnedSeconds(maxSeconds);
         clearInterval(timerRef.current);
@@ -318,7 +327,7 @@ export default function Learning() {
       clearInterval(timerRef.current);
       clearInterval(saveRef.current);
     };
-  }, [lesson, courseExpired, isVideoReady, isActuallyPlaying]);
+  }, [lesson, courseExpired, isVideoReady, isActuallyPlaying, faceRequired, faceVerifiedStart]);
 
   const handleEndSession = async () => {
     // Clamp để không vượt quá thời lượng quy định
@@ -339,7 +348,7 @@ export default function Learning() {
     // Lưu tiến độ học vào learning_history
     try {
       await axios.post("/api/student/lesson-progress", {
-        student_id: user?.id,
+        student_id: user?.id || currentUser?.id,
         lesson_id: lessonId,
         watched_seconds: finalSeconds,
         duration_minutes: durationMinutes,
