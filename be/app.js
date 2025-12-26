@@ -258,6 +258,8 @@ async function createTables() {
         so_cmt VARCHAR(50),
         ma_khoa_hoc VARCHAR(50),
         anh_chan_dung LONGTEXT,
+        face_verify_required TINYINT(1) NOT NULL DEFAULT 1,
+        face_verify_disabled_reason VARCHAR(255) NULL,
         status ENUM('dat', 'rot', 'chua thi') DEFAULT 'chua thi',
         status_ly_thuyet ENUM('dat', 'rot', 'chua thi') DEFAULT 'chua thi',
         status_mo_phong ENUM('dat', 'rot', 'chua thi') DEFAULT 'chua thi',
@@ -268,6 +270,30 @@ async function createTables() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
     console.log("✅ Đảm bảo table students tồn tại");
+
+    // Đảm bảo các cột face verification tồn tại
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN face_verify_required TINYINT(1) NOT NULL DEFAULT 1");
+    } catch (e) {
+      // ignore
+    }
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN face_verify_disabled_reason VARCHAR(255) NULL");
+    } catch (e) {
+      // ignore
+    }
+
+    // Face enrollment fields (không dựa vào ảnh chân dung nữa)
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN face_enrolled_at DATETIME NULL");
+    } catch (e) {
+      // ignore
+    }
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN face_descriptor_json LONGTEXT NULL");
+    } catch (e) {
+      // ignore
+    }
 
     // Đảm bảo cột duration_minutes, content, license_types tồn tại
     try {
@@ -647,6 +673,67 @@ app.get("/", (req, res) => {
   res.send("Student Manager API is running!");
 });
 
+// API: Tạo khóa học mới (manual create)
+app.post("/api/courses", async (req, res) => {
+  const {
+    ma_khoa_hoc,
+    ten_khoa_hoc,
+    hang_gplx,
+    ngay_khai_giang,
+    ngay_be_giang,
+    so_ngay_hoc,
+    so_hoc_sinh,
+  } = req.body || {};
+
+  if (!ma_khoa_hoc || !ten_khoa_hoc) {
+    return res.status(400).json({ message: "Thiếu ma_khoa_hoc hoặc ten_khoa_hoc" });
+  }
+
+  try {
+    const [[hasNgayHoc]] = await pool.query(
+      "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'courses' AND COLUMN_NAME = 'ngay_hoc'"
+    );
+
+    const hasNgayHocColumn = Number(hasNgayHoc?.cnt || 0) > 0;
+
+    const sql = hasNgayHocColumn
+      ? "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, hang_gplx, ngay_khai_giang, ngay_be_giang, ngay_hoc, so_ngay_hoc, so_hoc_sinh) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      : "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, hang_gplx, ngay_khai_giang, ngay_be_giang, so_ngay_hoc, so_hoc_sinh) VALUES (?, ?, ?, ?, ?, ?, ?)";
+
+    const params = hasNgayHocColumn
+      ? [
+          ma_khoa_hoc,
+          ten_khoa_hoc,
+          hang_gplx || "",
+          ngay_khai_giang || null,
+          ngay_be_giang || null,
+          ngay_khai_giang || null,
+          Number(so_ngay_hoc) || 0,
+          Number(so_hoc_sinh) || 0,
+        ]
+      : [
+          ma_khoa_hoc,
+          ten_khoa_hoc,
+          hang_gplx || "",
+          ngay_khai_giang || null,
+          ngay_be_giang || null,
+          Number(so_ngay_hoc) || 0,
+          Number(so_hoc_sinh) || 0,
+        ];
+
+    const [result] = await pool.query(sql, params);
+
+    const [rows] = await pool.query("SELECT * FROM courses WHERE id = ?", [result.insertId]);
+    res.json({ success: true, course: rows[0] });
+  } catch (err) {
+    if (err && err.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ message: "Mã khóa học đã tồn tại" });
+    }
+    console.error("[POST /api/courses] Error:", err);
+    res.status(500).json({ message: "Lỗi tạo khóa học", error: err.message });
+  }
+});
+
 // API: Upload file XML hoặc Excel để thêm khóa học
 app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
   console.log("\n🔍 ===== BẮT ĐẦU UPLOAD XML ===== 🔍");
@@ -726,8 +813,14 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
         const { ngay_hoc, so_ngay_hoc } = req.body;
         console.log("🔍 Thông tin ngày học:", { ngay_hoc, so_ngay_hoc });
 
-        const sql =
-          "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, ngay_khai_giang, ngay_be_giang, ngay_hoc, so_ngay_hoc, so_hoc_sinh, hang_gplx) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        const [[hasNgayHoc]] = await pool.query(
+          "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'courses' AND COLUMN_NAME = 'ngay_hoc'"
+        );
+        const hasNgayHocColumn = Number(hasNgayHoc?.cnt || 0) > 0;
+
+        const sql = hasNgayHocColumn
+          ? "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, ngay_khai_giang, ngay_be_giang, ngay_hoc, so_ngay_hoc, so_hoc_sinh, hang_gplx) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          : "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, ngay_khai_giang, ngay_be_giang, so_ngay_hoc, so_hoc_sinh, hang_gplx) VALUES (?, ?, ?, ?, ?, ?, ?)";
         const sqlstudent = `
           INSERT INTO students (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc, status, anh_chan_dung)
           VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -758,16 +851,28 @@ app.post("/api/courses/upload", upload.single("file"), async (req, res) => {
         try {
           await conn.beginTransaction();
           // Thêm khóa học
-          await conn.query(sql, [
-            khoa.MA_KHOA_HOC[0],
-            khoa.TEN_KHOA_HOC[0],
-            khoa.NGAY_KHAI_GIANG[0],
-            khoa.NGAY_BE_GIANG[0],
-            ngay_hoc || khoa.NGAY_KHAI_GIANG[0], // Sử dụng ngay_hoc nếu có, không thì dùng ngày khai giảng
-            so_ngay_hoc || 0, // Sử dụng so_ngay_hoc nếu có
-            parseInt(khoa.SO_HOC_SINH[0]),
-            khoa.HANG_GPLX?.[0] || "",
-          ]);
+          const courseParams = hasNgayHocColumn
+            ? [
+                khoa.MA_KHOA_HOC[0],
+                khoa.TEN_KHOA_HOC[0],
+                khoa.NGAY_KHAI_GIANG[0],
+                khoa.NGAY_BE_GIANG[0],
+                ngay_hoc || khoa.NGAY_KHAI_GIANG[0], // Sử dụng ngay_hoc nếu có, không thì dùng ngày khai giảng
+                so_ngay_hoc || 0, // Sử dụng so_ngay_hoc nếu có
+                parseInt(khoa.SO_HOC_SINH[0]),
+                khoa.HANG_GPLX?.[0] || "",
+              ]
+            : [
+                khoa.MA_KHOA_HOC[0],
+                khoa.TEN_KHOA_HOC[0],
+                khoa.NGAY_KHAI_GIANG[0],
+                khoa.NGAY_BE_GIANG[0],
+                so_ngay_hoc || 0, // Sử dụng so_ngay_hoc nếu có
+                parseInt(khoa.SO_HOC_SINH[0]),
+                khoa.HANG_GPLX?.[0] || "",
+              ];
+
+          await conn.query(sql, courseParams);
           // Thêm học viên
           console.log(`\n🔍 Bắt đầu xử lý ${hocvienList.length} học viên...`);
           // for (let i = 0; i < hocvienList.length; i++) {
@@ -1327,20 +1432,61 @@ app.post("/api/students/update-status", async (req, res) => {
     "status_duong",
     "status_truong",
     "status",
+    "face_verify_required",
+    "face_verify_disabled_reason",
+    "face_enrolled_at",
   ];
   if (!id || !field || !allowedFields.includes(field)) {
     return res.status(400).json({ error: "Thiếu hoặc sai thông tin update" });
   }
   const validStatuses = ["thi", "vang", "rot", "dat", "chua thi"];
+
+  if (field === "face_verify_required") {
+    const v = Number(value);
+    if (!(v === 0 || v === 1)) {
+      return res.status(400).json({ error: "Giá trị face_verify_required không hợp lệ" });
+    }
+    const sql = `UPDATE students SET ${field} = ? WHERE id = ?`;
+    try {
+      await pool.query(sql, [v, id]);
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  if (field === "face_verify_disabled_reason") {
+    const sql = `UPDATE students SET ${field} = ? WHERE id = ?`;
+    try {
+      await pool.query(sql, [value || null, id]);
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  if (field === "face_enrolled_at") {
+    // admin can force student to re-enroll by setting null
+    const sql = `UPDATE students SET face_enrolled_at = ?, face_descriptor_json = ? WHERE id = ?`;
+    try {
+      const v = value ? String(value) : null;
+      // If setting to null -> clear descriptor too
+      await pool.query(sql, [v, null, id]);
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
   if (!validStatuses.includes(value)) {
     return res.status(400).json({ error: "Trạng thái không hợp lệ" });
   }
   const sql = `UPDATE students SET ${field} = ? WHERE id = ?`;
   try {
     await pool.query(sql, [value, id]);
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -1859,6 +2005,9 @@ app.post("/api/student/login", async (req, res) => {
         ten_khoa_hoc,
         ma_khoa_hoc,
         anh_chan_dung: student.anh_chan_dung || null,
+        face_verify_required: Number(student.face_verify_required ?? 1),
+        face_verify_disabled_reason: student.face_verify_disabled_reason || null,
+        face_enrolled_at: student.face_enrolled_at || null,
         role: "student",
       },
       token: token,
@@ -1869,9 +2018,163 @@ app.post("/api/student/login", async (req, res) => {
   }
 });
 
+// Student: face enrollment status
+app.get("/api/student/face-status", authenticateToken, async (req, res) => {
+  const studentId = req.user.id;
+  try {
+    const [[s]] = await pool.query(
+      "SELECT face_verify_required, face_verify_disabled_reason, face_enrolled_at FROM students WHERE id = ? LIMIT 1",
+      [studentId]
+    );
+
+    if (!s) return res.status(404).json({ message: "Student not found" });
+
+    const required = Number(s.face_verify_required ?? 1) === 1;
+    const enrolled = Boolean(s.face_enrolled_at);
+    const reason = s.face_verify_disabled_reason || null;
+
+    res.json({
+      required,
+      enrolled,
+      must_enroll: required && !enrolled,
+      reason,
+    });
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi lấy trạng thái xác thực", error: e.message });
+  }
+});
+
+// Student: enroll face sample (descriptor)
+app.post("/api/student/face-enroll", authenticateToken, async (req, res) => {
+  const studentId = req.user.id;
+  const { descriptor } = req.body || {};
+
+  // descriptor is Float32Array serialized as number[] length 128
+  if (!Array.isArray(descriptor) || descriptor.length !== 128) {
+    return res.status(400).json({ message: "descriptor không hợp lệ (cần mảng 128 số)" });
+  }
+
+  try {
+    const [[s]] = await pool.query(
+      "SELECT face_verify_required, face_verify_disabled_reason FROM students WHERE id = ? LIMIT 1",
+      [studentId]
+    );
+    if (!s) return res.status(404).json({ message: "Student not found" });
+
+    const required = Number(s.face_verify_required ?? 1) === 1;
+    if (!required) {
+      return res.json({ success: true, skipped: true });
+    }
+
+    await pool.query(
+      "UPDATE students SET face_descriptor_json = ?, face_enrolled_at = NOW() WHERE id = ?",
+      [JSON.stringify(descriptor), studentId]
+    );
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi lưu ảnh mẫu", error: e.message });
+  }
+});
+
+// Student: verify live face against enrolled descriptor
+app.post("/api/student/face-verify", authenticateToken, async (req, res) => {
+  const studentId = req.user.id;
+  const { descriptor, threshold } = req.body || {};
+
+  if (!Array.isArray(descriptor) || descriptor.length !== 128) {
+    return res.status(400).json({ message: "descriptor không hợp lệ (cần mảng 128 số)" });
+  }
+
+  const th = Math.min(1, Math.max(0.2, Number(threshold) || 0.55));
+
+  try {
+    const [[s]] = await pool.query(
+      "SELECT face_verify_required, face_verify_disabled_reason, face_descriptor_json, face_enrolled_at FROM students WHERE id = ? LIMIT 1",
+      [studentId]
+    );
+    if (!s) return res.status(404).json({ message: "Student not found" });
+
+    const required = Number(s.face_verify_required ?? 1) === 1;
+    if (!required) {
+      return res.json({ success: true, skipped: true });
+    }
+
+    if (!s.face_enrolled_at || !s.face_descriptor_json) {
+      return res.status(409).json({ message: "Chưa có ảnh mẫu, cần enroll trước" });
+    }
+
+    let ref;
+    try {
+      ref = JSON.parse(s.face_descriptor_json);
+    } catch {
+      ref = null;
+    }
+    if (!Array.isArray(ref) || ref.length !== 128) {
+      return res.status(500).json({ message: "Ảnh mẫu bị lỗi, vui lòng enroll lại" });
+    }
+
+    let sum = 0;
+    for (let i = 0; i < 128; i++) {
+      const d = Number(ref[i]) - Number(descriptor[i]);
+      sum += d * d;
+    }
+    const distance = Math.sqrt(sum);
+
+    res.json({
+      success: distance <= th,
+      distance,
+      threshold: th,
+    });
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi xác thực", error: e.message });
+  }
+});
+
+// Student: learning history (resume-ready)
+app.get("/api/student/learning-history", authenticateToken, async (req, res) => {
+  const studentId = req.user.id;
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+         l.id AS lesson_id,
+         COALESCE(lp.learned_seconds, 0) AS learned_seconds,
+         lp.last_updated AS last_activity_at,
+         l.title,
+         l.subject_id,
+         s.name AS subject_name,
+         l.duration_minutes AS duration_minutes,
+         CASE
+           WHEN COALESCE(lp.learned_seconds, 0) <= 0 THEN 'not_started'
+           WHEN COALESCE(lp.learned_seconds, 0) >= (l.duration_minutes * 60) THEN 'completed'
+           ELSE 'in_progress'
+         END AS status
+       FROM lessons l
+       JOIN subjects s ON s.id = l.subject_id
+       LEFT JOIN lesson_progress lp
+         ON lp.lesson_id = l.id
+         AND lp.student_id = ?
+       ORDER BY
+         CASE
+           WHEN lp.last_updated IS NULL THEN 1
+           ELSE 0
+         END ASC,
+         lp.last_updated DESC,
+         l.subject_id ASC,
+         l.lesson_order ASC
+       LIMIT 200`,
+      [studentId]
+    );
+
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi lấy lịch sử học", error: e.message });
+  }
+});
+
 // GET student full info (including course name) by id
 app.get("/api/student/:id", async (req, res) => {
-  // Prevent this route from swallowing other /api/student/* routes like /api/student/exams
+  // Prevent this route from swallowing other /api/student/* routes like /api/student/exams, /api/student/learning-history
   if (!/^\d+$/.test(String(req.params.id || ''))) {
     return res.status(404).json({ message: "Student not found" });
   }
@@ -2707,45 +3010,6 @@ app.get("/api/student/exams", authenticateToken, async (req, res) => {
   }
 });
 
-// Student: learning history (resume-ready)
-app.get("/api/student/learning-history", authenticateToken, async (req, res) => {
-  const studentId = req.user.id;
-  try {
-    const [[studentInfo]] = await pool.query("SELECT hang_gplx FROM students WHERE id = ? LIMIT 1", [studentId]);
-    const hangGplx = studentInfo?.hang_gplx || "";
-
-    const [rows] = await pool.query(
-      `SELECT
-         lp.lesson_id,
-         lp.learned_seconds,
-         lp.updated_at AS last_activity_at,
-         l.title,
-         l.subject_id,
-         s.name AS subject_name,
-         COALESCE(ldo.duration_minutes, l.duration_minutes) AS duration_minutes,
-         CASE
-           WHEN COALESCE(lp.learned_seconds, 0) <= 0 THEN 'not_started'
-           WHEN COALESCE(lp.learned_seconds, 0) >= (COALESCE(ldo.duration_minutes, l.duration_minutes) * 60) THEN 'completed'
-           ELSE 'in_progress'
-         END AS status
-       FROM lesson_progress lp
-       JOIN lessons l ON l.id = lp.lesson_id
-       JOIN subjects s ON s.id = l.subject_id
-       LEFT JOIN lesson_duration_overrides ldo
-         ON ldo.lesson_id = l.id
-         AND ldo.license_class = ?
-       WHERE lp.student_id = ?
-       ORDER BY lp.updated_at DESC
-       LIMIT 200`,
-      [hangGplx, studentId]
-    );
-
-    res.json(rows);
-  } catch (e) {
-    res.status(500).json({ message: "Lỗi lấy lịch sử học", error: e.message });
-  }
-});
-
 // Student: start attempt -> returns questions (without answers)
 app.post("/api/student/exams/:examId/start", authenticateToken, async (req, res) => {
   const { examId } = req.params;
@@ -2870,4 +3134,5 @@ app.post("/api/student/attempts/:attemptId/submit", authenticateToken, async (re
   }
 });
 
-app.listen(3001, () => console.log("API running on http://localhost:3001"));
+const PORT = Number(process.env.PORT) || 3001;
+app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));
