@@ -111,6 +111,11 @@ app.use(express.json());
 // Serve static files từ thư mục uploads (ĐỔI TRỌNG VÀO TRƯỚC ĐỔI, SERVE FILE PDF VÀ VIDEO)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/temp_images", express.static(path.join(__dirname, "temp_images")));
+// Backward compatibility: serve legacy public files under /uploads/files
+app.use(
+  "/uploads/files",
+  express.static(path.join(__dirname, "public"))
+);
 
 // Tạo admin mặc định nếu chưa có
 async function createDefaultAdmin() {
@@ -1303,14 +1308,13 @@ app.post("/api/students", async (req, res) => {
     await pool.query(
       `INSERT INTO students
        (ho_va_ten, ngay_sinh, hang_gplx, so_cmt, ma_khoa_hoc)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?)`,
       [
         ho_va_ten,
         ngay_sinh,
         hang_gplx,
         so_cmt,
         ma_khoa_hoc,
-
       ]
     );
     res.json({ success: true });
@@ -2414,14 +2418,15 @@ app.post("/api/lessons", async (req, res) => {
 app.get("/api/lessons/:id", async (req, res) => {
   const { hang_gplx } = req.query;
   try {
+    const normalizedHang = String(hang_gplx || "").trim();
     const [rows] = await pool.query(
       `SELECT l.*, COALESCE(ldo.duration_minutes, l.duration_minutes) AS effective_duration_minutes
        FROM lessons l
        LEFT JOIN lesson_duration_overrides ldo
          ON ldo.lesson_id = l.id
-         AND ldo.license_class = ?
+         AND (? = '' OR ldo.license_class = ?)
        WHERE l.id = ?`,
-      [String(hang_gplx || ''), req.params.id]
+      [normalizedHang, normalizedHang, req.params.id]
     );
     if (rows.length === 0) {
       return res.status(404).json({ message: "Không tìm thấy bài giảng" });
@@ -2645,7 +2650,7 @@ app.get("/api/student/dashboard/:id", async (req, res) => {
         sr.required_hours,
         COALESCE(SUM(lh.minutes), 0) / 60 AS learned_hours,
         CASE
-          WHEN COALESCE(SUM(lh.minutes), 0) / 60 >= sr.required_hours THEN 'Hoàn thành'
+          WHEN COALESCE(SUM(lh.minutes), 0) / 60 >= sr.required_hours * 0.8 THEN 'Hoàn thành'
           ELSE 'Chưa hoàn thành'
         END AS status
       FROM subjects sub
@@ -2705,7 +2710,7 @@ app.get("/api/student/summary/:id", async (req, res) => {
     // Normalize response to match frontend expectations
     const total_learned = Number(learnedRow?.learned_hours || 0);
     const total_required = Number(requiredRow?.required_hours || 0);
-    const progress = total_required > 0 ? Math.round((total_learned / total_required) * 100) : 0;
+    const progress = total_required > 0 ? Math.round((total_learned / (total_required * 0.8)) * 100) : 0;
 
     res.json({
       total_learned,
