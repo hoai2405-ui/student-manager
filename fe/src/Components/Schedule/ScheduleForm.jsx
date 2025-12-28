@@ -11,6 +11,8 @@ export default function ScheduleForm({ token, onCreated }) {
     capacity: 0,
     location: "",
   });
+  const [startDateInput, setStartDateInput] = useState("");
+  const [endDateInput, setEndDateInput] = useState("");
   const [courses, setCourses] = useState([]);
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [courseStudents, setCourseStudents] = useState([]);
@@ -125,12 +127,22 @@ export default function ScheduleForm({ token, onCreated }) {
           Ngày bắt đầu *
         </label>
         <input
-          type="date"
-          value={form.start_time ? form.start_time.split('T')[0] : ''}
+          placeholder="dd/mm/yyyy"
+          value={startDateInput}
           onChange={(e) => {
-            const dateValue = e.target.value;
-            // Set default time to 07:00 if date is selected
-            const startTime = dateValue ? `${dateValue}T07:00` : '';
+            const value = e.target.value;
+            const next = value.replace(/[^0-9/]/g, "").slice(0, 10);
+            setStartDateInput(next);
+
+            const match = /^\d{2}\/\d{2}\/\d{4}$/.test(next);
+            if (!match) {
+              setForm({ ...form, start_time: "" });
+              return;
+            }
+
+            const [day, month, year] = next.split("/");
+            const iso = `${year}-${month}-${day}`;
+            const startTime = `${iso}T07:00`;
             setForm({ ...form, start_time: startTime });
           }}
           required
@@ -161,12 +173,22 @@ export default function ScheduleForm({ token, onCreated }) {
           Ngày kết thúc *
         </label>
         <input
-          type="date"
-          value={form.end_time ? form.end_time.split('T')[0] : ''}
+          placeholder="dd/mm/yyyy"
+          value={endDateInput}
           onChange={(e) => {
-            const dateValue = e.target.value;
-            // Set default time to 22:00 if date is selected
-            const endTime = dateValue ? `${dateValue}T22:00` : '';
+            const value = e.target.value;
+            const next = value.replace(/[^0-9/]/g, "").slice(0, 10);
+            setEndDateInput(next);
+
+            const match = /^\d{2}\/\d{2}\/\d{4}$/.test(next);
+            if (!match) {
+              setForm({ ...form, end_time: "" });
+              return;
+            }
+
+            const [day, month, year] = next.split("/");
+            const iso = `${year}-${month}-${day}`;
+            const endTime = `${iso}T22:00`;
             setForm({ ...form, end_time: endTime });
           }}
           required

@@ -12,6 +12,7 @@ export default function RegisteredSchedules() {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const screens = useBreakpoint();
+  const isStudentView = window.location.pathname.startsWith("/student");
 
   const [registeredSchedules, setRegisteredSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -208,7 +209,7 @@ export default function RegisteredSchedules() {
         extra={
           <Button
             icon={<ArrowLeftOutlined />}
-            onClick={() => navigate("/schedules")}
+            onClick={() => navigate(isStudentView ? "/student/schedules" : "/admin/schedules")}
             size={screens.xs ? "small" : "middle"}
           >
             {!screens.xs && "Quay lại"}

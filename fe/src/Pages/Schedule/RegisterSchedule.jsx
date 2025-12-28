@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useContext } from "react";
-import { Card, Button, Form, DatePicker, TimePicker, message, Grid, List, Checkbox, Divider, Tooltip, Avatar, Popover, Select } from "antd";
+import React, { useState, useEffect, useContext, useMemo } from "react";
+import { Card, Button, Form, message, Grid, Divider, Avatar, Input, Tag, Calendar } from "antd";
 import { ArrowLeftOutlined, SaveOutlined, CalendarOutlined, ClockCircleOutlined, UserOutlined } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import { AuthContext } from "../../contexts/AuthContext";
@@ -12,6 +12,7 @@ export default function RegisterSchedule() {
   const { scheduleId } = useParams();
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const isStudentView = window.location.pathname.startsWith("/student");
   const screens = useBreakpoint();
   const [form] = Form.useForm();
 
@@ -21,6 +22,9 @@ export default function RegisterSchedule() {
   const [existingRegistrations, setExistingRegistrations] = useState([]);
   const [courseStudents, setCourseStudents] = useState([]);
   const [studentTimeSelections, setStudentTimeSelections] = useState({});
+  const [studentSearch, setStudentSearch] = useState("");
+  const [activeStudentId, setActiveStudentId] = useState(null);
+  const [activeDate, setActiveDate] = useState(null);
 
   useEffect(() => {
     if (scheduleId) {
@@ -37,7 +41,7 @@ export default function RegisterSchedule() {
     } catch (error) {
       console.error("Error fetching schedule:", error);
       message.error("Không thể tải thông tin lịch học");
-      navigate("/schedules");
+      navigate(isStudentView ? "/student/schedules" : "/admin/schedules");
     } finally {
       setLoading(false);
     }
@@ -61,14 +65,13 @@ export default function RegisterSchedule() {
     console.log("Schedule full object:", schedule);
 
     try {
-      // First, fetch course details to get the correct ma_khoa_hoc
-      const courseResponse = await axios.get(`/api/courses/${schedule.course_id}`);
-      const course = courseResponse.data;
+      const courseResponse = await axios.get("/api/courses");
+      const courses = courseResponse.data || [];
+      const course = courses.find((item) => Number(item.id) === Number(schedule.course_id));
       console.log("Course details:", course);
       console.log("Course ma_khoa_hoc:", course?.ma_khoa_hoc);
 
       if (course?.ma_khoa_hoc) {
-        // Use the actual course code from the course table
         const response = await axios.get(`/api/students?ma_khoa_hoc=${course.ma_khoa_hoc}`);
         setCourseStudents(response.data || []);
         console.log("✅ Fetched students for course", course.ma_khoa_hoc, "-", response.data?.length || 0, "students");
@@ -77,16 +80,8 @@ export default function RegisterSchedule() {
       }
     } catch (error) {
       console.error("❌ Error fetching course details or students:", error);
-      console.log("🔄 Fallback - trying all students...");
-      // Fallback: try to get all students if course fetching fails
-      try {
-        const response = await axios.get("/api/students");
-        setCourseStudents(response.data || []);
-        console.log("🚨 FALLBACK - fetched ALL students:", response.data?.length || 0);
-      } catch (fallbackError) {
-        console.error("❌ Fallback API also failed:", fallbackError);
-        setCourseStudents([]);
-      }
+      setCourseStudents([]);
+      message.error("Không thể tải danh sách học viên của khóa học");
     }
   };
 
@@ -111,8 +106,8 @@ export default function RegisterSchedule() {
     while (currentDate.isSameOrBefore(endDate, 'day')) {
       // Generate 2-hour slots from 7:00 AM to 12:00 AM (midnight)
       const daySlots = [];
-      let currentTime = moment(currentDate).set({ hour: 7, minute: 0, second: 0 }); // Start at 7:00 AM
-      const endTime = moment(currentDate).set({ hour: 24, minute: 0, second: 0 }); // End at 12:00 AM next day
+      let currentTime = moment(currentDate).set({ hour: 7, minute: 0, second: 0 });
+      const endTime = moment(currentDate).set({ hour: 24, minute: 0, second: 0 });
 
       while (currentTime.isBefore(endTime)) {
         const slotEndTime = moment(currentTime).add(2, 'hours');
@@ -125,7 +120,7 @@ export default function RegisterSchedule() {
           endTime: slotEndTime.format('HH:mm')
         });
 
-        currentTime = slotEndTime; // Move to next 2-hour slot
+        currentTime = slotEndTime;
       }
 
       slots.push(...daySlots);
@@ -133,6 +128,46 @@ export default function RegisterSchedule() {
     }
 
     return slots;
+  };
+
+  const filteredStudents = useMemo(() => {
+    const term = studentSearch.trim().toLowerCase();
+    if (!term) return courseStudents;
+    return courseStudents.filter((student) => {
+      const name = (student.ho_va_ten || student.name || student.ten || "").toLowerCase();
+      const username = (student.username || "").toLowerCase();
+      const phone = (student.so_dien_thoai || "").toLowerCase();
+      return name.includes(term) || username.includes(term) || phone.includes(term);
+    });
+  }, [courseStudents, studentSearch]);
+
+  const timeSlots = useMemo(() => generateTimeSlotsForStudent(), [schedule?.start_time, schedule?.end_time]);
+
+  const daySlotsMap = useMemo(() => {
+    return timeSlots.reduce((acc, slot) => {
+      if (!acc[slot.date]) acc[slot.date] = [];
+      acc[slot.date].push(slot);
+      return acc;
+    }, {});
+  }, [timeSlots]);
+
+  const dayHasSlots = useMemo(() => {
+    return timeSlots.reduce((acc, slot) => {
+      acc[slot.date] = true;
+      return acc;
+    }, {});
+  }, [timeSlots]);
+
+  const toggleSlot = (slotId) => {
+    if (!activeStudentId) return;
+    const selectedSlots = studentTimeSelections[activeStudentId] || [];
+    const next = selectedSlots.includes(slotId)
+      ? selectedSlots.filter((v) => v !== slotId)
+      : [...selectedSlots, slotId];
+    setStudentTimeSelections((prev) => ({
+      ...prev,
+      [activeStudentId]: next,
+    }));
   };
 
   const handleSubmit = async () => {
@@ -157,22 +192,26 @@ export default function RegisterSchedule() {
       for (const [studentId, timeSlots] of Object.entries(studentTimeSelections)) {
         if (timeSlots && timeSlots.length > 0) {
           try {
-            // Use the existing individual registration endpoint
             await axios.post(`/api/schedules/${scheduleId}/register`, {
-              student_id: studentId
+              student_id: studentId,
             });
             successCount++;
           } catch (regError) {
             console.error(`Failed to register student ${studentId}:`, regError);
             errorCount++;
+            const apiMessage = regError?.response?.data?.message || "";
+            if (apiMessage.toLowerCase().includes("5 môn")) {
+              message.error(`Học viên ${studentId} chưa hoàn thành đủ 5 môn`);
+            } else {
+              message.error(`Đăng ký thất bại cho học viên ${studentId}`);
+            }
           }
         }
       }
 
       if (successCount > 0) {
         message.success(`Đăng ký thành công ${successCount} học viên!`);
-        // Note: Time slot assignments are not persisted due to backend limitations
-        navigate('/schedules');
+        navigate(isStudentView ? "/student/schedules" : "/admin/schedules");
       } else {
         message.error("Không thể đăng ký học viên nào!");
       }
@@ -182,7 +221,12 @@ export default function RegisterSchedule() {
       }
     } catch (error) {
       console.error("Registration error:", error);
-      message.error("Lưu phân công thất bại, vui lòng thử lại");
+      const apiMessage = error?.response?.data?.message || "";
+      if (apiMessage.toLowerCase().includes("5 môn")) {
+        message.error("Học viên chưa hoàn thành đủ 5 môn");
+      } else {
+        message.error("Đăng ký thất bại");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -233,7 +277,7 @@ export default function RegisterSchedule() {
         extra={
           <Button
             icon={<ArrowLeftOutlined />}
-            onClick={() => navigate("/schedules")}
+            onClick={() => navigate(isStudentView ? "/student/schedules" : "/admin/schedules")}
             size={screens.xs ? "small" : "middle"}
           >
             {!screens.xs && "Quay lại"}
@@ -371,60 +415,79 @@ export default function RegisterSchedule() {
             onFinish={handleSubmit}
           >
             <div style={{ marginBottom: 'var(--space-xl)' }}>
-              <h4 style={{
-                fontSize: '1.1rem',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-                marginBottom: 'var(--space-lg)',
+              <div style={{
                 display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--space-sm)'
+                flexDirection: screens.xs ? 'column' : 'row',
+                alignItems: screens.xs ? 'flex-start' : 'center',
+                justifyContent: 'space-between',
+                gap: 'var(--space-md)',
+                marginBottom: 'var(--space-lg)'
               }}>
-                <UserOutlined style={{ color: 'var(--accent-color)' }} />
-                Phân công học viên cho từng buổi học
-              </h4>
+                <h4 style={{
+                  fontSize: '1.1rem',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-sm)',
+                  margin: 0
+                }}>
+                  <UserOutlined style={{ color: 'var(--accent-color)' }} />
+                  Phân công học viên
+                </h4>
+                <Input
+                  placeholder="Tìm theo tên, SĐT, username..."
+                  value={studentSearch}
+                  onChange={(e) => setStudentSearch(e.target.value)}
+                  style={{ maxWidth: 320, width: screens.xs ? '100%' : 'auto' }}
+                />
+              </div>
 
-              {/* Students List with Time Selection */}
               {courseStudents.length > 0 && (
                 <div style={{
-                  background: 'var(--surface-secondary)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: 'var(--space-lg)',
-                  border: '1px solid var(--border-color)'
+                  display: 'grid',
+                  gridTemplateColumns: screens.xs ? '1fr' : '320px 1fr',
+                  gap: 'var(--space-lg)'
                 }}>
-                  <h5 style={{
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    color: 'var(--text-primary)',
-                    marginBottom: 'var(--space-lg)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 'var(--space-sm)'
-                  }}>
-                    <UserOutlined />
-                    Học viên trong khóa học ({courseStudents.length})
-                  </h5>
-
                   <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                    gap: 'var(--space-md)',
-                    maxHeight: '500px',
-                    overflowY: 'auto'
+                    background: 'var(--surface-secondary)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    padding: 'var(--space-md)',
+                    maxHeight: screens.xs ? 'unset' : 520,
+                    overflowY: screens.xs ? 'visible' : 'auto'
                   }}>
-                    {courseStudents.map((student, index) => (
-                      <div key={student.id || index} style={{
-                        padding: 'var(--space-md)',
-                        background: 'var(--surface-bg)',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--border-color)'
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 'var(--space-sm)',
-                          marginBottom: 'var(--space-md)'
-                        }}>
+                    <div style={{
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      color: 'var(--text-secondary)',
+                      marginBottom: 'var(--space-sm)'
+                    }}>
+                      Danh sách học viên ({filteredStudents.length})
+                    </div>
+                    {filteredStudents.map((student) => {
+                      const selected = activeStudentId === student.id;
+                      return (
+                        <div
+                          key={student.id}
+                          onClick={() => {
+                            setActiveStudentId(student.id);
+                            if (!activeDate && schedule?.start_time) {
+                              setActiveDate(moment(schedule.start_time).format('YYYY-MM-DD'));
+                            }
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: '12px',
+                            cursor: 'pointer',
+                            border: selected ? '1px solid var(--accent-color)' : '1px solid transparent',
+                            background: selected ? 'rgba(24, 144, 255, 0.08)' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            marginBottom: 8
+                          }}
+                        >
                           <Avatar
                             style={{
                               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -435,83 +498,147 @@ export default function RegisterSchedule() {
                             {student.ho_va_ten?.charAt(0) || student.name?.charAt(0) || student.username?.charAt(0) || 'U'}
                           </Avatar>
                           <div style={{ flex: 1 }}>
-                            <div style={{
-                              fontSize: '0.9rem',
-                              fontWeight: 600,
-                              color: 'var(--text-primary)'
-                            }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                               {student.ho_va_ten || student.name || student.ten || 'Học viên'}
                             </div>
-                            <div style={{
-                              fontSize: '0.8rem',
-                              color: 'var(--text-secondary)',
-                              display: 'flex',
-                              flexWrap: 'wrap',
-                              gap: 'var(--space-sm)',
-                              marginTop: '2px'
-                            }}>
-                              {student.username && <span>@{student.username}</span>}
-                              {student.email && <span>📧 {student.email}</span>}
-                              {student.so_dien_thoai && <span>📱 {student.so_dien_thoai}</span>}
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {student.ngay_sinh
+                                ? `🎂 ${moment(student.ngay_sinh).format('DD/MM/YYYY')}`
+                                : 'Chưa có ngày sinh'}
                             </div>
-                            {(student.ngay_sinh || student.dia_chi) && (
-                              <div style={{
-                                fontSize: '0.75rem',
-                                color: 'var(--text-muted)',
-                                marginTop: '2px'
-                              }}>
-                                {student.ngay_sinh && `🎂 ${moment(student.ngay_sinh).format('DD/MM/YYYY')}`}
-                                {student.ngay_sinh && student.dia_chi && ' • '}
-                                {student.dia_chi && `📍 ${student.dia_chi}`}
+                          </div>
+                          {selected && <Tag color="blue">Đang chọn</Tag>}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{
+                    background: 'var(--surface-secondary)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)',
+                    padding: 'var(--space-lg)'
+                  }}>
+                    {activeStudentId ? (
+                      <>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--space-sm)',
+                          marginBottom: 'var(--space-md)'
+                        }}>
+                          <CalendarOutlined style={{ color: 'var(--accent-color)' }} />
+                          <span style={{ fontWeight: 600 }}>Chọn thời gian cho học viên</span>
+                        </div>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gap: 'var(--space-md)',
+                            gridTemplateColumns: screens.xs ? '1fr' : 'minmax(260px, 320px) 1fr'
+                          }}
+                        >
+                          <div style={{
+                            background: 'var(--surface-bg)',
+                            borderRadius: '12px',
+                            border: '1px solid var(--border-color)',
+                            padding: '12px'
+                          }}>
+                            <Calendar
+                              fullscreen={false}
+                              mode="month"
+                              validRange={[
+                                moment(schedule.start_time).startOf('day'),
+                                moment(schedule.end_time).endOf('day'),
+                              ]}
+                              value={activeDate ? moment(activeDate, 'YYYY-MM-DD') : undefined}
+                              onSelect={(date) => setActiveDate(date.format('YYYY-MM-DD'))}
+                              dateCellRender={(date) => {
+                                const key = date.format('YYYY-MM-DD');
+                                if (!dayHasSlots[key]) return null;
+                                const isActive = activeDate === key;
+                                return (
+                                  <div style={{ textAlign: 'right', marginTop: 6 }}>
+                                    <Tag color={isActive ? 'blue' : 'default'}>Có lịch</Tag>
+                                  </div>
+                                );
+                              }}
+                            />
+                          </div>
+                          <div style={{
+                            background: 'var(--surface-bg)',
+                            borderRadius: '12px',
+                            border: '1px solid var(--border-color)',
+                            padding: '12px',
+                            minHeight: 260,
+                            display: 'grid',
+                            gap: '12px'
+                          }}>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '12px',
+                              flexWrap: 'wrap'
+                            }}>
+                              <div style={{ fontWeight: 600 }}>
+                                {activeDate ? `Buổi học ngày ${moment(activeDate).format('DD/MM/YYYY')}` : 'Chọn ngày để xem giờ'}
                               </div>
+                              {activeDate && (
+                                <div style={{
+                                  fontSize: '0.85rem',
+                                  color: 'var(--text-muted)'
+                                }}>
+                                  {(daySlotsMap[activeDate] || []).length} khung giờ
+                                </div>
+                              )}
+                            </div>
+                            {activeDate ? (
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: '1fr',
+                                  gap: '8px'
+                                }}
+                              >
+                                {(daySlotsMap[activeDate] || []).map((slot) => {
+                                  const selectedSlots = studentTimeSelections[activeStudentId] || [];
+                                  const selected = selectedSlots.includes(slot.id);
+                                  return (
+                                    <Button
+                                      key={slot.id}
+                                      size={screens.xs ? 'middle' : 'small'}
+                                      type={selected ? 'primary' : 'default'}
+                                      onClick={() => toggleSlot(slot.id)}
+                                      style={{
+                                        width: '100%',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        padding: '10px 12px',
+                                        height: 'auto'
+                                      }}
+                                    >
+                                      <span>{slot.startTime}-{slot.endTime}</span>
+                                      {selected && <Tag color="blue">Đã chọn</Tag>}
+                                    </Button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div style={{ color: 'var(--text-muted)' }}>Chọn ngày để hiển thị khung giờ.</div>
                             )}
                           </div>
                         </div>
-
-                        <div>
-                          <span style={{
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            color: 'var(--text-primary)',
-                            display: 'block',
-                            marginBottom: 'var(--space-xs)'
-                          }}>
-                            Chọn thời gian học:
-                          </span>
-                          <Select
-                            mode="multiple"
-                            placeholder="Chọn các buổi học"
-                            style={{ width: '100%' }}
-                            value={studentTimeSelections[student.id] || []}
-                            onChange={(values) => {
-                              setStudentTimeSelections(prev => ({
-                                ...prev,
-                                [student.id]: values
-                              }));
-                            }}
-                            optionLabelProp="label"
-                          >
-                            {/* Generate time slots for this student */}
-                            {generateTimeSlotsForStudent().map(slot => (
-                              <Select.Option
-                                key={slot.id}
-                                value={slot.id}
-                                label={`${slot.date} ${slot.startTime}-${slot.endTime}`}
-                              >
-                                <div style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 'var(--space-sm)'
-                                }}>
-                                  <ClockCircleOutlined style={{ color: 'var(--text-secondary)' }} />
-                                  <span>{moment(slot.date).format('DD/MM')} {slot.startTime}-{slot.endTime}</span>
-                                </div>
-                              </Select.Option>
-                            ))}
-                          </Select>
-                        </div>
+                      </>
+                    ) : (
+                      <div style={{
+                        textAlign: 'center',
+                        padding: 'var(--space-xl)',
+                        color: 'var(--text-muted)'
+                      }}>
+                        Chọn học viên ở bên trái để phân công lịch học
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               )}

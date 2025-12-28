@@ -1,22 +1,24 @@
 import React, { useContext } from "react";
 import { Button, Space } from "antd";
-import { PlusOutlined, FileTextOutlined } from "@ant-design/icons";
+import { FileTextOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../contexts/AuthContext";
 import ScheduleList from "../../Components/Schedule/ScheduleList";
-import { scheduleApi } from "../../Common/scheduleApi";
 
 export default function SchedulePage() {
-  const { user } = useContext(AuthContext);
+  const { user, isAdmin } = useContext(AuthContext);
   const navigate = useNavigate();
+  const isStudentView = window.location.pathname.startsWith("/student");
+  const studentInfo = isStudentView && !user ? JSON.parse(localStorage.getItem("studentInfo") || "null") : null;
+  const studentId = user?.id ?? studentInfo?.id;
+  const isAdminUser = Boolean(isAdmin || user?.is_admin || user?.isAdmin || user?.role === "admin" || user?.role === "department" || user?.role === "sogtvt" || user?.role === "employee");
 
-  const handleRegister = async (scheduleId) => {
-    try {
-      await scheduleApi.registerSchedule(scheduleId, user.id);
-      alert("Đăng ký thành công!");
-    } catch (error) {
-      alert(error.response?.data?.message || "Có lỗi xảy ra");
+  const handleRegister = (scheduleId) => {
+    if (!isAdminUser) {
+      alert("Chỉ quản trị viên mới được đăng ký lịch học cho học viên");
+      return;
     }
+    navigate(`/admin/schedules/register/${scheduleId}`);
   };
 
   return (
@@ -42,7 +44,7 @@ export default function SchedulePage() {
               type="default"
               icon={<FileTextOutlined />}
               size="large"
-              onClick={() => navigate("/registered-schedules")}
+              onClick={() => navigate("/admin/registered-schedules")}
               style={{
                 border: '2px solid var(--border-color)',
                 borderRadius: 'var(--radius-lg)',
@@ -55,12 +57,11 @@ export default function SchedulePage() {
               📋 Xem lịch đã đăng ký
             </Button>
 
-            {(user?.is_admin || user?.isAdmin) && (
+            {isAdminUser && (
               <Button
                 type="primary"
-                icon={<PlusOutlined />}
                 size="large"
-                onClick={() => navigate("/schedules/create")}
+                onClick={() => navigate("/admin/schedules/create")}
                 style={{
                   background: 'linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%)',
                   border: 'none',
@@ -69,7 +70,7 @@ export default function SchedulePage() {
                   boxShadow: 'var(--shadow-md)'
                 }}
               >
-                Tạo lịch học mới
+                + Tạo lịch học
               </Button>
             )}
           </Space>
@@ -94,7 +95,7 @@ export default function SchedulePage() {
             <span style={{ color: 'var(--success-color)', fontSize: '1.2em' }}>📅</span>
             Danh sách lịch học
           </h2>
-          <ScheduleList studentId={user?.id} onRegister={handleRegister} isAdmin={user?.is_admin} />
+          <ScheduleList studentId={studentId} onRegister={handleRegister} isAdmin={isAdminUser} />
         </div>
       </div>
     </div>

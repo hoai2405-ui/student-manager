@@ -1,16 +1,26 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Input } from "antd";
-import { SearchOutlined } from "@ant-design/icons";
+import { Button, Input, InputNumber, Modal, message } from "antd";
+import { EditOutlined, SearchOutlined } from "@ant-design/icons";
 import { scheduleApi } from "../../Common/scheduleApi";
 
 export function ScheduleList({ courseId, studentId, isAdmin }) {
   const navigate = useNavigate();
+  const isStudentView = window.location.pathname.startsWith("/student");
   const [schedules, setSchedules] = useState([]);
   const [filteredSchedules, setFilteredSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [editingSchedule, setEditingSchedule] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    start_date: "",
+    end_date: "",
+    location: "",
+    capacity: 0,
+  });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadSchedules();
@@ -50,8 +60,69 @@ export function ScheduleList({ courseId, studentId, isAdmin }) {
       alert("Bạn cần đăng nhập để đăng ký lịch học");
       return;
     }
-    // Navigate to registration page
-    navigate(`/schedules/register/${scheduleId}`);
+    const basePath = isStudentView ? "/student" : "/admin";
+    navigate(`${basePath}/schedules/register/${scheduleId}`);
+  };
+
+  const toDateInput = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const pad = (num) => String(num).padStart(2, "0");
+    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+  };
+
+  const toIsoDate = (value) => {
+    if (!value) return "";
+    const match = /^\d{2}\/\d{2}\/\d{4}$/.test(value);
+    if (!match) return "";
+    const [day, month, year] = value.split("/");
+    return `${year}-${month}-${day}`;
+  };
+
+  const openEdit = (schedule) => {
+    setEditingSchedule(schedule);
+    setEditForm({
+      start_date: toDateInput(schedule.start_time),
+      end_date: toDateInput(schedule.end_time),
+      location: schedule.location || "",
+      capacity: Number(schedule.capacity || 0),
+    });
+    setEditOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingSchedule) return;
+
+    const startIso = toIsoDate(editForm.start_date);
+    const endIso = toIsoDate(editForm.end_date);
+    if (!startIso || !endIso) {
+      message.error("Ngày phải theo định dạng dd/mm/yyyy");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await scheduleApi.updateSchedule(editingSchedule.id, {
+        start_time: `${startIso}T07:00`,
+        end_time: `${endIso}T22:00`,
+        location: editForm.location,
+        capacity: editForm.capacity,
+      });
+      message.success("Đã cập nhật lịch học");
+      setEditOpen(false);
+      setEditingSchedule(null);
+      await loadSchedules();
+    } catch (err) {
+      message.error(err?.response?.data?.message || err?.message || "Không thể cập nhật lịch học");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCloseEdit = () => {
+    setEditOpen(false);
+    setEditingSchedule(null);
   };
 
   if (loading) return (
@@ -152,6 +223,103 @@ export function ScheduleList({ courseId, studentId, isAdmin }) {
           }} />
         </div>
       </div>
+
+      <Modal
+        title="Cập nhật lịch học"
+        open={editOpen}
+        onCancel={handleCloseEdit}
+        onOk={handleSaveEdit}
+        okText="Lưu"
+        cancelText="Hủy"
+        confirmLoading={saving}
+        destroyOnHidden
+      >
+        <div
+          style={{
+            display: "grid",
+            gap: "16px",
+            padding: "12px",
+            background: "var(--surface-secondary)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "var(--radius-lg)",
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gap: "12px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            }}
+          >
+            <div>
+              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+                Ngày bắt đầu
+              </label>
+              <Input
+                placeholder="dd/mm/yyyy"
+                value={editForm.start_date}
+                size="large"
+                style={{ width: "100%" }}
+                onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })}
+              />
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
+                Ví dụ: 28/12/2025
+              </div>
+            </div>
+            <div>
+              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+                Ngày kết thúc
+              </label>
+              <Input
+                placeholder="dd/mm/yyyy"
+                value={editForm.end_date}
+                size="large"
+                style={{ width: "100%" }}
+                onChange={(e) => setEditForm({ ...editForm, end_date: e.target.value })}
+              />
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
+                Ví dụ: 28/01/2026
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: "12px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            }}
+          >
+            <div>
+              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+                Địa điểm
+              </label>
+              <Input
+                placeholder="Ví dụ: Sân B - Trung tâm"
+                value={editForm.location}
+                size="large"
+                style={{ width: "100%" }}
+                onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+                Sức chứa
+              </label>
+              <InputNumber
+                min={0}
+                size="large"
+                style={{ width: "100%" }}
+                value={editForm.capacity}
+                onChange={(value) => setEditForm({ ...editForm, capacity: Number(value || 0) })}
+              />
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>
+                0 = không giới hạn
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       {/* Hiển thị kết quả tìm kiếm */}
       {searchTerm && (
@@ -285,41 +453,26 @@ export function ScheduleList({ courseId, studentId, isAdmin }) {
                 </div>
               </div>
 
-              <button
-                onClick={() => handleRegister(s.id)}
-                disabled={!studentId || isFull}
-                style={{
-                  padding: 'var(--space-md) var(--space-xl)',
-                  background: isFull ? 'var(--error-color)' : 'var(--success-color)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  fontWeight: 600,
-                  fontSize: '0.95rem',
-                  cursor: (!studentId || isFull) ? 'not-allowed' : 'pointer',
-                  opacity: (!studentId || isFull) ? 0.6 : 1,
-                  transition: 'all var(--transition-normal)',
-                  boxShadow: 'var(--shadow-sm)',
-                  minWidth: '120px'
-                }}
-                onMouseEnter={(e) => {
-                  if (!(!studentId || isFull)) {
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!(!studentId || isFull)) {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                  }
-                }}
-              >
-                {isFull ? "🏠 Đã đầy" : "✅ Đăng ký"}
-              </button>
+              {isAdmin && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                  <Button
+                    icon={<EditOutlined />}
+                    onClick={() => openEdit(s)}
+                  >
+                    Sửa
+                  </Button>
+                  <Button
+                    type="primary"
+                    onClick={() => handleRegister(s.id)}
+                    disabled={isFull}
+                  >
+                    {isFull ? "Đã đầy" : "Đăng ký"}
+                  </Button>
+                </div>
+              )}
             </div>
 
-            {!studentId && (
+            {!isAdmin && (
               <div style={{
                 padding: 'var(--space-sm) var(--space-md)',
                 background: 'var(--warning-color)',
@@ -329,7 +482,7 @@ export function ScheduleList({ courseId, studentId, isAdmin }) {
                 fontWeight: 500,
                 textAlign: 'center'
               }}>
-                ⚠️ Vui lòng đăng nhập để đăng ký lịch học
+                ⚠️ Chức năng đăng ký chỉ dành cho quản trị viên
               </div>
             )}
           </div>

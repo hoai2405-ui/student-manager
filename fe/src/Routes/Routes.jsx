@@ -5,8 +5,10 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 // --- IMPORTS CỦA ADMIN ---
 import CoursePage from "../Pages/Admin/CoursePage";
 import SchedulePage from "../Pages/Schedule";
+import CreateSchedule from "../Pages/Schedule/CreateSchedule";
 import Dashboard from "../Pages/Dashboard";
 import RegisteredSchedules from "../Pages/Schedule/RegisteredSchedules";
+import RegisterSchedule from "../Pages/Schedule/RegisterSchedule";
 import StatsPage from "../Pages/Admin/state";
 import Students from "../Pages/Admin/index";
 import CreateStudent from "../Pages/Admin/createStudent";
@@ -68,6 +70,9 @@ export default function Router() {
           {/* 7. Thi thử */}
           <Route path="exams" element={<StudentExams />} />
 
+          <Route path="schedules" element={<SchedulePage />} />
+          <Route path="registered-schedules" element={<RegisteredSchedules />} />
+
           <Route path="simulation" element={<SimulationPage />} />
           <Route path="history" element={<LearningHistory />} />
         </Route>
@@ -94,6 +99,8 @@ export default function Router() {
           <Route key="admin-students-new" path="students/new" element={<CreateStudent />} />
           <Route key="admin-stats" path="stats" element={<StatsPage />} />
           <Route key="admin-schedules" path="schedules" element={<SchedulePage />} />
+          <Route key="admin-create-schedule" path="schedules/create" element={<CreateSchedule />} />
+          <Route key="admin-register-schedule" path="schedules/register/:scheduleId" element={<RegisterSchedule />} />
           <Route
             key="admin-registered-schedules"
             path="registered-schedules"

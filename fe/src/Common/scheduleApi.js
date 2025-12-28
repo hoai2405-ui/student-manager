@@ -29,6 +29,14 @@ export function createSchedule(data, token) {
   );
 }
 
+export function updateSchedule(scheduleId, data, token) {
+  return axiosClient.put(
+    `/api/schedules/${scheduleId}`,
+    data,
+    token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+  );
+}
+
 export function getRegistrations(scheduleId, token) {
   return axiosClient.get(
     `/api/schedules/${scheduleId}/registrations`,
@@ -42,6 +50,7 @@ export const scheduleApi = {
   registerSchedule,
   registerToSchedule,
   createSchedule,
+  updateSchedule,
   getRegistrations,
 };
 

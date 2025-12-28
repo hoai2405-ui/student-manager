@@ -1756,6 +1756,63 @@ app.get("/api/schedules", async (req, res) => {
   }
 });
 
+// Cập nhật lịch (admin)
+app.put("/api/schedules/:id", authenticateToken, checkAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { course_id, start_time, end_time, capacity, location, notes } = req.body || {};
+    const fields = [];
+    const params = [];
+
+    if (course_id !== undefined) {
+      fields.push("course_id = ?");
+      params.push(course_id);
+    }
+    if (start_time !== undefined) {
+      fields.push("start_time = ?");
+      params.push(start_time);
+    }
+    if (end_time !== undefined) {
+      fields.push("end_time = ?");
+      params.push(end_time);
+    }
+    if (capacity !== undefined) {
+      fields.push("capacity = ?");
+      params.push(Number(capacity) || 0);
+    }
+    if (location !== undefined) {
+      fields.push("location = ?");
+      params.push(location || null);
+    }
+    if (notes !== undefined) {
+      fields.push("notes = ?");
+      params.push(notes || null);
+    }
+
+    if (!fields.length) {
+      return res.status(400).json({ message: "Không có dữ liệu cập nhật" });
+    }
+
+    params.push(id);
+    await pool.query(
+      `UPDATE schedules SET ${fields.join(", ")} WHERE id = ?`,
+      params
+    );
+
+    const [[schedule]] = await pool.query(
+      "SELECT s.*, c.ten_khoa_hoc, c.ma_khoa_hoc FROM schedules s LEFT JOIN courses c ON s.course_id=c.id WHERE s.id = ?",
+      [id]
+    );
+    if (!schedule) {
+      return res.status(404).json({ message: "Không tìm thấy lịch học" });
+    }
+    res.json({ success: true, schedule });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Chi tiết lịch kèm số đăng ký
 app.get("/api/schedules/:id", async (req, res) => {
   try {
@@ -1777,18 +1834,79 @@ app.get("/api/schedules/:id", async (req, res) => {
   }
 });
 
-// Đăng ký học viên vào 1 lịch (authenticated users)
-app.post("/api/schedules/:id/register", authenticateToken, async (req, res) => {
+// Đăng ký học viên vào 1 lịch (admin only)
+app.post("/api/schedules/:id/register", authenticateToken, checkAdmin, async (req, res) => {
   try {
     const scheduleId = req.params.id;
     const { student_id } = req.body;
+
+    if (!student_id) {
+      return res.status(400).json({ message: "Thiếu học viên đăng ký" });
+    }
+
+    const [[student]] = await pool.query(
+      "SELECT id, hang_gplx FROM students WHERE id = ? LIMIT 1",
+      [student_id]
+    );
+    if (!student) {
+      return res.status(404).json({ message: "Học viên không tồn tại" });
+    }
+
+    const hangGplx = student.hang_gplx;
+    const normalizedHangGplx = String(hangGplx || "")
+      .replace(/\s+/g, "")
+      .replace(".", "");
+    const licenseVariants = [
+      hangGplx,
+      normalizedHangGplx,
+      String(hangGplx || "").trim(),
+    ];
+
+    const [progressRows] = await pool.query(
+      `
+      SELECT
+        sub.id AS subject_id,
+        COALESCE(sr.required_hours, 0) AS required_hours,
+        COALESCE(SUM(lh.minutes), 0) / 60 AS learned_hours
+      FROM subjects sub
+      LEFT JOIN subject_requirements sr
+        ON sr.subject_id = sub.id
+       AND (
+         sr.license_class IN (?, ?, ?)
+         OR sr.license_class = ''
+         OR sr.license_class IS NULL
+       )
+      LEFT JOIN learning_history lh
+        ON lh.subject_id = sub.id
+       AND lh.student_id = ?
+      GROUP BY sub.id, sr.required_hours
+      `,
+      [...licenseVariants, student_id]
+    );
+
+    const requiredRows = (progressRows || []).filter(
+      (r) => Number(r.required_hours || 0) > 0
+    );
+    const requiredSubjectCount = Math.max(5, requiredRows.length);
+    const completedCount = requiredRows.filter(
+      (r) => Number(r.learned_hours || 0) >= Number(r.required_hours || 0)
+    ).length;
+
+    if (completedCount < requiredSubjectCount) {
+      return res.status(400).json({
+        message:
+          "Học viên chưa hoàn thành đủ 5 môn lý thuyết, không thể đăng ký học cabin.",
+      });
+    }
+
     // kiểm tra schedule
     const [sRows] = await pool.query(
       "SELECT capacity FROM schedules WHERE id = ?",
       [scheduleId]
     );
-    if (!sRows.length)
+    if (!sRows.length) {
       return res.status(404).json({ error: "Schedule not found" });
+    }
     const capacity = sRows[0].capacity || 0;
     // đếm đăng ký
     const [cRows] = await pool.query(
@@ -1796,8 +1914,9 @@ app.post("/api/schedules/:id/register", authenticateToken, async (req, res) => {
       [scheduleId]
     );
     const registered = cRows[0].cnt || 0;
-    if (capacity > 0 && registered >= capacity)
+    if (capacity > 0 && registered >= capacity) {
       return res.status(400).json({ error: "Schedule is full" });
+    }
     // tạo đăng ký
     await pool.query(
       "INSERT INTO registrations (schedule_id, student_id) VALUES (?, ?)",
@@ -1805,8 +1924,9 @@ app.post("/api/schedules/:id/register", authenticateToken, async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    if (err && err.code === "ER_DUP_ENTRY")
+    if (err && err.code === "ER_DUP_ENTRY") {
       return res.status(400).json({ error: "Already registered" });
+    }
     console.error(err);
     res.status(500).json({ error: err.message });
   }

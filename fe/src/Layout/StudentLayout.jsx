@@ -107,9 +107,9 @@ const StudentLayout = () => {
       label: "Môn học của tôi",
     },
     {
-      key: "/student/practice",
-      icon: <ReadOutlined />,
-      label: "Ôn tập",
+      key: "/student/history",
+      icon: <HistoryOutlined />,
+      label: "Lịch sử học",
     },
     {
       key: "/student/progress",
@@ -117,15 +117,17 @@ const StudentLayout = () => {
       label: "Tiến độ học tập",
     },
     {
+      key: "/student/practice",
+      icon: <ReadOutlined />,
+      label: "Ôn tập",
+    },
+    
+    {
       key: "/student/exams",
       icon: <FormOutlined />,
       label: "Thi thử",
     },
-    {
-      key: "/student/history",
-      icon: <HistoryOutlined />,
-      label: "Lịch sử học",
-    },
+    
   ];
 
   const profileMenu = [
