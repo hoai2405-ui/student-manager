@@ -228,12 +228,20 @@ async function createTables() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         schedule_id INT NOT NULL,
         student_id INT NOT NULL,
+        slot_id VARCHAR(32) DEFAULT NULL,
         registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         status ENUM('active', 'cancelled') DEFAULT 'active',
         FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
         FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+
+    // Ensure slot_id column exists for older DBs
+    try {
+      await pool.query("ALTER TABLE registrations ADD COLUMN slot_id VARCHAR(32) DEFAULT NULL");
+    } catch (e) {
+      // ignore
+    }
 
     // Tạo table courses nếu chưa có
     await pool.query(`
@@ -1838,7 +1846,7 @@ app.get("/api/schedules/:id", async (req, res) => {
 app.post("/api/schedules/:id/register", authenticateToken, checkAdmin, async (req, res) => {
   try {
     const scheduleId = req.params.id;
-    const { student_id } = req.body;
+    const { student_id, slot_id } = req.body;
 
     if (!student_id) {
       return res.status(400).json({ message: "Thiếu học viên đăng ký" });
@@ -1907,20 +1915,30 @@ app.post("/api/schedules/:id/register", authenticateToken, checkAdmin, async (re
     if (!sRows.length) {
       return res.status(404).json({ error: "Schedule not found" });
     }
-    const capacity = sRows[0].capacity || 0;
-    // đếm đăng ký
-    const [cRows] = await pool.query(
-      "SELECT COUNT(*) AS cnt FROM registrations WHERE schedule_id = ?",
-      [scheduleId]
-    );
-    const registered = cRows[0].cnt || 0;
-    if (capacity > 0 && registered >= capacity) {
-      return res.status(400).json({ error: "Schedule is full" });
+    const capacity = Number(sRows[0].capacity || 0);
+
+    // Nếu client gửi slot_id (VD: 0800-1015-2025-12-29) thì enforce capacity per-slot.
+    const normalizedSlotId = slot_id ? String(slot_id).slice(0, 32) : null;
+
+    if (capacity > 0) {
+      if (!normalizedSlotId) {
+        return res.status(400).json({ message: "Thiếu slot_id để đăng ký" });
+      }
+
+      const [slotCountRows] = await pool.query(
+        "SELECT COUNT(*) AS cnt FROM registrations WHERE schedule_id = ? AND slot_id = ?",
+        [scheduleId, normalizedSlotId]
+      );
+      const slotRegistered = slotCountRows[0].cnt || 0;
+      if (slotRegistered >= capacity) {
+        return res.status(400).json({ message: "Slot đã đủ chỗ" });
+      }
     }
-    // tạo đăng ký
+
+    // tạo đăng ký (uniqueness handled by DB constraints if any)
     await pool.query(
-      "INSERT INTO registrations (schedule_id, student_id) VALUES (?, ?)",
-      [scheduleId, student_id]
+      "INSERT INTO registrations (schedule_id, student_id, slot_id) VALUES (?, ?, ?)",
+      [scheduleId, student_id, normalizedSlotId]
     );
     res.json({ success: true });
   } catch (err) {
@@ -1960,7 +1978,7 @@ app.get(
     try {
       const scheduleId = req.params.id;
       const [rows] = await pool.query(
-        `SELECT r.*, st.ho_va_ten, st.so_cmt, st.hang_gplx
+        `SELECT r.id, r.schedule_id, r.student_id, r.slot_id, r.registered_at, r.status, st.ho_va_ten, st.so_cmt, st.hang_gplx
        FROM registrations r
        JOIN students st ON r.student_id = st.id
        WHERE r.schedule_id = ?
