@@ -226,7 +226,7 @@ export default function FaceVerifyModal({
         </Space>
       }
       width={520}
-      destroyOnClose
+      destroyOnHidden
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {modelsLoading ? (
