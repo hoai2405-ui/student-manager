@@ -1,6 +1,12 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 // --- IMPORTS CỦA ADMIN ---
 import CoursePage from "../Pages/Admin/CoursePage";
@@ -33,6 +39,36 @@ import StudentExams from "../Pages/Student/Exams";
 import StudentPractice from "../Pages/Student/Practice";
 import LearningHistory from "../Pages/Student/LearningHistory";
 
+function RootRedirect() {
+  const { user, initialized } = useAuth();
+  const location = useLocation();
+
+  if (!initialized) return null;
+
+  const userInfo = user?.user ?? user;
+  const role = userInfo?.role;
+  const isBackOffice = Boolean(
+    userInfo &&
+      (userInfo.is_admin ||
+        userInfo.isAdmin ||
+        role === "admin" ||
+        role === "employee" ||
+        role === "department" ||
+        role === "sogtvt")
+  );
+
+  if (isBackOffice) {
+    return <Navigate to="/admin/students" replace state={{ from: location }} />;
+  }
+
+  if (userInfo) {
+    return (
+      <Navigate to="/student/learning" replace state={{ from: location }} />
+    );
+  }
+
+  return <Navigate to="/student/login" replace />;
+}
 
 // 3. ROUTER CHÍNH
 export default function Router() {
@@ -56,7 +92,10 @@ export default function Router() {
 
           {/* 3. Trang danh sách bài học của 1 môn */}
           {/* Khi vào đây, Sidebar vẫn hiển thị */}
-          <Route path="subjects/:subjectcode" element={<StudentCourseDetail />} />
+          <Route
+            path="subjects/:subjectcode"
+            element={<StudentCourseDetail />}
+          />
 
           {/* 4. Trang học bài (PDF/Video) */}
           <Route path="learning/:lessonId" element={<Learning />} />
@@ -71,7 +110,10 @@ export default function Router() {
           <Route path="exams" element={<StudentExams />} />
 
           <Route path="schedules" element={<SchedulePage />} />
-          <Route path="registered-schedules" element={<RegisteredSchedules />} />
+          <Route
+            path="registered-schedules"
+            element={<RegisteredSchedules />}
+          />
 
           <Route path="simulation" element={<SimulationPage />} />
           <Route path="history" element={<LearningHistory />} />
@@ -94,13 +136,33 @@ export default function Router() {
           <Route key="admin-index" index element={<Dashboard />} />
 
           <Route key="admin-courses" path="courses" element={<CoursePage />} />
-          <Route key="admin-lessons" path="lessons" element={<ManageLessons />} />
+          <Route
+            key="admin-lessons"
+            path="lessons"
+            element={<ManageLessons />}
+          />
           <Route key="admin-students" path="students" element={<Students />} />
-          <Route key="admin-students-new" path="students/new" element={<CreateStudent />} />
+          <Route
+            key="admin-students-new"
+            path="students/new"
+            element={<CreateStudent />}
+          />
           <Route key="admin-stats" path="stats" element={<StatsPage />} />
-          <Route key="admin-schedules" path="schedules" element={<SchedulePage />} />
-          <Route key="admin-create-schedule" path="schedules/create" element={<CreateSchedule />} />
-          <Route key="admin-register-schedule" path="schedules/register/:scheduleId" element={<RegisterSchedule />} />
+          <Route
+            key="admin-schedules"
+            path="schedules"
+            element={<SchedulePage />}
+          />
+          <Route
+            key="admin-create-schedule"
+            path="schedules/create"
+            element={<CreateSchedule />}
+          />
+          <Route
+            key="admin-register-schedule"
+            path="schedules/register/:scheduleId"
+            element={<RegisterSchedule />}
+          />
           <Route
             key="admin-registered-schedules"
             path="registered-schedules"
@@ -129,7 +191,7 @@ export default function Router() {
         {/* =========================================
             PHẦN 3: ĐIỀU HƯỚNG MẶC ĐỊNH
            ========================================= */}
-        <Route path="/" element={<Navigate to="/student/login" />} />
+        <Route path="/" element={<RootRedirect />} />
         {/* Các đường dẫn lạ thì đẩy về trang đăng nhập phù hợp */}
         <Route path="*" element={<Navigate to="/student/login" />} />
       </Routes>

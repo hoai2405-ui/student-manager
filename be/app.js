@@ -429,6 +429,32 @@ async function createTables() {
 
     console.log("✅ Đảm bảo table learning_history tồn tại");
 
+    // Tạo bảng learning_sessions để lưu phiên học (vào/ra + xác thực)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS learning_sessions (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        student_id INT NOT NULL,
+        subject_id INT NOT NULL,
+        lesson_id INT NOT NULL,
+        started_at DATETIME NOT NULL,
+        ended_at DATETIME NULL,
+        duration_seconds INT NULL,
+        login_photo_url TEXT NULL,
+        logout_photo_url TEXT NULL,
+        face_verified_in TINYINT(1) NOT NULL DEFAULT 0,
+        face_verified_out TINYINT(1) NOT NULL DEFAULT 0,
+        status ENUM('started','ended','abandoned') NOT NULL DEFAULT 'started',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ls_student (student_id),
+        INDEX idx_ls_subject (subject_id),
+        INDEX idx_ls_lesson (lesson_id),
+        INDEX idx_ls_started (started_at),
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+        FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+        FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log("✅ Đảm bảo table learning_sessions tồn tại");
 
 
     // Insert các môn học chính thức nếu chưa có (không xóa dữ liệu cũ)
@@ -539,6 +565,33 @@ const uploadFile = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+});
+
+// Upload ảnh khuôn mặt (login/logout photos)
+const facePhotoStorage = multer.diskStorage({
+  destination: function (_req, _file, cb) {
+    const dir = "./uploads/learning_sessions";
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: function (_req, file, cb) {
+    const originalName = Buffer.from(file.originalname || "photo.jpg", "latin1").toString("utf8");
+    cb(null, Date.now() + "-" + originalName.replace(/\s+/g, "_"));
+  },
+});
+
+function toLearningSessionPhotoUrl(file) {
+  if (!file || !file.filename) return null;
+  return `/uploads/learning_sessions/${file.filename}`;
+}
+
+const facePhotoUpload = multer({
+  storage: facePhotoStorage,
+  fileFilter: function (_req, file, cb) {
+    if (file.mimetype && file.mimetype.startsWith("image/")) return cb(null, true);
+    return cb(new Error("Chỉ cho phép upload ảnh"), false);
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
 // 4. API Upload chung (Thay thế API upload cũ)
@@ -2186,6 +2239,102 @@ app.get("/api/student/face-status", authenticateToken, async (req, res) => {
   }
 });
 
+// Student: start learning session (requires login photo)
+app.post(
+  "/api/student/sessions/start",
+  authenticateToken,
+  facePhotoUpload.single("login_photo"),
+  async (req, res) => {
+    const studentId = req.user.id;
+    const { lesson_id, subject_id } = req.body || {};
+
+    if (!lesson_id || !subject_id) {
+      return res.status(400).json({ message: "Thiếu lesson_id hoặc subject_id" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "Thiếu login_photo" });
+    }
+
+    try {
+      const photoUrl = toLearningSessionPhotoUrl(req.file);
+      const [result] = await pool.query(
+        `INSERT INTO learning_sessions
+           (student_id, subject_id, lesson_id, started_at, login_photo_url, face_verified_in, status)
+         VALUES (?, ?, ?, NOW(), ?, 0, 'started')`,
+        [studentId, Number(subject_id), Number(lesson_id), photoUrl]
+      );
+
+      res.json({
+        success: true,
+        session_id: result.insertId,
+        started_at: new Date().toISOString(),
+        login_photo_url: photoUrl,
+      });
+    } catch (e) {
+      res.status(500).json({ message: "Lỗi tạo session", error: e.message });
+    }
+  }
+);
+
+// Student: end learning session (requires logout photo)
+app.post(
+  "/api/student/sessions/end",
+  authenticateToken,
+  facePhotoUpload.single("logout_photo"),
+  async (req, res) => {
+    const studentId = req.user.id;
+    const { session_id } = req.body || {};
+
+    if (!session_id) {
+      return res.status(400).json({ message: "Thiếu session_id" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "Thiếu logout_photo" });
+    }
+
+    try {
+      const photoUrl = toLearningSessionPhotoUrl(req.file);
+
+      const [[existing]] = await pool.query(
+        `SELECT id, started_at
+         FROM learning_sessions
+         WHERE id = ? AND student_id = ?
+         LIMIT 1`,
+        [Number(session_id), studentId]
+      );
+
+      if (!existing) {
+        return res.status(404).json({ message: "Session không tồn tại" });
+      }
+
+      await pool.query(
+        `UPDATE learning_sessions
+         SET ended_at = NOW(),
+             duration_seconds = TIMESTAMPDIFF(SECOND, started_at, NOW()),
+             logout_photo_url = ?,
+             face_verified_out = 1,
+             status = 'ended'
+         WHERE id = ? AND student_id = ?`,
+        [photoUrl, Number(session_id), studentId]
+      );
+
+      const [[updated]] = await pool.query(
+        `SELECT id, started_at, ended_at, duration_seconds, login_photo_url, logout_photo_url, face_verified_in, face_verified_out
+         FROM learning_sessions
+         WHERE id = ? AND student_id = ?
+         LIMIT 1`,
+        [Number(session_id), studentId]
+      );
+
+      res.json({ success: true, session: updated });
+    } catch (e) {
+      res.status(500).json({ message: "Lỗi kết thúc session", error: e.message });
+    }
+  }
+);
+
 // Student: enroll face sample (descriptor)
 app.post("/api/student/face-enroll", authenticateToken, async (req, res) => {
   const studentId = req.user.id;
@@ -2263,6 +2412,21 @@ app.post("/api/student/face-verify", authenticateToken, async (req, res) => {
     }
     const distance = Math.sqrt(sum);
 
+    if (distance <= th) {
+      try {
+        await pool.query(
+          `UPDATE learning_sessions
+           SET face_verified_in = 1
+           WHERE student_id = ?
+             AND status = 'started'
+             AND ended_at IS NULL
+           ORDER BY id DESC
+           LIMIT 1`,
+          [studentId]
+        );
+      } catch {}
+    }
+
     res.json({
       success: distance <= th,
       distance,
@@ -2290,12 +2454,30 @@ app.get("/api/student/learning-history", authenticateToken, async (req, res) => 
            WHEN COALESCE(lp.learned_seconds, 0) <= 0 THEN 'not_started'
            WHEN COALESCE(lp.learned_seconds, 0) >= (l.duration_minutes * 60) THEN 'completed'
            ELSE 'in_progress'
-         END AS status
+         END AS status,
+         ls.id AS last_session_id,
+         ls.started_at AS last_session_started_at,
+         ls.ended_at AS last_session_ended_at,
+         ls.duration_seconds AS last_session_duration_seconds,
+         ls.login_photo_url AS last_login_photo_url,
+         ls.logout_photo_url AS last_logout_photo_url,
+         ls.face_verified_in AS last_face_verified_in,
+         ls.face_verified_out AS last_face_verified_out,
+         CONCAT('/uploads/learning_sessions/', ls.login_photo_url) AS last_login_photo_abs,
+         CONCAT('/uploads/learning_sessions/', ls.logout_photo_url) AS last_logout_photo_abs
        FROM lessons l
        JOIN subjects s ON s.id = l.subject_id
        LEFT JOIN lesson_progress lp
          ON lp.lesson_id = l.id
          AND lp.student_id = ?
+       LEFT JOIN learning_sessions ls
+         ON ls.id = (
+           SELECT ls2.id
+           FROM learning_sessions ls2
+           WHERE ls2.student_id = ? AND ls2.lesson_id = l.id
+           ORDER BY ls2.id DESC
+           LIMIT 1
+         )
        ORDER BY
          CASE
            WHEN lp.last_updated IS NULL THEN 1
@@ -2305,7 +2487,7 @@ app.get("/api/student/learning-history", authenticateToken, async (req, res) => 
          l.subject_id ASC,
          l.lesson_order ASC
        LIMIT 200`,
-      [studentId]
+      [studentId, studentId]
     );
 
     res.json(rows);
@@ -2684,10 +2866,11 @@ app.get("/api/init-subjects", async (req, res) => {
 });
 
 // tiến độ môn học - CẬP NHẬT: Hỗ trợ cả lessons và simulations
-app.post("/api/student/lesson-progress", async (req, res) => {
-  const { student_id, lesson_id, watched_seconds, duration_minutes, subject_id } = req.body;
+app.post("/api/student/lesson-progress", authenticateToken, async (req, res) => {
+  const student_id = req.user?.id;
+  const { lesson_id, watched_seconds, duration_minutes, subject_id } = req.body;
 
-  if (!student_id || !watched_seconds || !duration_minutes) {
+  if (!student_id || watched_seconds == null || duration_minutes == null) {
     return res.status(400).json({ message: "Thiếu dữ liệu" });
   }
 
@@ -2724,16 +2907,41 @@ app.post("/api/student/lesson-progress", async (req, res) => {
       return res.status(400).json({ message: "Thiếu lesson_id hoặc subject_id" });
     }
 
-    // Cộng dồn thời gian vào learning_history
-    await pool.query(
-      `
-      INSERT INTO learning_history (student_id, subject_id, minutes)
-      VALUES (?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        minutes = minutes + VALUES(minutes)
-      `,
-      [student_id, subjectId, minutesLearned]
-    );
+    // Cộng dồn thời gian vào learning_history (only when face verified in/out & has valid session)
+    let canAccumulate = true;
+    try {
+      const [[session]] = await pool.query(
+        `SELECT id, started_at, ended_at, face_verified_in, face_verified_out
+         FROM learning_sessions
+         WHERE student_id = ? AND lesson_id = ?
+         ORDER BY id DESC
+         LIMIT 1`,
+        [student_id, lesson_id]
+      );
+      if (session) {
+        canAccumulate =
+          Boolean(session.started_at) &&
+          Boolean(session.ended_at) &&
+          Number(session.face_verified_in) === 1 &&
+          Number(session.face_verified_out) === 1;
+      } else {
+        canAccumulate = false;
+      }
+    } catch (e) {
+      canAccumulate = false;
+    }
+
+    if (canAccumulate) {
+      await pool.query(
+        `
+        INSERT INTO learning_history (student_id, subject_id, minutes)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          minutes = minutes + VALUES(minutes)
+        `,
+        [student_id, subjectId, minutesLearned]
+      );
+    }
 
     // Chỉ lưu vào student_lesson_progress nếu là lesson thật (không phải simulation)
     // Simulations dùng fake lesson_id negative nên không cần student_lesson_progress
@@ -3065,6 +3273,76 @@ app.delete("/api/admin/questions/:id", authenticateToken, requireAdminOrDepartme
 });
 
 // Admin: Exams (create + attach questions)
+app.get("/api/admin/student/:id/sessions", authenticateToken, requireAdminOrDepartment, async (req, res) => {
+  try {
+    const studentId = Number(req.params.id);
+    if (!studentId) return res.status(400).json({ message: "student_id không hợp lệ" });
+
+    const { subject_id, lesson_id, from, to } = req.query || {};
+
+    const where = ["ls.student_id = ?"];
+    const params = [studentId];
+
+    if (subject_id) {
+      where.push("ls.subject_id = ?");
+      params.push(Number(subject_id));
+    }
+
+    if (lesson_id) {
+      where.push("ls.lesson_id = ?");
+      params.push(Number(lesson_id));
+    }
+
+    if (from) {
+      const fromDate = new Date(from);
+      if (Number.isNaN(fromDate.getTime())) {
+        return res.status(400).json({ message: "from không hợp lệ" });
+      }
+      where.push("ls.started_at >= ?");
+      params.push(fromDate);
+    }
+
+    if (to) {
+      const toDate = new Date(to);
+      if (Number.isNaN(toDate.getTime())) {
+        return res.status(400).json({ message: "to không hợp lệ" });
+      }
+      where.push("ls.started_at <= ?");
+      params.push(toDate);
+    }
+
+    const [rows] = await pool.query(
+      `SELECT
+         ls.id,
+         ls.student_id,
+         ls.subject_id,
+         sub.name AS subject_name,
+         ls.lesson_id,
+         l.title AS lesson_title,
+         ls.started_at,
+         ls.ended_at,
+         ls.duration_seconds,
+         ls.login_photo_url,
+         ls.logout_photo_url,
+         ls.face_verified_in,
+         ls.face_verified_out,
+         ls.created_at
+       FROM learning_sessions ls
+       LEFT JOIN subjects sub ON sub.id = ls.subject_id
+       LEFT JOIN lessons l ON l.id = ls.lesson_id
+       WHERE ${where.join(" AND ")}
+       ORDER BY ls.started_at DESC
+       LIMIT 500`,
+      params
+    );
+
+    res.json(rows || []);
+  } catch (e) {
+    console.error("[admin sessions] error:", e);
+    res.status(500).json({ message: "Lỗi lấy dữ liệu học", error: e.message });
+  }
+});
+
 app.get("/api/admin/exams", authenticateToken, requireAdminOrDepartment, async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM exams ORDER BY id DESC");

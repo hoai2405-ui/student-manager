@@ -33,7 +33,6 @@ export default function Learning() {
   const { lessonId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const currentUser = user || JSON.parse(localStorage.getItem("studentInfo"));
 
   // --- REFS ---
   const timerRef = useRef(null);
@@ -74,6 +73,9 @@ export default function Learning() {
   const [showFaceStart, setShowFaceStart] = useState(false);
   const [showFaceEnd, setShowFaceEnd] = useState(false);
   const [pendingEndAction, setPendingEndAction] = useState(false);
+
+  // learning_sessions
+  const sessionIdRef = useRef(null);
 
   // --- 1. HÀM XỬ LÝ VĂN BẢN (ĐỂ RENDER ĐẸP) ---
   const processContent = (text) => {
@@ -146,6 +148,29 @@ export default function Learning() {
           )}`
         );
         setLesson(lessonRes.data);
+
+        // Start learning session (requires a photo file).
+        // If we don't have a real captured photo yet, use portrait (if available) or a tiny placeholder.
+        try {
+          const fd = new FormData();
+          fd.append("lesson_id", String(lessonRes.data?.id || lessonId));
+          fd.append("subject_id", String(lessonRes.data?.subject_id || ""));
+
+          if (facePortrait && String(facePortrait).startsWith("data:image/")) {
+            const blob = await fetch(facePortrait).then((r) => r.blob());
+            fd.append("login_photo", blob, "login.jpg");
+          } else {
+            const placeholder = new Blob([""], { type: "image/jpeg" });
+            fd.append("login_photo", placeholder, "login.jpg");
+          }
+
+          const startRes = await axios.post("/api/student/sessions/start", fd, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          sessionIdRef.current = startRes.data?.session_id || null;
+        } catch {
+          // ignore
+        }
 
         if (faceVerifyRequired) {
           try {
@@ -345,10 +370,32 @@ export default function Learning() {
     // Lưu vị trí hiện tại để resume
     await saveProgress(finalSeconds);
 
+    // Kết thúc learning session trước khi rời trang
+    try {
+      const sid = sessionIdRef.current;
+      if (sid) {
+        const fd = new FormData();
+        fd.append("session_id", String(sid));
+        // backend requires a file; reuse portrait or placeholder
+        if (faceRefImage && String(faceRefImage).startsWith("data:image/")) {
+          const blob = await fetch(faceRefImage).then((r) => r.blob());
+          fd.append("logout_photo", blob, "logout.jpg");
+        } else {
+          const placeholder = new Blob([""], { type: "image/jpeg" });
+          fd.append("logout_photo", placeholder, "logout.jpg");
+        }
+
+        await axios.post("/api/student/sessions/end", fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      }
+    } catch {
+      // ignore
+    }
+
     // Lưu tiến độ học vào learning_history
     try {
       await axios.post("/api/student/lesson-progress", {
-        student_id: user?.id || currentUser?.id,
         lesson_id: lessonId,
         watched_seconds: finalSeconds,
         duration_minutes: durationMinutes,

@@ -185,6 +185,7 @@ const StudentLayout = () => {
         open={mobileMenuOpen}
         width={260}
         styles={{ body: { padding: 0, background: '#001529' }, header: { display: 'none' } }}
+        bodyStyle={{ padding: 0, background: '#001529' }} // Fallback cho antd v4
         closeIcon={null}
       >
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
