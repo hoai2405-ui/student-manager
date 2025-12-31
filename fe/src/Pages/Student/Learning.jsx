@@ -25,7 +25,7 @@ import VideoPlayer from "../../Components/Student/VideoPlayer";
 import PdfViewer from "../../Components/Student/PdfViewer";
 import FaceVerifyModal from "../../Components/Student/FaceVerifyModal";
 
-const API_URL = "http://localhost:3001";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const FACE_THRESHOLD = 0.55;
 const { Text } = Typography;
 
@@ -174,7 +174,7 @@ export default function Learning() {
 
         if (faceVerifyRequired) {
           try {
-            const faceStatus = await axios.get(`${API_URL}/api/student/face-status`);
+            const faceStatus = await axios.get(`/api/student/face-status`);
             const mustEnroll = Boolean(faceStatus.data?.must_enroll);
             const enrolled = Boolean(faceStatus.data?.enrolled);
             setFaceEnrolled(enrolled);
@@ -198,15 +198,11 @@ export default function Learning() {
         // B. Kiểm tra khóa học có hết hạn không
         if (user?.id) {
           try {
-            const studentRes = await axios.get(
-              `${API_URL}/api/student/${user.id}`
-            );
+            const studentRes = await axios.get(`/api/student/${user.id}`);
             const courseCode = studentRes.data.ma_khoa_hoc;
 
             if (courseCode) {
-              const courseRes = await axios.get(
-                `${API_URL}/api/courses?ma_khoa_hoc=${courseCode}`
-              );
+              const courseRes = await axios.get(`/api/courses?ma_khoa_hoc=${courseCode}`);
               const course = courseRes.data.find(
                 (c) => c.ma_khoa_hoc === courseCode
               );
@@ -558,7 +554,7 @@ export default function Learning() {
         onVerified={async (payload) => {
           try {
             if (!faceEnrolled) {
-              await axios.post(`${API_URL}/api/student/face-enroll`, {
+              await axios.post(`/api/student/face-enroll`, {
                 descriptor: payload?.descriptor,
               });
               // after enroll -> require verify immediately
@@ -566,7 +562,7 @@ export default function Learning() {
               return;
             }
 
-            const verifyRes = await axios.post(`${API_URL}/api/student/face-verify`, {
+            const verifyRes = await axios.post(`/api/student/face-verify`, {
               descriptor: payload?.descriptor,
               threshold: FACE_THRESHOLD,
             });
@@ -594,14 +590,14 @@ export default function Learning() {
         onVerified={async (payload) => {
           try {
             if (!faceEnrolled) {
-              await axios.post(`${API_URL}/api/student/face-enroll`, {
+              await axios.post(`/api/student/face-enroll`, {
                 descriptor: payload?.descriptor,
               });
               setFaceEnrolled(true);
               return;
             }
 
-            const verifyRes = await axios.post(`${API_URL}/api/student/face-verify`, {
+            const verifyRes = await axios.post(`/api/student/face-verify`, {
               descriptor: payload?.descriptor,
               threshold: FACE_THRESHOLD,
             });

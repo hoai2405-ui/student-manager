@@ -46,25 +46,9 @@ function RootRedirect() {
   if (!initialized) return null;
 
   const userInfo = user?.user ?? user;
-  const role = userInfo?.role;
-  const isBackOffice = Boolean(
-    userInfo &&
-      (userInfo.is_admin ||
-        userInfo.isAdmin ||
-        role === "admin" ||
-        role === "employee" ||
-        role === "department" ||
-        role === "sogtvt")
-  );
-
-  if (isBackOffice) {
-    return <Navigate to="/admin/students" replace state={{ from: location }} />;
-  }
 
   if (userInfo) {
-    return (
-      <Navigate to="/student/learning" replace state={{ from: location }} />
-    );
+    return <Navigate to="/student/learning" replace state={{ from: location }} />;
   }
 
   return <Navigate to="/student/login" replace />;

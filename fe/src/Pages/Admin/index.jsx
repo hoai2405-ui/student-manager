@@ -896,15 +896,51 @@ const [sessionsLoading, setSessionsLoading] = useState(false);
                 title: "Ảnh vào",
                 dataIndex: "login_photo_url",
                 key: "login_photo_url",
-                width: 110,
-                render: (u) => (u ? <a href={`http://localhost:3001${u}`} target="_blank" rel="noreferrer">Xem</a> : ""),
+                width: 120,
+                render: (u) =>
+                  u ? (
+                    <a
+                      href={`${import.meta.env.VITE_API_URL || "http://localhost:3001"}${u}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <img
+                       src={`${import.meta.env.VITE_API_URL || "http://localhost:3001"}${u}`}
+                       alt="login"
+                       style={{ width: 64, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid #eee" }}
+                       onError={(e) => {
+                         e.currentTarget.style.display = "none";
+                       }}
+                      />
+                    </a>
+                  ) : (
+                    ""
+                  ),
               },
               {
                 title: "Ảnh ra",
                 dataIndex: "logout_photo_url",
                 key: "logout_photo_url",
-                width: 110,
-                render: (u) => (u ? <a href={`http://localhost:3001${u}`} target="_blank" rel="noreferrer">Xem</a> : ""),
+                width: 120,
+                render: (u) =>
+                  u ? (
+                    <a
+                      href={`${import.meta.env.VITE_API_URL || "http://localhost:3001"}${u}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <img
+                       src={`${import.meta.env.VITE_API_URL || "http://localhost:3001"}${u}`}
+                       alt="logout"
+                       style={{ width: 64, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid #eee" }}
+                       onError={(e) => {
+                         e.currentTarget.style.display = "none";
+                       }}
+                      />
+                    </a>
+                  ) : (
+                    ""
+                  ),
               },
               {
                 title: "Verified",

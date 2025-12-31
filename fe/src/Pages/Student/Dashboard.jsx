@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Row, Col, Spin, Progress } from "antd";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import axios from "../../Common/axios";
 import moment from "moment";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -15,7 +15,6 @@ import {
   FileDoneOutlined,
 } from "@ant-design/icons";
 
-const API = "http://localhost:3001";
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -41,7 +40,7 @@ export default function StudentDashboard() {
     if (!currentUser?.id) return;
     setLoading(true);
 
-    axios.get(`${API}/api/student/${currentUser.id}`)
+    axios.get(`/api/student/${currentUser.id}`)
       .then((res) => {
         console.log("[DEBUG] refreshed student from API:", res.data);
         const stu = res.data;
@@ -53,8 +52,8 @@ export default function StudentDashboard() {
       .catch((e) => console.warn("Could not refresh student info", e))
       .finally(() => {
         Promise.all([
-          axios.get(`${API}/api/student/dashboard/${currentUser.id}`),
-          axios.get(`${API}/api/student/summary/${currentUser.id}`)
+          axios.get(`/api/student/dashboard/${currentUser.id}`),
+          axios.get(`/api/student/summary/${currentUser.id}`)
         ]).then(([s, sum]) => {
           setSubjects(s.data || []);
           setSummary(sum.data);

@@ -581,8 +581,20 @@ const facePhotoStorage = multer.diskStorage({
 });
 
 function toLearningSessionPhotoUrl(file) {
-  if (!file || !file.filename) return null;
-  return `/uploads/learning_sessions/${file.filename}`;
+  if (!file) return null;
+
+  // multer disk storage: { filename }
+  if (file.filename) return `/uploads/learning_sessions/${file.filename}`;
+
+  // in-memory / custom: { path }
+  if (file.path) {
+    const normalized = String(file.path).replace(/\\/g, "/");
+    const marker = "/uploads/learning_sessions/";
+    const idx = normalized.lastIndexOf(marker);
+    if (idx >= 0) return normalized.slice(idx);
+  }
+
+  return null;
 }
 
 const facePhotoUpload = multer({
@@ -767,25 +779,25 @@ app.post("/api/courses", async (req, res) => {
       : "INSERT INTO courses (ma_khoa_hoc, ten_khoa_hoc, hang_gplx, ngay_khai_giang, ngay_be_giang, so_ngay_hoc, so_hoc_sinh) VALUES (?, ?, ?, ?, ?, ?, ?)";
 
     const params = hasNgayHocColumn
-      ? [
-          ma_khoa_hoc,
-          ten_khoa_hoc,
-          hang_gplx || "",
-          ngay_khai_giang || null,
-          ngay_be_giang || null,
-          ngay_khai_giang || null,
-          Number(so_ngay_hoc) || 0,
-          Number(so_hoc_sinh) || 0,
-        ]
-      : [
-          ma_khoa_hoc,
-          ten_khoa_hoc,
-          hang_gplx || "",
-          ngay_khai_giang || null,
-          ngay_be_giang || null,
-          Number(so_ngay_hoc) || 0,
-          Number(so_hoc_sinh) || 0,
-        ];
+    ? [
+        ma_khoa_hoc,
+        ten_khoa_hoc,
+        String(hang_gplx || "").trim().toUpperCase(),
+        ngay_khai_giang || null,
+        ngay_be_giang || null,
+        ngay_khai_giang || null,
+        Number(so_ngay_hoc) || 0,
+        Number(so_hoc_sinh) || 0,
+      ]
+    : [
+        ma_khoa_hoc,
+        ten_khoa_hoc,
+        String(hang_gplx || "").trim().toUpperCase(),
+        ngay_khai_giang || null,
+        ngay_be_giang || null,
+        Number(so_ngay_hoc) || 0,
+        Number(so_hoc_sinh) || 0,
+      ];
 
     const [result] = await pool.query(sql, params);
 
@@ -1330,18 +1342,16 @@ app.put("/api/students/:id", async (req, res) => {
 
   const sql = `
     UPDATE students SET
-      ho_va_ten = ?, ngay_sinh = ?, hang_gplx = ?, so_cmt = ?, ma_khoa_hoc = ?,
-
+      ho_va_ten = ?, ngay_sinh = ?, hang_gplx = ?, so_cmt = ?, ma_khoa_hoc = ?
     WHERE id = ?
   `;
   try {
     await pool.query(sql, [
       ho_va_ten,
       ngay_sinh_mysql,
-      hang_gplx,
+      String(hang_gplx || '').trim().toUpperCase(),
       so_cmt,
       ma_khoa_hoc,
-
       id,
     ]);
     res.json({ success: true });
@@ -1373,7 +1383,7 @@ app.post("/api/students", async (req, res) => {
       [
         ho_va_ten,
         ngay_sinh,
-        hang_gplx,
+        String(hang_gplx || '').trim().toUpperCase(),
         so_cmt,
         ma_khoa_hoc,
       ]
@@ -1420,7 +1430,7 @@ app.put("/api/courses/:id", async (req, res) => {
 
   const sql = `
     UPDATE courses
-    SET ma_khoa_hoc = ?, ten_khoa_hoc = ?, ngay_khai_giang = ?, ngay_be_giang = ?, so_ngay_hoc = ?, so_hoc_sinh = ?
+    SET ma_khoa_hoc = ?, ten_khoa_hoc = ?, hang_gplx = ?, ngay_khai_giang = ?, ngay_be_giang = ?, so_ngay_hoc = ?, so_hoc_sinh = ?
     WHERE id = ?
   `;
 
@@ -1428,6 +1438,7 @@ app.put("/api/courses/:id", async (req, res) => {
     const [result] = await pool.query(sql, [
       ma_khoa_hoc,
       ten_khoa_hoc,
+      String(req.body?.hang_gplx || '').trim().toUpperCase(),
       ngay_khai_giang,
       ngay_be_giang,
       so_ngay_hoc,
@@ -2260,8 +2271,8 @@ app.post(
       const photoUrl = toLearningSessionPhotoUrl(req.file);
       const [result] = await pool.query(
         `INSERT INTO learning_sessions
-           (student_id, subject_id, lesson_id, started_at, login_photo_url, face_verified_in, status)
-         VALUES (?, ?, ?, NOW(), ?, 0, 'started')`,
+           (student_id, subject_id, lesson_id, started_at, login_photo_url, face_verified_in)
+         VALUES (?, ?, ?, NOW(), ?, 0)`,
         [studentId, Number(subject_id), Number(lesson_id), photoUrl]
       );
 
@@ -2295,7 +2306,7 @@ app.post(
     }
 
     try {
-      const photoUrl = toLearningSessionPhotoUrl(req.file);
+      let photoUrl = toLearningSessionPhotoUrl(req.file);
 
       const [[existing]] = await pool.query(
         `SELECT id, started_at
@@ -2309,13 +2320,18 @@ app.post(
         return res.status(404).json({ message: "Session không tồn tại" });
       }
 
+      // Fallback for legacy/placeholder values
+      if (!photoUrl && req.file?.originalname) {
+        const safeName = String(req.file.originalname).replace(/\\/g, "/").split("/").pop();
+        if (safeName) photoUrl = `/uploads/learning_sessions/${safeName}`;
+      }
+
       await pool.query(
         `UPDATE learning_sessions
          SET ended_at = NOW(),
              duration_seconds = TIMESTAMPDIFF(SECOND, started_at, NOW()),
              logout_photo_url = ?,
-             face_verified_out = 1,
-             status = 'ended'
+             face_verified_out = 1
          WHERE id = ? AND student_id = ?`,
         [photoUrl, Number(session_id), studentId]
       );
@@ -2418,7 +2434,6 @@ app.post("/api/student/face-verify", authenticateToken, async (req, res) => {
           `UPDATE learning_sessions
            SET face_verified_in = 1
            WHERE student_id = ?
-             AND status = 'started'
              AND ended_at IS NULL
            ORDER BY id DESC
            LIMIT 1`,
@@ -2616,7 +2631,8 @@ app.get("/api/lessons", async (req, res) => {
 
     const hangGplxNormalized = String(hang_gplx || '').trim();
     if (hangGplxNormalized) {
-      where.push("(l.license_types IS NULL OR l.license_types = '' OR l.license_types = '[]' OR JSON_CONTAINS(l.license_types, JSON_QUOTE(?)))");
+      where.push("(l.license_types IS NULL OR l.license_types = '' OR l.license_types = '[]' OR JSON_CONTAINS(l.license_types, JSON_QUOTE(?)) OR JSON_CONTAINS(l.license_types, JSON_QUOTE(SUBSTRING_INDEX(?, '.', 1))))");
+      params.push(hangGplxNormalized);
       params.push(hangGplxNormalized);
     }
 

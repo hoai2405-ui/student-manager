@@ -42,7 +42,7 @@ const CreateStudent = ({ onCreated }) => {
       );
       await axios.post("/api/students", {
         ...values,
-        hang_gplx: selectedCourse?.hang_gplx || values.hang_gplx || "",
+        hang_gplx: (selectedCourse?.hang_gplx || values.hang_gplx || "").toUpperCase(),
         ngay_sinh: values.ngay_sinh
           ? values.ngay_sinh.format("YYYY-MM-DD")
           : "",

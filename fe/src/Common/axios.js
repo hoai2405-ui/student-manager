@@ -32,9 +32,9 @@ instance.interceptors.request.use(
         }
     }
 
-    // C. Ưu tiên: Nếu đang ở trang /student thì dùng studentToken, ngược lại dùng adminToken
-    // Hoặc đơn giản là: Có cái nào dùng cái đó (Student ưu tiên hơn nếu đang login student)
-    const token = studentToken || adminToken;
+    // C. Ưu tiên đúng theo khu vực route: /student dùng studentToken, /admin dùng adminToken
+    const isStudentPage = window.location.pathname.startsWith("/student");
+    const token = isStudentPage ? studentToken : adminToken;
 
     if (token) {
       config.headers["Authorization"] = `Bearer ${token}`;
