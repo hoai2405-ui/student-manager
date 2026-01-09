@@ -1566,51 +1566,6 @@ app.post("/api/students/update-status", async (req, res) => {
   }
 });
 
-// Admin: mở khoảng thời gian học bù (cho phép học viên học lại / mở khóa tính giờ)
-app.post(
-  "/api/students/makeup-window",
-  authenticateToken,
-  requireAdminOrDepartment,
-  async (req, res) => {
-    const { student_id, from, to } = req.body || {};
-
-    const studentId = Number(student_id);
-    if (!studentId) return res.status(400).json({ message: "student_id không hợp lệ" });
-
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
-    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
-      return res.status(400).json({ message: "from/to không hợp lệ" });
-    }
-
-    if (fromDate > toDate) {
-      return res.status(400).json({ message: "Khoảng ngày không hợp lệ" });
-    }
-
-    try {
-      // Ensure columns exist
-      try {
-        await pool.query("ALTER TABLE students ADD COLUMN makeup_from DATETIME NULL");
-      } catch {}
-      try {
-        await pool.query("ALTER TABLE students ADD COLUMN makeup_to DATETIME NULL");
-      } catch {}
-
-      const [[s]] = await pool.query("SELECT id FROM students WHERE id = ? LIMIT 1", [studentId]);
-      if (!s) return res.status(404).json({ message: "Học viên không tồn tại" });
-
-      await pool.query(
-        "UPDATE students SET makeup_from = ?, makeup_to = ? WHERE id = ?",
-        [fromDate, toDate, studentId]
-      );
-
-      res.json({ success: true });
-    } catch (e) {
-      res.status(500).json({ message: "Lỗi mở học bù", error: e.message });
-    }
-  }
-);
-
 // API: Thống kê học tập (thay thế thống kê thi cũ)
 app.get("/api/learning-stats", async (req, res) => {
   try {
@@ -2102,37 +2057,7 @@ app.get(
   }
 );
 
-const groupScheduleRegistrations = (rows) => {
-  const groupedData = rows.reduce((acc, row) => {
-    const key = `${row.student_name}-${row.course_name}`;
-    if (!acc[key]) {
-      acc[key] = {
-        id: row.id,
-        student_name: row.student_name,
-        student_username: row.student_username,
-        course_name: row.course_name,
-        course_code: row.course_code,
-        registered_at: row.registered_at,
-        status: row.status || "active",
-        selected_slots: [],
-      };
-    }
-
-    acc[key].selected_slots.push({
-      date: new Date(row.start_time).toISOString().split("T")[0],
-      period: new Date(row.start_time).getHours() < 12 ? "morning" : "afternoon",
-      start_time: row.start_time,
-      end_time: row.end_time,
-      location: row.location,
-    });
-
-    return acc;
-  }, {});
-
-  return Object.values(groupedData);
-};
-
-// Admin: Lấy danh sách tất cả đăng ký lịch học
+// API: Lấy danh sách tất cả đăng ký lịch học (cho trang quản lý)
 app.get(
   "/api/schedule-registrations",
   authenticateToken,
@@ -2142,7 +2067,6 @@ app.get(
       const [rows] = await pool.query(`
       SELECT
         r.id,
-        r.student_id,
         r.registered_at,
         r.status,
         s.ho_va_ten as student_name,
@@ -2159,53 +2083,41 @@ app.get(
       ORDER BY r.registered_at DESC
     `);
 
-      res.json(groupScheduleRegistrations(rows));
+      // Group by registration to create selected_slots structure
+      const groupedData = rows.reduce((acc, row) => {
+        const key = `${row.student_name}-${row.course_name}`;
+        if (!acc[key]) {
+          acc[key] = {
+            id: row.id,
+            student_name: row.student_name,
+            student_username: row.student_username,
+            course_name: row.course_name,
+            course_code: row.course_code,
+            registered_at: row.registered_at,
+            status: row.status || "active",
+            selected_slots: [],
+          };
+        }
+
+        // Add slot information
+        acc[key].selected_slots.push({
+          date: new Date(row.start_time).toISOString().split("T")[0],
+          period:
+            new Date(row.start_time).getHours() < 12 ? "morning" : "afternoon",
+          start_time: row.start_time,
+          end_time: row.end_time,
+          location: row.location,
+        });
+
+        return acc;
+      }, {});
+
+      const result = Object.values(groupedData);
+      res.json(result);
     } catch (err) {
       console.error("Error fetching schedule registrations:", err);
       res.status(500).json({
         message: "Lỗi lấy danh sách đăng ký lịch học",
-        error: err.message,
-      });
-    }
-  }
-);
-
-// Student: Lấy lịch đã đăng ký của chính mình
-app.get(
-  "/api/student/schedule-registrations",
-  authenticateToken,
-  async (req, res) => {
-    try {
-      const studentId = req.user?.id;
-      if (!studentId) return res.status(401).json({ message: "Thiếu token xác thực" });
-
-      const [rows] = await pool.query(
-        `SELECT
-          r.id,
-          r.student_id,
-          r.registered_at,
-          r.status,
-          s.ho_va_ten as student_name,
-          s.so_cmt as student_username,
-          c.ten_khoa_hoc as course_name,
-          c.ma_khoa_hoc as course_code,
-          sch.start_time,
-          sch.end_time,
-          sch.location
-        FROM registrations r
-        JOIN students s ON r.student_id = s.id
-        JOIN schedules sch ON r.schedule_id = sch.id
-        LEFT JOIN courses c ON sch.course_id = c.id
-        WHERE r.student_id = ?
-        ORDER BY r.registered_at DESC`,
-        [studentId]
-      );
-
-      res.json(groupScheduleRegistrations(rows));
-    } catch (err) {
-      console.error("Error fetching student schedule registrations:", err);
-      res.status(500).json({
-        message: "Lỗi lấy lịch đã đăng ký",
         error: err.message,
       });
     }
@@ -2222,7 +2134,7 @@ app.get("/api/subject-requirements", async (req, res) => {
     }
 
     const [rows] = await pool.query(
-      "SELECT * FROM subject_requirements WHERE subject_id = ? ORDER BY license_class",
+      "SELECT * FROM subject_requirements WHERE subject_id = ?",
       [subject_id]
     );
 
@@ -2235,132 +2147,6 @@ app.get("/api/subject-requirements", async (req, res) => {
     });
   }
 });
-
-// Admin: CRUD Subjects
-app.post(
-  "/api/admin/subjects",
-  authenticateToken,
-  requireAdminOrDepartment,
-  async (req, res) => {
-    const { code, name, total_hours = 0, description = null } = req.body || {};
-
-    if (!code || !String(code).trim()) {
-      return res.status(400).json({ message: "Thiếu code" });
-    }
-    if (!name || !String(name).trim()) {
-      return res.status(400).json({ message: "Thiếu name" });
-    }
-
-    try {
-      // Ensure columns exist (for older DBs)
-      try {
-        await pool.query("ALTER TABLE subjects ADD COLUMN total_hours INT DEFAULT 0");
-      } catch {}
-
-      const [[dup]] = await pool.query(
-        "SELECT id FROM subjects WHERE code = ? LIMIT 1",
-        [String(code).trim()]
-      );
-      if (dup) return res.status(409).json({ message: "Mã môn đã tồn tại" });
-
-      const [result] = await pool.query(
-        "INSERT INTO subjects (code, name, total_hours, description) VALUES (?, ?, ?, ?)",
-        [String(code).trim(), String(name).trim(), Number(total_hours) || 0, description]
-      );
-      res.json({ success: true, id: result.insertId });
-    } catch (e) {
-      res.status(500).json({ message: "Lỗi tạo môn học", error: e.message });
-    }
-  }
-);
-
-app.put(
-  "/api/admin/subjects/:id",
-  authenticateToken,
-  requireAdminOrDepartment,
-  async (req, res) => {
-    const subjectId = Number(req.params.id);
-    const { code, name, total_hours = 0, description = null } = req.body || {};
-
-    if (!subjectId) return res.status(400).json({ message: "id không hợp lệ" });
-    if (!code || !String(code).trim()) return res.status(400).json({ message: "Thiếu code" });
-    if (!name || !String(name).trim()) return res.status(400).json({ message: "Thiếu name" });
-
-    try {
-      const [[dup]] = await pool.query(
-        "SELECT id FROM subjects WHERE code = ? AND id <> ? LIMIT 1",
-        [String(code).trim(), subjectId]
-      );
-      if (dup) return res.status(409).json({ message: "Mã môn đã tồn tại" });
-
-      await pool.query(
-        "UPDATE subjects SET code = ?, name = ?, total_hours = ?, description = ? WHERE id = ?",
-        [String(code).trim(), String(name).trim(), Number(total_hours) || 0, description, subjectId]
-      );
-      res.json({ success: true });
-    } catch (e) {
-      res.status(500).json({ message: "Lỗi cập nhật môn học", error: e.message });
-    }
-  }
-);
-
-app.delete(
-  "/api/admin/subjects/:id",
-  authenticateToken,
-  requireAdminOrDepartment,
-  async (req, res) => {
-    const subjectId = Number(req.params.id);
-    if (!subjectId) return res.status(400).json({ message: "id không hợp lệ" });
-
-    try {
-      await pool.query("DELETE FROM subjects WHERE id = ?", [subjectId]);
-      res.json({ success: true });
-    } catch (e) {
-      res.status(500).json({ message: "Lỗi xóa môn học", error: e.message });
-    }
-  }
-);
-
-// Admin: bulk upsert requirements for a subject
-app.put(
-  "/api/admin/subjects/:id/requirements",
-  authenticateToken,
-  requireAdminOrDepartment,
-  async (req, res) => {
-    const subjectId = Number(req.params.id);
-    const { rows } = req.body || {};
-
-    if (!subjectId) return res.status(400).json({ message: "id không hợp lệ" });
-
-    const items = Array.isArray(rows) ? rows : [];
-    const normalized = items
-      .map((r) => ({
-        id: r?.id ? Number(r.id) : null,
-        license_class: String(r?.license_class || "").trim(),
-        required_hours: Number(r?.required_hours || 0) || 0,
-      }))
-      .filter((r) => r.license_class);
-
-    try {
-      const [[sub]] = await pool.query("SELECT id FROM subjects WHERE id = ? LIMIT 1", [subjectId]);
-      if (!sub) return res.status(404).json({ message: "Môn học không tồn tại" });
-
-      // Replace all requirements for this subject (simple + predictable)
-      await pool.query("DELETE FROM subject_requirements WHERE subject_id = ?", [subjectId]);
-
-      for (const r of normalized) {
-        await pool.query(
-          "INSERT INTO subject_requirements (subject_id, required_hours, license_class) VALUES (?, ?, ?)",
-          [subjectId, r.required_hours, r.license_class]
-        );
-      }
-
-      res.json({ success: true });
-    } catch (e) {
-      res.status(500).json({ message: "Lỗi lưu yêu cầu môn học", error: e.message });
-    }
-  }
-);
 
 
 
@@ -3382,7 +3168,7 @@ app.get("/api/simulations", async (req, res) => {
 });
 // --- ASSESSMENT APIs ---
 
-async function requireAdminOrDepartment(req, res, next) {
+const requireAdminOrDepartment = async (req, res, next) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Thiếu token xác thực" });
@@ -3396,7 +3182,7 @@ async function requireAdminOrDepartment(req, res, next) {
   } catch (e) {
     res.status(500).json({ message: "Lỗi hệ thống" });
   }
-}
+};
 
 // Admin: CRUD Questions (MCQ + choices)
 app.get("/api/admin/questions", authenticateToken, requireAdminOrDepartment, async (req, res) => {

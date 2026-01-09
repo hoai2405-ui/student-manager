@@ -29,7 +29,7 @@ const ManageLessons = () => {
       const res = await axios.get("http://localhost:3001/api/subjects");
       setSubjects(res.data);
       if (res.data.length > 0 && !selectedSubject) setSelectedSubject(res.data[0].id);
-    } catch (error) {
+    } catch {
       message.error("Lỗi tải môn học");
     }
   };
@@ -39,7 +39,7 @@ const ManageLessons = () => {
     try {
       const res = await axios.get(`http://localhost:3001/api/lessons?subject_id=${subjectId}`);
       setLessons(res.data);
-    } catch (error) {
+    } catch {
       message.error("Lỗi tải bài giảng");
     } finally {
       setLoading(false);
@@ -83,7 +83,9 @@ const ManageLessons = () => {
     let licenseTypes = [];
     try {
         licenseTypes = JSON.parse(record.license_types || "[]");
-    } catch (e) {}
+    } catch {
+      // ignore
+    }
 
     // duration_overrides từ DB hiện chưa được load theo API, giữ trống khi edit
     form.setFieldsValue({
@@ -145,8 +147,7 @@ const ManageLessons = () => {
       setUploadedFile({ url: "", type: "" });
       form.resetFields();
       fetchLessons(selectedSubject || finalSubjectId);
-    } catch (error) {
-      console.error(error);
+    } catch {
       message.error("Lỗi lưu dữ liệu");
     }
   };
@@ -157,7 +158,7 @@ const ManageLessons = () => {
       await axios.delete(`http://localhost:3001/api/lessons/${id}`);
       message.success("Đã xóa");
       fetchLessons(selectedSubject);
-    } catch (error) {
+    } catch {
       message.error("Lỗi xóa");
     }
   };
@@ -176,7 +177,7 @@ const ManageLessons = () => {
                 const types = JSON.parse(text || "[]");
                 if(!types || types.length === 0) return <Tag>Tất cả</Tag>;
                 return types.map(t => <Tag color="cyan" key={t}>{t}</Tag>);
-            } catch(e) { return <Tag>Tất cả</Tag> }
+            } catch { return <Tag>Tất cả</Tag> }
         }
     },
     { 
@@ -330,4 +331,4 @@ const ManageLessons = () => {
   );
 };
 
-export default ManageLessons;1
+export default ManageLessons;

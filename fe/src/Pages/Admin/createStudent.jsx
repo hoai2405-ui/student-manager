@@ -13,7 +13,6 @@ import {
 } from "antd";
 import { useNavigate } from "react-router-dom";
 import axios from "../../Common/axios";
-import moment from "moment";
 import { ArrowLeftOutlined, UserAddOutlined } from "@ant-design/icons";
 import { ROUTES_PATH } from "../../Common/constants";
 
@@ -51,7 +50,7 @@ const CreateStudent = ({ onCreated }) => {
       message.success("🎉 Thêm học viên thành công!");
       form.resetFields();
       onCreated?.();
-    } catch (err) {
+    } catch {
       message.error("Lỗi khi tạo học viên!");
     }
     setLoading(false);

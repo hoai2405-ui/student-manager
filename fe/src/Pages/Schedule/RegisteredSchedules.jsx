@@ -18,6 +18,7 @@ export default function RegisteredSchedules() {
   const navigate = useNavigate();
   const screens = useBreakpoint();
   const isStudentView = window.location.pathname.startsWith("/student");
+  const hasAdminAccess = !isStudentView;
 
   const [registeredSchedules, setRegisteredSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,8 +30,13 @@ export default function RegisteredSchedules() {
   const fetchRegisteredSchedules = async () => {
     setLoading(true);
     try {
-      // Fetch real registered schedules from API
-      const response = await axios.get("/api/schedule-registrations");
+      if (hasAdminAccess) {
+        const response = await axios.get("/api/schedule-registrations");
+        setRegisteredSchedules(response.data || []);
+        return;
+      }
+
+      const response = await axios.get("/api/student/schedule-registrations");
       setRegisteredSchedules(response.data || []);
     } catch (error) {
       console.error("Error fetching registered schedules:", error);
@@ -305,13 +311,15 @@ export default function RegisteredSchedules() {
         }}
         extra={
           <Space>
-            <Button
-              icon={<DownloadOutlined />}
-              onClick={handleExportExcel}
-              size={screens.xs ? "small" : "middle"}
-            >
-              {!screens.xs && "Xuất Excel"}
-            </Button>
+            {hasAdminAccess && (
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={handleExportExcel}
+                size={screens.xs ? "small" : "middle"}
+              >
+                {!screens.xs && "Xuất Excel"}
+              </Button>
+            )}
             <Button
               icon={<ArrowLeftOutlined />}
               onClick={() =>

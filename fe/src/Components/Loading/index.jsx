@@ -1,6 +1,6 @@
 import { Spin, Skeleton } from 'antd';
 import { createContext, useContext, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 
 const LoadingContext = createContext(undefined);
 

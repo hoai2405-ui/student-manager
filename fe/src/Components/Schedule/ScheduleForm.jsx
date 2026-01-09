@@ -15,8 +15,8 @@ export default function ScheduleForm({ token, onCreated }) {
   const [endDateInput, setEndDateInput] = useState("");
   const [courses, setCourses] = useState([]);
   const [loadingCourses, setLoadingCourses] = useState(false);
-  const [courseStudents, setCourseStudents] = useState([]);
-  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [, setCourseStudents] = useState([]);
+  const [, setLoadingStudents] = useState(false);
 
   useEffect(() => {
     const fetchCourses = async () => {

@@ -60,8 +60,13 @@ export function ScheduleList({ courseId, studentId, isAdmin }) {
       alert("Bạn cần đăng nhập để đăng ký lịch học");
       return;
     }
-    const basePath = isStudentView ? "/student" : "/admin";
-    navigate(`${basePath}/schedules/register/${scheduleId}`);
+
+    if (isStudentView) {
+      navigate(`/student/schedules/register/${scheduleId}`);
+      return;
+    }
+
+    navigate(`/admin/schedules/register/${scheduleId}`);
   };
 
   const toDateInput = (value) => {

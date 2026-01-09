@@ -30,7 +30,11 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (user && (!currentUser || currentUser.id !== user.id)) {
       setCurrentUser(user);
-      try { localStorage.setItem("studentInfo", JSON.stringify(user)); } catch (e) {}
+      try {
+        localStorage.setItem("studentInfo", JSON.stringify(user));
+      } catch {
+        // ignore
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -46,7 +50,11 @@ export default function StudentDashboard() {
         const stu = res.data;
         if (stu) {
           setCurrentUser(stu);
-          try { localStorage.setItem("studentInfo", JSON.stringify(stu)); } catch (e) {}
+          try {
+            localStorage.setItem("studentInfo", JSON.stringify(stu));
+          } catch {
+            // ignore
+          }
         }
       })
       .catch((e) => console.warn("Could not refresh student info", e))

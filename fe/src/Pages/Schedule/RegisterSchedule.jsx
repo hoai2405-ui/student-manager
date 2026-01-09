@@ -42,7 +42,7 @@ export default function RegisterSchedule() {
       fetchSchedule();
       fetchExistingRegistrations();
     }
-  }, [scheduleId]);
+  }, [scheduleId, fetchExistingRegistrations, fetchSchedule]);
 
   const fetchSchedule = async () => {
     setLoading(true);
@@ -61,7 +61,7 @@ export default function RegisterSchedule() {
     try {
       const response = await axios.get(`/api/schedules/${scheduleId}/registrations`);
       setExistingRegistrations(response.data || []);
-    } catch (error) {
+    } catch {
       setExistingRegistrations([]);
     }
   };
@@ -76,7 +76,7 @@ export default function RegisterSchedule() {
         const response = await axios.get(`/api/students?ma_khoa_hoc=${course.ma_khoa_hoc}`);
         setCourseStudents(response.data || []);
       }
-    } catch (error) {
+    } catch {
       setCourseStudents([]);
     }
   };
@@ -180,7 +180,8 @@ export default function RegisterSchedule() {
       for (const [studentId, timeSlots] of Object.entries(studentTimeSelections)) {
         if (timeSlots && timeSlots.length > 0) {
           try {
-            await axios.post(`/api/schedules/${scheduleId}/register`, { student_id: studentId });
+            const slotId = Array.isArray(timeSlots) && timeSlots.length ? String(timeSlots[0]) : null;
+            await axios.post(`/api/schedules/${scheduleId}/register`, { student_id: studentId, slot_id: slotId });
             successCount++;
           } catch (e) { console.error(e); }
         }
@@ -192,7 +193,7 @@ export default function RegisterSchedule() {
       } else {
         message.error("Không thể đăng ký. Có thể học viên chưa đủ điều kiện.");
       }
-    } catch (error) {
+    } catch {
       message.error("Có lỗi xảy ra khi lưu dữ liệu.");
     } finally {
       setSubmitting(false);

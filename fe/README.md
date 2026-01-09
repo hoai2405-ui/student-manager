@@ -1,8 +1,28 @@
-# React + Vite
+# Student Manager Frontend (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Yêu cầu
+- Node.js (khuyến nghị >= 18)
 
-Currently, two official plugins are available:
+## Cài đặt & chạy
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+npm run dev
+```
+
+Vite dev server sẽ in ra URL (thường là `http://localhost:5173`).
+
+## Cấu hình API
+
+Mặc định FE gọi API: `http://localhost:3001`.
+Có thể override bằng cách tạo file `fe/.env`:
+
+```env
+VITE_API_URL=http://localhost:3001
+```
+
+## Scripts
+- `npm run lint`
+- `npm run build`
+- `npm run preview`
+

@@ -10,10 +10,10 @@ export function fetchSchedules(courseId) {
   return getSchedules(courseId).then((r) => r.data);
 }
 
-export function registerSchedule(scheduleId, studentId, token) {
+export function registerSchedule(scheduleId, studentId, slotId, token) {
   return axiosClient.post(
     `/api/schedules/${scheduleId}/register`,
-    { student_id: studentId },
+    { student_id: studentId, slot_id: slotId || null },
     token ? { headers: { Authorization: `Bearer ${token}` } } : {}
   );
 }

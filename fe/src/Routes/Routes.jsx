@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -7,6 +7,29 @@ import {
   useLocation,
 } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+
+function useRouteTitle() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const path = location.pathname || "/";
+    const isAdmin = path.startsWith("/admin");
+    const isStudent = path.startsWith("/student");
+
+    if (isAdmin) {
+      document.title = "Quản lý học viên";
+      return;
+    }
+
+    if (isStudent) {
+      document.title = "E-Learning";
+      return;
+    }
+
+    // fallback
+    document.title = "E-Learning";
+  }, [location.pathname]);
+}
 
 // --- IMPORTS CỦA ADMIN ---
 import CoursePage from "../Pages/Admin/CoursePage";
@@ -21,6 +44,7 @@ import CreateStudent from "../Pages/Admin/createStudent";
 import UsersPage from "../Pages/Users/Users";
 import ManageLessons from "../Pages/Lessons/ManageLessons"; // Kiểm tra lại đường dẫn này xem đúng file chưa nhé
 import AdminAssessment from "../Pages/Admin/Assessment";
+import AdminSubjects from "../Pages/Admin/Subjects";
 import PrivateRoute from "../Components/PrivateRoute";
 import LoginPage from "../Pages/Auth/Login";
 import AdminLayout from "../Layout/AdminLayout"; // Import Layout Admin
@@ -39,6 +63,11 @@ import StudentExams from "../Pages/Student/Exams";
 import StudentPractice from "../Pages/Student/Practice";
 import LearningHistory from "../Pages/Student/LearningHistory";
 
+function TitleSync() {
+  useRouteTitle();
+  return null;
+}
+
 function RootRedirect() {
   const { user, initialized } = useAuth();
   const location = useLocation();
@@ -48,7 +77,7 @@ function RootRedirect() {
   const userInfo = user?.user ?? user;
 
   if (userInfo) {
-    return <Navigate to="/student/learning" replace state={{ from: location }} />;
+    return <Navigate to="/student" replace state={{ from: location }} />;
   }
 
   return <Navigate to="/student/login" replace />;
@@ -58,6 +87,7 @@ function RootRedirect() {
 export default function Router() {
   return (
     <BrowserRouter>
+      <TitleSync />
       <Routes>
         {/* =========================================
             PHẦN 1: ROUTE CỦA HỌC VIÊN (STUDENT)
@@ -97,6 +127,10 @@ export default function Router() {
           <Route
             path="registered-schedules"
             element={<RegisteredSchedules />}
+          />
+          <Route
+            path="schedules/register/:scheduleId"
+            element={<RegisterSchedule />}
           />
 
           <Route path="simulation" element={<SimulationPage />} />
@@ -158,6 +192,15 @@ export default function Router() {
             element={
               <PrivateRoute adminOnly={true}>
                 <UsersPage />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="subjects"
+            element={
+              <PrivateRoute adminOnly={true}>
+                <AdminSubjects />
               </PrivateRoute>
             }
           />

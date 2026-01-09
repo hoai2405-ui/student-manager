@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   Table,
@@ -111,7 +111,7 @@ export default function CoursePage() {
       await axios.delete(`/api/courses/${id}`);
       message.success("Đã xoá khoá học");
       setCourses((prev) => prev.filter((c) => c.id !== id));
-    } catch (err) {
+    } catch {
       message.error("Lỗi khi xoá khoá học");
     }
   };

@@ -27,7 +27,7 @@ const SimulationPlayer = ({ data, onNext }) => {
 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [learningTime, setLearningTime] = useState(0);
+  const [, setLearningTime] = useState(0);
 
   const [faceRequired, setFaceRequired] = useState(false);
   const [faceRefImage, setFaceRefImage] = useState(null);

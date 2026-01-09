@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   PlusOutlined,
   SearchOutlined,
@@ -139,10 +139,16 @@ const [sessionsLoading, setSessionsLoading] = useState(false);
     }
   }, [name, cccd, selectedCourse]);
 
-  const debouncedFetch = useCallback(
-    debounce(() => fetchData(), 500),
+  const debouncedFetch = useMemo(
+    () => debounce(() => fetchData(), 500),
     [fetchData]
   );
+
+  useEffect(() => {
+    return () => {
+      debouncedFetch.cancel();
+    };
+  }, [debouncedFetch]);
 
   // Effect triggers
   useEffect(() => {
@@ -153,7 +159,7 @@ const [sessionsLoading, setSessionsLoading] = useState(false);
       // Reset data khi không chọn khóa học và không tìm kiếm
       fetchData();
     }
-  }, [selectedCourse, tableParams.pagination.current]);
+  }, [selectedCourse, tableParams.pagination.current, name, cccd, fetchData]);
 
   // Tìm kiếm hoạt động bất kể có chọn khóa hay không
   useEffect(() => {
@@ -167,7 +173,7 @@ const [sessionsLoading, setSessionsLoading] = useState(false);
       // Không có từ khóa và không chọn khóa - reset data
       setData([]);
     }
-  }, [name, cccd, selectedCourse]);
+  }, [name, cccd, selectedCourse, debouncedFetch, fetchData]);
 
   // --- ACTIONS ---
   const handleEdit = (student) => {

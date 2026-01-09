@@ -1,20 +1,7 @@
 import { useEffect, useState } from "react";
 import { Table, Card, Spin, Row, Col, Statistic, Progress, Tag } from "antd";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
 import axios from "../../Common/axios";
-import { BookOutlined, UserOutlined, TeamOutlined, TrophyOutlined, ClockCircleOutlined } from "@ant-design/icons";
+import { BookOutlined, UserOutlined, TeamOutlined, TrophyOutlined } from "@ant-design/icons";
 
 export default function StatsPage() {
   const [stats, setStats] = useState(null);
@@ -46,24 +33,6 @@ export default function StatsPage() {
     );
   }
 
-  // Chuẩn bị dữ liệu cho biểu đồ tiến độ môn học
-  const subjectProgressData = stats.subject_progress?.map(subject => ({
-    name: subject.subject_name,
-    code: subject.code,
-    totalLessons: subject.total_lessons || 0,
-    completedLessons: subject.completed_lessons || 0,
-    learnedHours: Math.round(subject.total_learned_hours * 10) / 10,
-    completionRate: Math.round(subject.avg_completion_rate || 0),
-  })) || [];
-
-  // Chuẩn bị dữ liệu cho biểu đồ khóa học
-  const courseStatsData = stats.course_stats?.map(course => ({
-    name: course.ten_khoa_hoc,
-    students: course.total_students || 0,
-    passed: course.passed_students || 0,
-    failed: course.failed_students || 0,
-    avgHours: Math.round((course.avg_study_hours || 0) * 10) / 10,
-  })) || [];
 
   // Cột cho bảng học viên
   const studentColumns = [
@@ -95,7 +64,7 @@ export default function StatsPage() {
       title: 'Môn đã bắt đầu',
       dataIndex: 'subjects_started',
       key: 'subjects_started',
-      render: (count, record) => `${count}/${record.total_subjects}`,
+      render: (count, row) => `${count}/${row.total_subjects}`,
     },
   ];
 
@@ -105,10 +74,10 @@ export default function StatsPage() {
       title: 'Môn học',
       dataIndex: 'subject_name',
       key: 'subject_name',
-      render: (text, record) => (
+      render: (text, row) => (
         <div>
           <strong>{text}</strong>
-          <div style={{ fontSize: '12px', color: '#666' }}>{record.code}</div>
+          <div style={{ fontSize: '12px', color: '#666' }}>{row.code}</div>
         </div>
       )
     },
@@ -160,7 +129,7 @@ export default function StatsPage() {
       title: 'Đạt',
       dataIndex: 'passed_students',
       key: 'passed_students',
-      render: (passed, record) => (
+      render: (passed) => (
         <span style={{ color: '#52c41a' }}>{passed}</span>
       ),
     },
