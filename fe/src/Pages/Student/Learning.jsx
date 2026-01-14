@@ -214,7 +214,9 @@ export default function Learning() {
                   (ngayHienTai - ngayBatDau) / (1000 * 60 * 60 * 24)
                 );
 
-                if (soNgayDaHoc > course.so_ngay_hoc) {
+                // Khóa học hết hạn theo NGÀY HỌC = ngày bắt đầu + số_ngày_học - 1
+                // VD: bắt đầu 16/11, so_ngay_hoc=17 => hết ngày 03/12 (tính inclusive).
+                if (soNgayDaHoc >= course.so_ngay_hoc) {
                   setCourseExpired(true);
                   setCourseInfo({
                     ten_khoa_hoc: course.ten_khoa_hoc,

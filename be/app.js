@@ -77,21 +77,133 @@ const authenticateToken = (req, res, next) => {
   const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-        console.log("❌ [Auth] Không có token");
+    console.log("❌ [Auth] Không có token");
 
     return res.status(401).json({ message: "Thiếu token xác thực" });
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-        console.log("❌ [Auth] Token lỗi:", err.message);
-      return res
-        .status(403)
-        .json({ message: "Token không hợp lệ hoặc hết hạn" });
+      console.log("❌ [Auth] Token lỗi:", err.message);
+      return res.status(403).json({ message: "Token không hợp lệ hoặc hết hạn" });
     }
     req.user = user;
     next();
   });
+};
+
+function parseMysqlDateToLocal(dateVal) {
+  if (!dateVal) return null;
+  if (dateVal instanceof Date) {
+    return new Date(dateVal.getFullYear(), dateVal.getMonth(), dateVal.getDate());
+  }
+  const s = String(dateVal);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  return new Date(y, mo - 1, d);
+}
+
+function toValidDate(val) {
+  if (!val) return null;
+  const d = val instanceof Date ? val : new Date(val);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+async function getStudentCourseAccess(studentId) {
+  const [[row]] = await pool.query(
+    `SELECT
+       s.id,
+       s.ma_khoa_hoc,
+       s.makeup_from,
+       s.makeup_to,
+       c.ten_khoa_hoc,
+       c.ngay_hoc,
+       c.so_ngay_hoc
+     FROM students s
+     LEFT JOIN courses c ON c.ma_khoa_hoc = s.ma_khoa_hoc
+     WHERE s.id = ?
+     LIMIT 1`,
+    [studentId]
+  );
+
+  if (!row) {
+    return { allowed: false, reason: "STUDENT_NOT_FOUND" };
+  }
+
+  const start = parseMysqlDateToLocal(row.ngay_hoc);
+  const totalDays = Number(row.so_ngay_hoc || 0);
+
+  // Nếu khóa học chưa cấu hình thời lượng thì không chặn.
+  if (!start || totalDays <= 0) {
+    return { allowed: true, expired: false };
+  }
+
+  const end = new Date(start);
+  end.setDate(end.getDate() + (totalDays - 1));
+  end.setHours(23, 59, 59, 999);
+
+  const now = new Date();
+  const expired = now.getTime() > end.getTime();
+
+  const makeupFrom = toValidDate(row.makeup_from);
+  const makeupTo = toValidDate(row.makeup_to);
+  const inMakeup =
+    makeupFrom &&
+    makeupTo &&
+    now.getTime() >= makeupFrom.getTime() &&
+    now.getTime() <= makeupTo.getTime();
+
+  return {
+    allowed: !expired || Boolean(inMakeup),
+    expired,
+    course: {
+      ma_khoa_hoc: row.ma_khoa_hoc || null,
+      ten_khoa_hoc: row.ten_khoa_hoc || null,
+      ngay_hoc: row.ngay_hoc || null,
+      so_ngay_hoc: totalDays,
+      end_at: end.toISOString(),
+    },
+    makeup: {
+      makeup_from: makeupFrom ? makeupFrom.toISOString() : null,
+      makeup_to: makeupTo ? makeupTo.toISOString() : null,
+      in_makeup: Boolean(inMakeup),
+    },
+  };
+}
+
+const enforceStudentCourseAccess = async (req, res, next) => {
+  try {
+    // Admin/staff bypass
+    if (
+      req.user?.is_admin === 1 ||
+      req.user?.role === "admin" ||
+      req.user?.role === "department" ||
+      req.user?.role === "sogtvt"
+    ) {
+      return next();
+    }
+
+    const studentId = req.user?.id;
+    if (!studentId) {
+      return res.status(401).json({ message: "Thiếu token xác thực" });
+    }
+
+    const access = await getStudentCourseAccess(studentId);
+    if (access.allowed) return next();
+
+    return res.status(403).json({
+      message: "Khóa học đã kết thúc",
+      code: "COURSE_EXPIRED",
+      ...access,
+    });
+  } catch (e) {
+    return res
+      .status(500)
+      .json({ message: "Lỗi kiểm tra thời hạn khóa học", error: e.message });
+  }
 };
 
 // Enable CORS so the frontend (Vite dev server) can call this API.
@@ -236,9 +348,19 @@ async function createTables() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
-    // Ensure slot_id column exists for older DBs
+    // Ensure slot_id/status columns exist for older DBs
     try {
-      await pool.query("ALTER TABLE registrations ADD COLUMN slot_id VARCHAR(32) DEFAULT NULL");
+      await pool.query(
+        "ALTER TABLE registrations ADD COLUMN slot_id VARCHAR(32) DEFAULT NULL"
+      );
+    } catch (e) {
+      // ignore
+    }
+
+    try {
+      await pool.query(
+        "ALTER TABLE registrations ADD COLUMN status ENUM('active','cancelled') DEFAULT 'active'"
+      );
     } catch (e) {
       // ignore
     }
@@ -304,6 +426,18 @@ async function createTables() {
     }
     try {
       await pool.query("ALTER TABLE students ADD COLUMN face_descriptor_json LONGTEXT NULL");
+    } catch (e) {
+      // ignore
+    }
+
+    // Học bù (mở lại thời gian học sau khi hết hạn khóa)
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN makeup_from DATETIME NULL");
+    } catch (e) {
+      // ignore
+    }
+    try {
+      await pool.query("ALTER TABLE students ADD COLUMN makeup_to DATETIME NULL");
     } catch (e) {
       // ignore
     }
@@ -2004,12 +2138,16 @@ app.post("/api/schedules/:id/register", authenticateToken, checkAdmin, async (re
     const requiredRows = (progressRows || []).filter(
       (r) => Number(r.required_hours || 0) > 0
     );
-    const requiredSubjectCount = Math.max(5, requiredRows.length);
+
+    // Điều kiện: hoàn thành TỐI THIỂU 5 môn có yêu cầu giờ học.
+    // Trước đây dùng Math.max(5, requiredRows.length) => nếu có >5 môn yêu cầu,
+    // sẽ bắt học viên hoàn thành hết (khắt khe hơn nghiệp vụ), dễ gây trường hợp
+    // "tiến độ đã đạt" nhưng vẫn bị chặn đăng ký.
     const completedCount = requiredRows.filter(
       (r) => Number(r.learned_hours || 0) >= Number(r.required_hours || 0)
     ).length;
 
-    if (completedCount < requiredSubjectCount) {
+    if (completedCount < 5) {
       return res.status(400).json({
         message:
           "Học viên chưa hoàn thành đủ 5 môn lý thuyết, không thể đăng ký học cabin.",
@@ -2052,7 +2190,9 @@ app.post("/api/schedules/:id/register", authenticateToken, checkAdmin, async (re
     res.json({ success: true });
   } catch (err) {
     if (err && err.code === "ER_DUP_ENTRY") {
-      return res.status(400).json({ error: "Already registered" });
+      return res
+        .status(400)
+        .json({ message: "Học viên đã đăng ký lịch này", error: "Already registered" });
     }
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -2110,6 +2250,7 @@ const groupScheduleRegistrations = (rows) => {
         id: row.id,
         student_name: row.student_name,
         student_username: row.student_username,
+        student_avatar: row.student_avatar,
         course_name: row.course_name,
         course_code: row.course_code,
         registered_at: row.registered_at,
@@ -2118,9 +2259,11 @@ const groupScheduleRegistrations = (rows) => {
       };
     }
 
+    const start = row.start_time ? new Date(row.start_time) : null;
+
     acc[key].selected_slots.push({
-      date: new Date(row.start_time).toISOString().split("T")[0],
-      period: new Date(row.start_time).getHours() < 12 ? "morning" : "afternoon",
+      date: start ? start.toISOString().split("T")[0] : null,
+      period: start ? (start.getHours() < 12 ? "morning" : "afternoon") : null,
       start_time: row.start_time,
       end_time: row.end_time,
       location: row.location,
@@ -2147,6 +2290,7 @@ app.get(
         r.status,
         s.ho_va_ten as student_name,
         s.so_cmt as student_username,
+        s.anh_chan_dung as student_avatar,
         c.ten_khoa_hoc as course_name,
         c.ma_khoa_hoc as course_code,
         sch.start_time,
@@ -2187,6 +2331,7 @@ app.get(
           r.status,
           s.ho_va_ten as student_name,
           s.so_cmt as student_username,
+          s.anh_chan_dung as student_avatar,
           c.ten_khoa_hoc as course_name,
           c.ma_khoa_hoc as course_code,
           sch.start_time,
@@ -2398,6 +2543,15 @@ app.post("/api/student/login", async (req, res) => {
       return res.status(401).json({ message: "Không tìm thấy học viên" });
     }
 
+    const access = await getStudentCourseAccess(student.id);
+    if (!access.allowed) {
+      return res.status(403).json({
+        message: "Khóa học đã kết thúc",
+        code: "COURSE_EXPIRED",
+        ...access,
+      });
+    }
+
     // Debug log: show DB row returned for student
     console.log("[STUDENT LOGIN] student row:", student);
 
@@ -2431,6 +2585,7 @@ app.post("/api/student/login", async (req, res) => {
         role: "student",
       },
       token: token,
+      course_access: access,
     });
   } catch (err) {
     console.error("🔍 LOGIN ERROR:", err.message);
@@ -2468,6 +2623,7 @@ app.get("/api/student/face-status", authenticateToken, async (req, res) => {
 app.post(
   "/api/student/sessions/start",
   authenticateToken,
+  enforceStudentCourseAccess,
   facePhotoUpload.single("login_photo"),
   async (req, res) => {
     const studentId = req.user.id;
@@ -2506,6 +2662,7 @@ app.post(
 app.post(
   "/api/student/sessions/end",
   authenticateToken,
+  enforceStudentCourseAccess,
   facePhotoUpload.single("logout_photo"),
   async (req, res) => {
     const studentId = req.user.id;
@@ -2803,7 +2960,7 @@ app.get("/api/student/:id", async (req, res) => {
 // --- API QUẢN LÝ BÀI GIẢNG ---
 
 // 1. Lấy danh sách tất cả môn học
-app.get("/api/subjects", async (req, res) => {
+app.get("/api/subjects", authenticateToken, enforceStudentCourseAccess, async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM subjects");
     res.json(rows);
@@ -2813,7 +2970,7 @@ app.get("/api/subjects", async (req, res) => {
 });
 
 // 2. Lấy danh sách bài giảng theo Môn học (Dùng cho cả Admin và Học viên)
-app.get("/api/lessons", async (req, res) => {
+app.get("/api/lessons", authenticateToken, enforceStudentCourseAccess, async (req, res) => {
   const { subject_id, hang_gplx } = req.query;
   try {
     let sql = `
@@ -2965,7 +3122,7 @@ app.post("/api/lessons", async (req, res) => {
 
 // 3.1. Lấy chi tiết bài giảng theo ID (Dành cho Học viên)
 // 🔍 THÊM API NÀY: Lấy chi tiết 1 bài giảng theo ID
-app.get("/api/lessons/:id", async (req, res) => {
+app.get("/api/lessons/:id", authenticateToken, enforceStudentCourseAccess, async (req, res) => {
   const { hang_gplx } = req.query;
   try {
     const normalizedHang = String(hang_gplx || "").trim();
@@ -3302,7 +3459,7 @@ app.get("/api/student/summary/:id", async (req, res) => {
 });
 
 // Lưu tiến độ bài học (Dùng tên cột learned_seconds)
-app.post("/api/progress/save", authenticateToken, async (req, res) => {
+app.post("/api/progress/save", authenticateToken, enforceStudentCourseAccess, async (req, res) => {
     const { lesson_id, learned_seconds } = req.body;
     const student_id = req.user.id;
       console.log(`🔍 Saving: Student ${student_id} | Lesson ${lesson_id} | Seconds: ${learned_seconds}`);
@@ -3321,7 +3478,7 @@ res.status(500).json({ error: err.message }); }
 });
 
 // Lấy tiến độ 1 bài
-app.get("/api/progress/:lessonId", authenticateToken, async (req, res) => {
+app.get("/api/progress/:lessonId", authenticateToken, enforceStudentCourseAccess, async (req, res) => {
     const studentId = req.user.id;
     const lessonId = req.params.lessonId;
     try {

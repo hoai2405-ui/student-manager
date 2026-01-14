@@ -55,8 +55,23 @@ instance.interceptors.response.use(
   (error) => {
     // Nếu lỗi 401 (Chưa login) hoặc 403 (Token sai)
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-        // Skip redirect for student progress APIs (they handle errors gracefully)
         const url = error.config?.url || '';
+        const code = error.response?.data?.code;
+
+        // Nếu khóa học hết hạn: KHÔNG logout, chỉ báo và điều hướng về trang chủ học viên
+        if (code === 'COURSE_EXPIRED') {
+            const isStudentPage = window.location.pathname.startsWith("/student");
+            if (isStudentPage) {
+                const msg = error.response?.data?.message || 'Khóa học đã kết thúc';
+                // Dùng alert tối giản để tránh phụ thuộc antd ở layer axios.
+                // (UI pages vẫn có thể show Modal nếu muốn.)
+                window.alert(msg);
+                window.location.href = "/student";
+                return Promise.reject(error);
+            }
+        }
+
+        // Skip redirect for student progress APIs (they handle errors gracefully)
         console.log("🔍 API error for URL:", url, "Status:", error.response.status);
 
         if (url.includes('/api/student/dashboard/') || url.includes('/api/student/summary/') || url.includes('/api/progress/') || url.includes('/api/student/learning-history')) {

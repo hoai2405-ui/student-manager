@@ -1,5 +1,24 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, Table, Button, message, Grid, Tag, Space, Avatar } from "antd";
+
+const getAvatarSrc = (imgData) => {
+  if (!imgData) return null;
+  if (typeof imgData !== "string") return null;
+  if (imgData.includes("/") && !imgData.includes("base64")) {
+    if (imgData.startsWith("/uploads"))
+      return `${
+        import.meta.env.VITE_API_URL || "http://localhost:3001"
+      }${imgData}`;
+    return imgData;
+  }
+  const cleanData = imgData.replace(/[\r\n\s]+/g, "");
+  if (cleanData.startsWith("data:image")) return cleanData;
+  if (/^[A-Za-z0-9+/=]+$/.test(cleanData) && cleanData.length > 100) {
+    return `data:image/jpeg;base64,${cleanData}`;
+  }
+  return null;
+};
+
 import {
   ArrowLeftOutlined,
   CalendarOutlined,
@@ -23,11 +42,7 @@ export default function RegisteredSchedules() {
   const [registeredSchedules, setRegisteredSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchRegisteredSchedules();
-  }, []);
-
-  const fetchRegisteredSchedules = async () => {
+  const fetchRegisteredSchedules = useCallback(async function fetchRegisteredSchedules() {
     setLoading(true);
     try {
       if (hasAdminAccess) {
@@ -45,7 +60,11 @@ export default function RegisteredSchedules() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [hasAdminAccess]);
+
+  useEffect(() => {
+    fetchRegisteredSchedules();
+  }, [fetchRegisteredSchedules]);
 
   const getSlotLabel = (slot) => {
     const periodText = slot.period === "morning" ? "Sáng" : "Chiều";
@@ -167,24 +186,37 @@ export default function RegisteredSchedules() {
       title: "Học viên",
       dataIndex: "student_name",
       key: "student",
-      width: 200,
+      width: 260,
       render: (_, record) => (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Avatar
+            src={getAvatarSrc(record.student_avatar)}
             style={{
               background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
               color: "white",
+              flexShrink: 0,
             }}
             icon={<UserOutlined />}
           >
-            {record.student_name.charAt(0)}
+            {(record.student_name || "?").charAt(0)}
           </Avatar>
-          <div>
-            <div style={{ fontWeight: 600, color: "#ffffff" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
+          >
+            <div
+              style={{
+                fontWeight: 600,
+                color: "#111827",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+              title={record.student_name}
+            >
               {record.student_name}
             </div>
-            <div style={{ fontSize: "0.8rem", color: "#b8c5d6" }}>
-              @{record.student_username}
+            <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
+              CCCD: {record.student_username || "---"}
             </div>
           </div>
         </div>

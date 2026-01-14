@@ -36,6 +36,12 @@ console.log("👉 CCCD nhập:", soCmt);
       localStorage.setItem("studentToken", data.token);
       localStorage.setItem("studentInfo", JSON.stringify(data.user));
 
+      // Nếu backend trả về course_access và khóa học đã hết hạn thì chặn ngay từ lúc đăng nhập
+      const access = data.course_access;
+      if (access && access.expired && !access.makeup?.in_makeup) {
+        throw new Error("Khóa học đã kết thúc");
+      }
+
       login(data.user, data.token);
 
       navigate("/student");
